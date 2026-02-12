@@ -57,27 +57,38 @@ def _parse_translations(response: str, expected_count: int) -> List[str]:
         lines = [l for l in lines if not l.strip().startswith("```")]
         text = "\n".join(lines).strip()
 
+    parsed = None
+
     try:
         result = json.loads(text)
-        if isinstance(result, list) and len(result) == expected_count:
-            return [str(t) for t in result]
+        if isinstance(result, list):
+            parsed = [str(t) for t in result]
     except json.JSONDecodeError:
         pass
 
     # Try to find JSON array in the response
-    start = text.find("[")
-    end = text.rfind("]")
-    if start != -1 and end != -1:
-        try:
-            result = json.loads(text[start:end + 1])
-            if isinstance(result, list) and len(result) == expected_count:
-                return [str(t) for t in result]
-        except json.JSONDecodeError:
-            pass
+    if parsed is None:
+        start = text.find("[")
+        end = text.rfind("]")
+        if start != -1 and end != -1:
+            try:
+                result = json.loads(text[start:end + 1])
+                if isinstance(result, list):
+                    parsed = [str(t) for t in result]
+            except json.JSONDecodeError:
+                pass
 
-    # Return empty translations if parsing fails
-    print(f"[Translator] Warning: failed to parse {expected_count} translations from response")
-    return [""] * expected_count
+    if parsed is None:
+        print(f"[Translator] Warning: failed to parse translations from response")
+        print(f"[Translator] Response preview: {text[:200]}")
+        return [""] * expected_count
+
+    # Pad or truncate to match expected count
+    if len(parsed) != expected_count:
+        print(f"[Translator] Warning: got {len(parsed)} translations, expected {expected_count}. Adjusting...")
+    while len(parsed) < expected_count:
+        parsed.append("")
+    return parsed[:expected_count]
 
 
 def translate_segments(segments: list) -> list:

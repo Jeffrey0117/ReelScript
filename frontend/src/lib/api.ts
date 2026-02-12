@@ -1,5 +1,5 @@
 const DEV = import.meta.env.DEV;
-const API_BASE = DEV ? 'http://localhost:8002' : '';
+const API_BASE = DEV ? 'http://localhost:8003' : '';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	const res = await fetch(`${API_BASE}${path}`, {
@@ -72,7 +72,7 @@ export const videoFileUrl = (filename: string) => `${API_BASE}/videos/${filename
 // WebSocket
 export function connectWS(onMessage: (data: Record<string, unknown>) => void): WebSocket {
 	const wsProtocol = DEV ? 'ws' : (location.protocol === 'https:' ? 'wss' : 'ws');
-	const wsHost = DEV ? 'localhost:8002' : location.host;
+	const wsHost = DEV ? 'localhost:8003' : location.host;
 	const ws = new WebSocket(`${wsProtocol}://${wsHost}/ws`);
 	ws.onmessage = (event) => {
 		try {

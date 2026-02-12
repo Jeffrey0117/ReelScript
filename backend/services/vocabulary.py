@@ -52,25 +52,36 @@ def _parse_vocabulary(response: str, expected_count: int) -> list:
         lines = [l for l in lines if not l.strip().startswith("```")]
         text = "\n".join(lines).strip()
 
+    parsed = None
+
     try:
         result = json.loads(text)
-        if isinstance(result, list) and len(result) == expected_count:
-            return result
+        if isinstance(result, list):
+            parsed = result
     except json.JSONDecodeError:
         pass
 
-    start = text.find("[")
-    end = text.rfind("]")
-    if start != -1 and end != -1:
-        try:
-            result = json.loads(text[start:end + 1])
-            if isinstance(result, list) and len(result) == expected_count:
-                return result
-        except json.JSONDecodeError:
-            pass
+    if parsed is None:
+        start = text.find("[")
+        end = text.rfind("]")
+        if start != -1 and end != -1:
+            try:
+                result = json.loads(text[start:end + 1])
+                if isinstance(result, list):
+                    parsed = result
+            except json.JSONDecodeError:
+                pass
 
-    print(f"[Vocabulary] Warning: failed to parse vocabulary for {expected_count} segments")
-    return [[] for _ in range(expected_count)]
+    if parsed is None:
+        print(f"[Vocabulary] Warning: failed to parse vocabulary from response")
+        print(f"[Vocabulary] Response preview: {text[:200]}")
+        return [[] for _ in range(expected_count)]
+
+    if len(parsed) != expected_count:
+        print(f"[Vocabulary] Warning: got {len(parsed)} results, expected {expected_count}. Adjusting...")
+    while len(parsed) < expected_count:
+        parsed.append([])
+    return parsed[:expected_count]
 
 
 def analyze_segments(segments: list) -> list:

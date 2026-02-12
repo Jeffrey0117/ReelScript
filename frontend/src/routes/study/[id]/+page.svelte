@@ -132,6 +132,9 @@
 						<div class="bilingual-row">
 							<span class="row-num">{i + 1}</span>
 							<div class="row-content">
+								{#if seg.translation}
+									<p class="row-zh">{seg.translation}</p>
+								{/if}
 								<p class="row-en">
 									{#if seg.vocabulary?.length}
 										{@html highlightVocabulary(seg.text, seg.vocabulary)}
@@ -139,9 +142,6 @@
 										{seg.text}
 									{/if}
 								</p>
-								{#if seg.translation}
-									<p class="row-zh">{seg.translation}</p>
-								{/if}
 							</div>
 						</div>
 					{/each}
@@ -290,13 +290,13 @@
 		min-width: 0;
 	}
 
-	.row-en {
+	.row-zh {
 		font-size: 16px;
 		line-height: 1.7;
 		margin-bottom: 2px;
 	}
 
-	.row-zh {
+	.row-en {
 		font-size: 15px;
 		line-height: 1.6;
 		color: var(--text-dim);
