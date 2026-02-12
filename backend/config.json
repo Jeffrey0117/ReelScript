@@ -1,0 +1,13 @@
+{
+  "whisper": {
+    "model": "base",
+    "language": "en",
+    "device": "auto",
+    "compute_type": "int8",
+    "vad_filter": true,
+    "max_words_per_segment": 12,
+    "vad_parameters": {
+      "min_silence_duration_ms": 500
+    }
+  }
+}
