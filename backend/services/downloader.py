@@ -69,7 +69,18 @@ def _ensure_h264(filepath: Path) -> None:
         )
 
         if video_codec == "h264":
-            logger.info(f"[Downloader] {filepath.name} already H.264, skipping re-encode")
+            logger.info(f"[Downloader] {filepath.name} already H.264, applying faststart...")
+            tmp = filepath.with_suffix(".tmp.mp4")
+            subprocess.run(
+                [
+                    "ffmpeg", "-i", str(filepath),
+                    "-c:v", "copy", "-c:a", "copy",
+                    "-movflags", "+faststart", "-y", str(tmp),
+                ],
+                capture_output=True, timeout=120, check=True,
+            )
+            filepath.unlink()
+            tmp.rename(filepath)
             return
 
         logger.info(f"[Downloader] Re-encoding {filepath.name} from {video_codec} to H.264...")
@@ -78,7 +89,8 @@ def _ensure_h264(filepath: Path) -> None:
             [
                 "ffmpeg", "-i", str(filepath),
                 "-c:v", "libx264", "-crf", "23", "-preset", "fast",
-                "-c:a", "copy", "-y", str(tmp),
+                "-c:a", "copy", "-movflags", "+faststart",
+                "-y", str(tmp),
             ],
             capture_output=True, timeout=600, check=True,
         )
