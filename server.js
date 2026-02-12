@@ -5,12 +5,15 @@
 
 import { spawn } from 'child_process';
 import { createServer } from 'http';
+import { createReadStream, statSync } from 'fs';
+import { join, extname } from 'path';
 import { handler } from './frontend/build/handler.js';
 import httpProxy from 'http-proxy';
 
 const PORT = parseInt(process.env.PORT || '4005', 10);
 const BACKEND_PORT = PORT + 1000; // Internal backend port
 const BACKEND_HOST = `http://127.0.0.1:${BACKEND_PORT}`;
+const VIDEOS_DIR = join(import.meta.dirname, 'data', 'videos');
 
 // Create reverse proxy for API calls
 const proxy = httpProxy.createProxyServer({
@@ -46,9 +49,55 @@ backend.on('exit', (code) => {
 	process.exit(1);
 });
 
-// HTTP server that routes API calls to backend, everything else to SvelteKit
+// Serve video files directly with Range support (mobile needs this)
+function serveVideo(req, res) {
+	const filename = decodeURIComponent(req.url.replace('/videos/', ''));
+	if (filename.includes('..') || filename.includes('/')) {
+		res.writeHead(400);
+		res.end('Bad request');
+		return;
+	}
+
+	const filePath = join(VIDEOS_DIR, filename);
+	let stat;
+	try {
+		stat = statSync(filePath);
+	} catch {
+		res.writeHead(404);
+		res.end('Not found');
+		return;
+	}
+
+	const mimeTypes = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg' };
+	const contentType = mimeTypes[extname(filename)] || 'application/octet-stream';
+	const range = req.headers.range;
+
+	if (range) {
+		const parts = range.replace(/bytes=/, '').split('-');
+		const start = parseInt(parts[0], 10);
+		const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+		res.writeHead(206, {
+			'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+			'Accept-Ranges': 'bytes',
+			'Content-Length': end - start + 1,
+			'Content-Type': contentType,
+		});
+		createReadStream(filePath, { start, end }).pipe(res);
+	} else {
+		res.writeHead(200, {
+			'Content-Length': stat.size,
+			'Content-Type': contentType,
+			'Accept-Ranges': 'bytes',
+		});
+		createReadStream(filePath).pipe(res);
+	}
+}
+
+// HTTP server: videos direct, API to backend, rest to SvelteKit
 const server = createServer((req, res) => {
-	if (req.url?.startsWith('/api/') || req.url?.startsWith('/videos/')) {
+	if (req.url?.startsWith('/videos/')) {
+		serveVideo(req, res);
+	} else if (req.url?.startsWith('/api/')) {
 		proxy.web(req, res);
 	} else {
 		handler(req, res);
