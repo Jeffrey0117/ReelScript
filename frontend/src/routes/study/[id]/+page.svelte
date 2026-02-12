@@ -30,7 +30,7 @@
 	);
 
 	let fullChinese = $derived(
-		segments.map((s) => s.translation || '').join('')
+		segments.filter((s) => s.translation).map((s) => s.translation).join('，')
 	);
 
 	let appreciation = $derived(video?.transcript?.appreciation ?? null);
@@ -43,44 +43,33 @@
 	}
 
 	let sentences = $derived.by(() => {
-		const fullEn = segments.map((s) => s.text).join(' ');
-		const fullZh = segments.map((s) => s.translation || '').join('');
+		const result: MergedSentence[] = [];
+		let enBuf = '';
+		let zhParts: string[] = [];
+		let vocabBuf: VocabularyItem[] = [];
 
-		// Split English into sentences by .!?
-		const enSentences = fullEn.match(/[^.!?]+[.!?]+/g)?.map((s) => s.trim()) || [];
-		if (!enSentences.length && fullEn.trim()) enSentences.push(fullEn.trim());
+		for (const seg of segments) {
+			enBuf += (enBuf ? ' ' : '') + seg.text;
+			if (seg.translation) zhParts.push(seg.translation);
+			vocabBuf = [...vocabBuf, ...(seg.vocabulary ?? [])];
 
-		// Split Chinese into sentences by 。！？
-		let zhSentences: string[] = [];
-		if (/[。！？]/.test(fullZh)) {
-			zhSentences = fullZh.split(/(?<=[。！？])/).map((s) => s.trim()).filter(Boolean);
-		} else if (fullZh.trim()) {
-			// No Chinese sentence punctuation — split by ，and group to match English count
-			const clauses = fullZh.split(/[，,]/).filter((s) => s.trim());
-			if (clauses.length <= enSentences.length) {
-				zhSentences = clauses;
-			} else {
-				const perGroup = Math.ceil(clauses.length / enSentences.length);
-				for (let i = 0; i < clauses.length; i += perGroup) {
-					zhSentences.push(clauses.slice(i, i + perGroup).join('，'));
-				}
+			// Split on sentence-ending punctuation
+			if (/[.!?]$/.test(seg.text.trim())) {
+				result.push({
+					en: enBuf.trim(),
+					zh: zhParts.join('，'),
+					vocabulary: vocabBuf,
+				});
+				enBuf = '';
+				zhParts = [];
+				vocabBuf = [];
 			}
 		}
-
-		// Collect all vocabulary for text matching
-		const allVocab = segments.flatMap((s) => s.vocabulary ?? []);
-
-		return enSentences.map((en, i) => {
-			const matchedVocab = allVocab.filter((v) => {
-				const escaped = v.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-				return new RegExp(`\\b${escaped}\\b`, 'i').test(en);
-			});
-			return {
-				en,
-				zh: zhSentences[i] || '',
-				vocabulary: matchedVocab,
-			};
-		});
+		// Flush remaining
+		if (enBuf.trim()) {
+			result.push({ en: enBuf.trim(), zh: zhParts.join('，'), vocabulary: vocabBuf });
+		}
+		return result;
 	});
 
 	let allVocabulary = $derived(
