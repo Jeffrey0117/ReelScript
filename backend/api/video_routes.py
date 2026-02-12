@@ -13,6 +13,7 @@ from models import get_db, Video, Transcript
 from services.downloader import download_video, get_video_info, VIDEOS_DIR
 from services.transcriber import transcriber
 from services.translator import translate_segments
+from services.vocabulary import analyze_segments
 from api.websocket import manager
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
@@ -244,4 +245,36 @@ async def translate_video(video_id: str, db: Session = Depends(get_db)):
             "type": "translate_error",
             "data": {"video_id": video_id, "error": str(e)},
         })
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{video_id}/analyze-vocabulary")
+async def analyze_video_vocabulary(video_id: str, db: Session = Depends(get_db)):
+    """Analyze transcript segments for difficult vocabulary words."""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    transcript = video.transcript
+    if not transcript or not transcript.segments:
+        raise HTTPException(status_code=400, detail="No transcript available")
+
+    # Check if already analyzed
+    has_vocab = any(
+        seg.get("vocabulary") for seg in transcript.segments
+    )
+    if has_vocab:
+        return {"success": True, "message": "Already analyzed", "segments": transcript.segments}
+
+    try:
+        loop = asyncio.get_running_loop()
+        analyzed = await loop.run_in_executor(
+            None, analyze_segments, transcript.segments
+        )
+
+        transcript.segments = analyzed
+        db.commit()
+
+        return {"success": True, "segments": analyzed}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

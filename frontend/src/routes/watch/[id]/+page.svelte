@@ -213,6 +213,9 @@
 						{t('loopOne')}
 					{/if}
 				</button>
+				<a href="/study/{video.id}" class="btn btn-primary">
+					{t('studyMode')}
+				</a>
 				<button class="btn btn-ghost" onclick={openCollectionPicker}>
 					{t('addToCollection')}
 				</button>

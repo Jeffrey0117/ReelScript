@@ -52,6 +52,17 @@ const translations = {
 		noCollectionsYet: '還沒有收藏集，請先到收藏集頁面建立。',
 		removeFromCollection: '移除',
 		notes: '筆記',
+
+		// Study page
+		studyMode: '學習模式',
+		backToVideo: '返回影片',
+		analyzing: '分析單字中...',
+		analyzeVocab: '分析單字',
+		vocabularyList: '單字總覽',
+		word: '單字',
+		meaning: '意思',
+		noVocabulary: '尚無單字分析。',
+		preparing: '準備學習內容中...',
 	},
 	en: {
 		// Navbar
@@ -104,6 +115,17 @@ const translations = {
 		noCollectionsYet: 'No collections yet. Create one from the Collections page.',
 		removeFromCollection: 'Remove',
 		notes: 'Notes',
+
+		// Study page
+		studyMode: 'Study Mode',
+		backToVideo: 'Back to Video',
+		analyzing: 'Analyzing vocabulary...',
+		analyzeVocab: 'Analyze Vocab',
+		vocabularyList: 'Vocabulary List',
+		word: 'Word',
+		meaning: 'Meaning',
+		noVocabulary: 'No vocabulary analysis yet.',
+		preparing: 'Preparing study content...',
 	},
 } as const;
 

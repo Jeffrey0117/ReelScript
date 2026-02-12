@@ -33,6 +33,11 @@ export const translateVideo = (id: string) =>
 		method: 'POST',
 	});
 
+export const analyzeVocabulary = (id: string) =>
+	request<{ success: boolean; segments: TranscriptSegment[] }>(`/api/videos/${id}/analyze-vocabulary`, {
+		method: 'POST',
+	});
+
 // Collections
 export const createCollection = (name: string, description?: string) =>
 	request<{ id: string; name: string }>('/api/collections', {
@@ -93,12 +98,18 @@ export interface Video {
 	created_at: string | null;
 }
 
+export interface VocabularyItem {
+	word: string;
+	translation: string;
+}
+
 export interface TranscriptSegment {
 	index: number;
 	start: number;
 	end: number;
 	text: string;
 	translation: string;
+	vocabulary: VocabularyItem[];
 }
 
 export interface VideoDetail extends Video {
