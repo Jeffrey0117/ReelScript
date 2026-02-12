@@ -6,6 +6,7 @@
 		translateVideo,
 		analyzeVocabulary,
 		appreciateVideo,
+		videoFileUrl,
 		type VideoDetail,
 		type VocabularyItem,
 		type Appreciation,
@@ -18,6 +19,13 @@
 	let analyzing = $state(false);
 	let appreciating = $state(false);
 
+	// Audio player state
+	let audioEl = $state<HTMLAudioElement | null>(null);
+	let playing = $state(false);
+	let currentTime = $state(0);
+	let duration = $state(0);
+	let playbackRate = $state(1);
+
 	let videoId = '';
 	page.subscribe((p) => {
 		videoId = p.params.id ?? '';
@@ -29,13 +37,18 @@
 		segments.map((s) => s.text).join(' ')
 	);
 
+	// Sentence translations already end with 。so just join directly
 	let fullChinese = $derived(
-		segments.filter((s) => s.translation).map((s) => s.translation).join('，')
+		segments.filter((s) => s.translation).map((s) => s.translation).join('')
 	);
 
 	let appreciation = $derived(video?.transcript?.appreciation ?? null);
 
-	// Merge into proper sentences by splitting full text independently
+	let audioSrc = $derived(
+		video?.filename ? videoFileUrl(video.filename) : ''
+	);
+
+	// Merge whisper fragments into proper sentences
 	interface MergedSentence {
 		en: string;
 		zh: string;
@@ -53,11 +66,10 @@
 			if (seg.translation) zhParts.push(seg.translation);
 			vocabBuf = [...vocabBuf, ...(seg.vocabulary ?? [])];
 
-			// Split on sentence-ending punctuation
 			if (/[.!?]$/.test(seg.text.trim())) {
 				result.push({
 					en: enBuf.trim(),
-					zh: zhParts.join('，'),
+					zh: zhParts.join(''),
 					vocabulary: vocabBuf,
 				});
 				enBuf = '';
@@ -65,9 +77,8 @@
 				vocabBuf = [];
 			}
 		}
-		// Flush remaining
 		if (enBuf.trim()) {
-			result.push({ en: enBuf.trim(), zh: zhParts.join('，'), vocabulary: vocabBuf });
+			result.push({ en: enBuf.trim(), zh: zhParts.join(''), vocabulary: vocabBuf });
 		}
 		return result;
 	});
@@ -147,6 +158,45 @@
 		}
 		return result;
 	}
+
+	// Audio controls
+	function togglePlay() {
+		if (!audioEl) return;
+		if (playing) {
+			audioEl.pause();
+		} else {
+			audioEl.play();
+		}
+	}
+
+	function onTimeUpdate() {
+		if (audioEl) currentTime = audioEl.currentTime;
+	}
+
+	function onLoadedMetadata() {
+		if (audioEl) duration = audioEl.duration;
+	}
+
+	function seekTo(e: MouseEvent) {
+		if (!audioEl || !duration) return;
+		const bar = e.currentTarget as HTMLElement;
+		const rect = bar.getBoundingClientRect();
+		const ratio = (e.clientX - rect.left) / rect.width;
+		audioEl.currentTime = ratio * duration;
+	}
+
+	function cycleSpeed() {
+		const speeds = [1, 1.25, 1.5, 0.75];
+		const idx = speeds.indexOf(playbackRate);
+		playbackRate = speeds[(idx + 1) % speeds.length];
+		if (audioEl) audioEl.playbackRate = playbackRate;
+	}
+
+	function formatTime(sec: number): string {
+		const m = Math.floor(sec / 60);
+		const s = Math.floor(sec % 60);
+		return `${m}:${s.toString().padStart(2, '0')}`;
+	}
 </script>
 
 <svelte:head>
@@ -171,6 +221,35 @@
 				</span>
 			{/if}
 		</div>
+
+		<!-- Audio Player Bar -->
+		{#if audioSrc}
+			<div class="audio-bar">
+				<audio
+					bind:this={audioEl}
+					src={audioSrc}
+					on:timeupdate={onTimeUpdate}
+					on:loadedmetadata={onLoadedMetadata}
+					on:play={() => playing = true}
+					on:pause={() => playing = false}
+					on:ended={() => playing = false}
+					preload="metadata"
+				></audio>
+				<button class="audio-play-btn" on:click={togglePlay}>
+					{playing ? '⏸' : '▶'}
+				</button>
+				<span class="audio-time">{formatTime(currentTime)}</span>
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div class="audio-progress" on:click={seekTo}>
+					<div class="audio-progress-fill" style="width: {duration ? (currentTime / duration * 100) : 0}%"></div>
+				</div>
+				<span class="audio-time">{formatTime(duration)}</span>
+				<button class="audio-speed-btn" on:click={cycleSpeed}>
+					{playbackRate}x
+				</button>
+			</div>
+		{/if}
 
 		{#if segments.length > 0}
 			<!-- Section 1: 主旨 (top) -->
@@ -290,7 +369,7 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 16px;
-		margin-bottom: 40px;
+		margin-bottom: 20px;
 		flex-wrap: wrap;
 	}
 
@@ -317,6 +396,80 @@
 	@keyframes pulse {
 		0%, 100% { opacity: 1; }
 		50% { opacity: 0.5; }
+	}
+
+	/* Audio Player Bar */
+	.audio-bar {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 12px 16px;
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		margin-bottom: 32px;
+	}
+
+	.audio-play-btn {
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
+		border: none;
+		background: var(--accent);
+		color: white;
+		font-size: 14px;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		transition: background 0.15s;
+	}
+
+	.audio-play-btn:hover {
+		background: var(--accent-hover);
+	}
+
+	.audio-time {
+		font-size: 12px;
+		color: var(--text-dim);
+		font-variant-numeric: tabular-nums;
+		min-width: 36px;
+		flex-shrink: 0;
+	}
+
+	.audio-progress {
+		flex: 1;
+		height: 6px;
+		background: var(--border);
+		border-radius: 3px;
+		cursor: pointer;
+		position: relative;
+		min-width: 0;
+	}
+
+	.audio-progress-fill {
+		height: 100%;
+		background: var(--accent);
+		border-radius: 3px;
+		transition: width 0.1s linear;
+	}
+
+	.audio-speed-btn {
+		padding: 2px 8px;
+		border-radius: 12px;
+		border: 1px solid var(--border);
+		background: transparent;
+		color: var(--text-dim);
+		font-size: 12px;
+		cursor: pointer;
+		flex-shrink: 0;
+		transition: border-color 0.15s, color 0.15s;
+	}
+
+	.audio-speed-btn:hover {
+		border-color: var(--accent);
+		color: var(--accent);
 	}
 
 	/* Sections */
@@ -525,7 +678,7 @@
 
 	@media (max-width: 640px) {
 		.study-header {
-			margin-bottom: 24px;
+			margin-bottom: 12px;
 		}
 
 		.study-header-left {
@@ -536,6 +689,18 @@
 
 		.study-header h1 {
 			font-size: 17px;
+		}
+
+		.audio-bar {
+			gap: 8px;
+			padding: 10px 12px;
+			margin-bottom: 24px;
+		}
+
+		.audio-play-btn {
+			width: 32px;
+			height: 32px;
+			font-size: 12px;
 		}
 
 		.section {
