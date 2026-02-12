@@ -20,30 +20,29 @@
 		videoId = p.params.id ?? '';
 	});
 
-	// Derived: all unique vocabulary items
+	let segments = $derived(video?.transcript?.segments ?? []);
+
+	let fullEnglish = $derived(
+		segments.map((s) => s.text).join(' ')
+	);
+
+	let fullChinese = $derived(
+		segments.filter((s) => s.translation).map((s) => s.translation).join(' ')
+	);
+
 	let allVocabulary = $derived(
-		(video?.transcript?.segments ?? [])
+		segments
 			.flatMap((s) => s.vocabulary ?? [])
 			.filter((v, i, arr) => arr.findIndex((a) => a.word === v.word) === i)
-	);
-
-	let hasTranslation = $derived(
-		video?.transcript?.segments?.some((s) => s.translation) ?? false
-	);
-
-	let hasVocabulary = $derived(
-		video?.transcript?.segments?.some((s) => s.vocabulary?.length) ?? false
 	);
 
 	onMount(async () => {
 		video = await getVideo(videoId);
 		loading = false;
 
-		// Auto-trigger translation if not done
 		if (video?.transcript?.segments && !video.transcript.segments.some((s) => s.translation)) {
 			await handleTranslate();
 		}
-		// Auto-trigger vocabulary if not done
 		if (video?.transcript?.segments && !video.transcript.segments.some((s) => s.vocabulary?.length)) {
 			await handleAnalyze();
 		}
@@ -55,10 +54,7 @@
 		try {
 			const result = await translateVideo(video.id);
 			if (result.success && video.transcript) {
-				video = {
-					...video,
-					transcript: { ...video.transcript, segments: result.segments },
-				};
+				video = { ...video, transcript: { ...video.transcript, segments: result.segments } };
 			}
 		} catch (e) {
 			console.error('Translation failed:', e);
@@ -73,10 +69,7 @@
 		try {
 			const result = await analyzeVocabulary(video.id);
 			if (result.success && video.transcript) {
-				video = {
-					...video,
-					transcript: { ...video.transcript, segments: result.segments },
-				};
+				video = { ...video, transcript: { ...video.transcript, segments: result.segments } };
 			}
 		} catch (e) {
 			console.error('Vocabulary analysis failed:', e);
@@ -85,18 +78,12 @@
 		}
 	}
 
-	function formatTime(seconds: number): string {
-		const m = Math.floor(seconds / 60);
-		const s = Math.floor(seconds % 60);
-		return `${m}:${s.toString().padStart(2, '0')}`;
-	}
-
 	function highlightVocabulary(text: string, vocabulary: VocabularyItem[]): string {
 		let result = text;
 		for (const v of vocabulary) {
 			const escaped = v.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 			const regex = new RegExp(`\\b(${escaped})\\b`, 'gi');
-			result = result.replace(regex, '<mark class="vocab-highlight">$1</mark>');
+			result = result.replace(regex, '<mark class="vocab-hl">$1</mark>');
 		}
 		return result;
 	}
@@ -111,67 +98,65 @@
 {:else if !video}
 	<div class="loading">Video not found</div>
 {:else}
-	<div class="study-layout">
+	<div class="study-page">
 		<!-- Header -->
 		<div class="study-header">
 			<div class="study-header-left">
 				<a href="/watch/{video.id}" class="btn btn-ghost">{t('backToVideo')}</a>
 				<h1>{video.title || t('untitled')}</h1>
 			</div>
-			<div class="study-header-actions">
-				{#if translating || analyzing}
-					<span class="status-pill">
-						{translating ? t('translating') : t('analyzing')}
-					</span>
-				{/if}
-			</div>
+			{#if translating || analyzing}
+				<span class="status-pill">
+					{translating ? t('translating') : t('analyzing')}
+				</span>
+			{/if}
 		</div>
 
-		<div class="study-content">
-			<!-- Main: Transcript Segments -->
-			<div class="segments-panel">
-				{#if video.transcript?.segments}
-					{#each video.transcript.segments as segment (segment.index)}
-						<div class="study-segment">
-							<span class="seg-time">{formatTime(segment.start)}</span>
-							<div class="seg-body">
-								<p class="seg-english">
-									{#if segment.vocabulary?.length}
-										{@html highlightVocabulary(segment.text, segment.vocabulary)}
+		{#if segments.length > 0}
+			<!-- Section 1: Full Text -->
+			<section class="section">
+				<h2>{t('fullText')}</h2>
+				<div class="fulltext-block">
+					<div class="fulltext-en">{fullEnglish}</div>
+					{#if fullChinese}
+						<div class="fulltext-zh">{fullChinese}</div>
+					{/if}
+				</div>
+			</section>
+
+			<!-- Section 2: Sentence-by-Sentence Bilingual -->
+			<section class="section">
+				<h2>{t('transcript')}</h2>
+				<div class="bilingual-list">
+					{#each segments as seg, i (seg.index)}
+						<div class="bilingual-row">
+							<span class="row-num">{i + 1}</span>
+							<div class="row-content">
+								<p class="row-en">
+									{#if seg.vocabulary?.length}
+										{@html highlightVocabulary(seg.text, seg.vocabulary)}
 									{:else}
-										{segment.text}
+										{seg.text}
 									{/if}
 								</p>
-								{#if segment.translation}
-									<p class="seg-chinese">{segment.translation}</p>
-								{/if}
-								{#if segment.vocabulary?.length}
-									<div class="seg-vocab">
-										{#each segment.vocabulary as v}
-											<span class="vocab-chip">
-												<strong>{v.word}</strong> {v.translation}
-											</span>
-										{/each}
-									</div>
+								{#if seg.translation}
+									<p class="row-zh">{seg.translation}</p>
 								{/if}
 							</div>
 						</div>
 					{/each}
-				{:else}
-					<p class="empty">{t('noTranscript')}</p>
-				{/if}
-			</div>
+				</div>
+			</section>
 
-			<!-- Sidebar: Vocabulary Summary -->
-			<div class="vocab-sidebar">
+			<!-- Section 3: Vocabulary -->
+			<section class="section">
 				<h2>{t('vocabularyList')}</h2>
 				{#if allVocabulary.length > 0}
-					<div class="vocab-count">{allVocabulary.length} {t('word')}</div>
-					<div class="vocab-table">
+					<div class="vocab-grid">
 						{#each allVocabulary as v}
-							<div class="vocab-row">
-								<span class="vocab-word">{v.word}</span>
-								<span class="vocab-meaning">{v.translation}</span>
+							<div class="vocab-card">
+								<span class="vocab-en">{v.word}</span>
+								<span class="vocab-zh">{v.translation}</span>
 							</div>
 						{/each}
 					</div>
@@ -180,8 +165,10 @@
 				{:else}
 					<p class="empty">{t('noVocabulary')}</p>
 				{/if}
-			</div>
-		</div>
+			</section>
+		{:else}
+			<p class="empty">{t('noTranscript')}</p>
+		{/if}
 	</div>
 {/if}
 
@@ -192,17 +179,18 @@
 		color: var(--text-dim);
 	}
 
-	.study-layout {
-		max-width: 1200px;
+	.study-page {
+		max-width: 800px;
 		margin: 0 auto;
 	}
 
+	/* Header */
 	.study-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 16px;
-		margin-bottom: 32px;
+		margin-bottom: 40px;
 		flex-wrap: wrap;
 	}
 
@@ -231,143 +219,127 @@
 		50% { opacity: 0.5; }
 	}
 
-	.study-content {
-		display: grid;
-		grid-template-columns: 1fr 280px;
-		gap: 32px;
-		align-items: start;
+	/* Sections */
+	.section {
+		margin-bottom: 48px;
 	}
 
-	@media (max-width: 900px) {
-		.study-content {
-			grid-template-columns: 1fr;
-		}
+	.section h2 {
+		font-size: 16px;
+		font-weight: 600;
+		color: var(--text-dim);
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		margin-bottom: 16px;
+		padding-bottom: 8px;
+		border-bottom: 1px solid var(--border);
 	}
 
-	/* Segments */
-	.segments-panel {
+	/* Section 1: Full Text */
+	.fulltext-block {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: 24px;
 	}
 
-	.study-segment {
+	.fulltext-en {
+		font-size: 17px;
+		line-height: 2;
+		color: var(--text);
+	}
+
+	.fulltext-zh {
+		font-size: 16px;
+		line-height: 2;
+		color: var(--text-dim);
+		padding-top: 16px;
+		border-top: 1px dashed var(--border);
+	}
+
+	/* Section 2: Bilingual */
+	.bilingual-list {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.bilingual-row {
 		display: flex;
 		gap: 16px;
-		padding: 16px;
+		padding: 14px 16px;
 		border-radius: var(--radius-sm);
 		transition: background 0.15s;
 	}
 
-	.study-segment:hover {
+	.bilingual-row:hover {
 		background: var(--bg-card);
 	}
 
-	.seg-time {
+	.row-num {
 		color: var(--text-dim);
 		font-size: 12px;
-		font-variant-numeric: tabular-nums;
-		min-width: 40px;
+		min-width: 28px;
 		padding-top: 3px;
 		flex-shrink: 0;
+		text-align: right;
+		font-variant-numeric: tabular-nums;
 	}
 
-	.seg-body {
+	.row-content {
 		flex: 1;
 		min-width: 0;
 	}
 
-	.seg-english {
+	.row-en {
 		font-size: 16px;
 		line-height: 1.7;
-		margin-bottom: 4px;
+		margin-bottom: 2px;
 	}
 
-	.seg-chinese {
+	.row-zh {
 		font-size: 15px;
 		line-height: 1.6;
 		color: var(--text-dim);
-		margin-bottom: 6px;
 	}
 
-	.seg-vocab {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 6px;
-		margin-top: 8px;
-	}
-
-	.vocab-chip {
-		display: inline-flex;
-		gap: 4px;
-		padding: 2px 10px;
-		border-radius: 20px;
-		font-size: 12px;
-		background: rgba(99, 102, 241, 0.1);
-		color: var(--accent-hover);
-	}
-
-	.vocab-chip strong {
-		color: var(--accent);
-	}
-
-	:global(.vocab-highlight) {
+	:global(.vocab-hl) {
 		background: rgba(99, 102, 241, 0.18);
 		color: var(--accent-hover);
 		border-radius: 3px;
 		padding: 0 2px;
 	}
 
-	/* Sidebar */
-	.vocab-sidebar {
-		position: sticky;
-		top: 72px;
-		background: var(--bg-card);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		padding: 20px;
+	/* Section 3: Vocabulary Grid */
+	.vocab-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+		gap: 8px;
 	}
 
-	.vocab-sidebar h2 {
-		font-size: 16px;
-		font-weight: 600;
-		margin-bottom: 8px;
-	}
-
-	.vocab-count {
-		font-size: 13px;
-		color: var(--text-dim);
-		margin-bottom: 16px;
-	}
-
-	.vocab-table {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		max-height: 60vh;
-		overflow-y: auto;
-	}
-
-	.vocab-row {
+	.vocab-card {
 		display: flex;
 		justify-content: space-between;
-		padding: 8px 10px;
+		align-items: center;
+		padding: 12px 16px;
 		border-radius: var(--radius-sm);
-		font-size: 14px;
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		transition: border-color 0.15s;
 	}
 
-	.vocab-row:hover {
-		background: var(--bg-hover);
+	.vocab-card:hover {
+		border-color: var(--accent);
 	}
 
-	.vocab-word {
+	.vocab-en {
 		font-weight: 600;
+		font-size: 15px;
 		color: var(--accent);
 	}
 
-	.vocab-meaning {
+	.vocab-zh {
+		font-size: 14px;
 		color: var(--text-dim);
-		font-size: 13px;
 	}
 
 	.empty {
