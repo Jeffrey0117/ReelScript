@@ -6,3 +6,5 @@ data/
 .env
 node_modules/
 .svelte-kit/
+frontend/build/
+package-lock.json
