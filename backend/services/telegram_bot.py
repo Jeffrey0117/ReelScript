@@ -194,6 +194,51 @@ async def cmd_study(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def _poll_and_notify(chat_id: int, video_id: str, title: str, bot):
+    """Poll video status and notify user when processing completes."""
+    max_polls = 120  # 10 minutes max (120 * 5s)
+    short_id = video_id[:8]
+
+    for _ in range(max_polls):
+        await asyncio.sleep(5)
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(f"{REELSCRIPT_API}/api/videos/{video_id}")
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+
+            status = data.get("status")
+            if status == "ready":
+                study_url = f"{REELSCRIPT_WEB}/study/{video_id}"
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        f"✅ 處理完成！\n\n"
+                        f"📹 {title}\n\n"
+                        f"📖 學習連結：\n{study_url}\n\n"
+                        f"/translate {short_id} — 翻譯\n"
+                        f"/vocab {short_id} — 分析單字"
+                    ),
+                )
+                return
+            elif status == "failed":
+                error = data.get("error_message") or "未知錯誤"
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=f"❌ 處理失敗：{title}\n\n錯誤：{error}",
+                )
+                return
+        except Exception as e:
+            logger.error(f"Poll error for {short_id}: {e}")
+            continue
+
+    await bot.send_message(
+        chat_id=chat_id,
+        text=f"⏰ 處理超時：{title}\n用 /list 查看狀態",
+    )
+
+
 async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _check_auth(update):
         await update.message.reply_text("⛔ 未授權。你的 User ID: " + str(update.effective_user.id))
@@ -221,15 +266,16 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         short_id = video_id[:8]
 
         await msg.edit_text(
-            f"✅ 開始處理！\n\n"
+            f"⏳ 下載＋轉錄中...\n\n"
             f"📹 {title}\n"
             f"🆔 {short_id}\n\n"
-            f"完成後可用：\n"
-            f"/translate {short_id} — 翻譯\n"
-            f"/vocab {short_id} — 分析單字\n"
-            f"/study {short_id} — 學習頁面\n"
-            f"/list — 查看進度"
+            f"完成後會自動通知你！"
         )
+
+        # Start background polling for completion
+        asyncio.create_task(_poll_and_notify(
+            update.effective_chat.id, video_id, title, context.bot
+        ))
     except Exception as e:
         logger.error(f"Process failed: {e}")
         await msg.edit_text(f"❌ 失敗：{e}")
