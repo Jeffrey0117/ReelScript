@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from models import get_db, Video, Transcript
 from services.downloader import download_video, get_video_info, VIDEOS_DIR
 from services.transcriber import transcriber
+from services.translator import translate_segments
 from api.websocket import manager
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
@@ -198,3 +199,49 @@ async def delete_video(video_id: str, db: Session = Depends(get_db)):
     db.delete(video)
     db.commit()
     return {"success": True}
+
+
+@router.post("/{video_id}/translate")
+async def translate_video(video_id: str, db: Session = Depends(get_db)):
+    """Translate transcript segments to Traditional Chinese."""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    transcript = video.transcript
+    if not transcript or not transcript.segments:
+        raise HTTPException(status_code=400, detail="No transcript available")
+
+    # Check if already translated
+    has_translations = any(
+        seg.get("translation") for seg in transcript.segments
+    )
+    if has_translations:
+        return {"success": True, "message": "Already translated", "segments": transcript.segments}
+
+    await manager.broadcast({
+        "type": "translate_started",
+        "data": {"video_id": video_id},
+    })
+
+    try:
+        loop = asyncio.get_running_loop()
+        translated = await loop.run_in_executor(
+            None, translate_segments, transcript.segments
+        )
+
+        transcript.segments = translated
+        db.commit()
+
+        await manager.broadcast({
+            "type": "translate_completed",
+            "data": {"video_id": video_id},
+        })
+
+        return {"success": True, "segments": translated}
+    except Exception as e:
+        await manager.broadcast({
+            "type": "translate_error",
+            "data": {"video_id": video_id, "error": str(e)},
+        })
+        raise HTTPException(status_code=500, detail=str(e))

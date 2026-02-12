@@ -4,6 +4,7 @@
 	import {
 		getVideo,
 		deleteVideo,
+		translateVideo,
 		videoFileUrl,
 		listCollections,
 		addToCollection,
@@ -24,6 +25,13 @@
 	// Playback modes: 'off' | 'loop' | 'repeat-one'
 	let playbackMode = $state<'off' | 'loop' | 'repeat-one'>('off');
 	let repeatSegmentIndex = $state(-1);
+
+	// Display mode: 'en' | 'zh' | 'both'
+	let displayMode = $state<'en' | 'zh' | 'both'>('en');
+	let translating = $state(false);
+	let hasTranslation = $derived(
+		video?.transcript?.segments?.some((s) => s.translation) ?? false
+	);
 
 	// Derive from page store
 	let videoId = '';
@@ -119,6 +127,38 @@
 			alert(e instanceof Error ? e.message : 'Failed to add');
 		}
 	}
+
+	async function handleTranslate() {
+		if (!video || translating) return;
+		translating = true;
+		try {
+			const result = await translateVideo(video.id);
+			if (result.success && video.transcript) {
+				video = {
+					...video,
+					transcript: {
+						...video.transcript,
+						segments: result.segments,
+					},
+				};
+				displayMode = 'both';
+			}
+		} catch (e) {
+			alert(e instanceof Error ? e.message : 'Translation failed');
+		} finally {
+			translating = false;
+		}
+	}
+
+	function cycleDisplayMode() {
+		if (displayMode === 'en') {
+			displayMode = 'both';
+		} else if (displayMode === 'both') {
+			displayMode = 'zh';
+		} else {
+			displayMode = 'en';
+		}
+	}
 </script>
 
 <svelte:head>
@@ -191,6 +231,21 @@
 				{#if video.transcript}
 					<span class="segment-count">{video.transcript.segments.length} segments</span>
 				{/if}
+				<div class="transcript-actions">
+					{#if hasTranslation}
+						<button class="lang-toggle" onclick={cycleDisplayMode}>
+							{displayMode === 'en' ? 'EN' : displayMode === 'zh' ? '中' : 'EN/中'}
+						</button>
+					{:else}
+						<button
+							class="btn btn-translate"
+							onclick={handleTranslate}
+							disabled={translating || !video.transcript}
+						>
+							{translating ? 'Translating...' : 'Translate 中文'}
+						</button>
+					{/if}
+				</div>
 			</div>
 
 			{#if video.transcript?.segments}
@@ -202,7 +257,14 @@
 							onclick={() => seekTo(segment)}
 						>
 							<span class="segment-time">{formatTime(segment.start)}</span>
-							<span class="segment-text">{segment.text}</span>
+							<span class="segment-text-wrapper">
+								{#if displayMode === 'en' || displayMode === 'both'}
+									<span class="segment-text">{segment.text}</span>
+								{/if}
+								{#if (displayMode === 'zh' || displayMode === 'both') && segment.translation}
+									<span class="segment-translation">{segment.translation}</span>
+								{/if}
+							</span>
 						</button>
 						<button
 							class="segment-lock"
@@ -349,6 +411,42 @@
 		font-size: 13px;
 	}
 
+	.transcript-actions {
+		margin-left: auto;
+	}
+
+	.lang-toggle {
+		padding: 4px 12px;
+		border-radius: var(--radius-sm);
+		font-size: 13px;
+		font-weight: 600;
+		background: var(--accent);
+		color: white;
+		transition: background 0.15s;
+	}
+
+	.lang-toggle:hover {
+		background: var(--accent-hover);
+	}
+
+	.btn-translate {
+		padding: 4px 12px;
+		font-size: 13px;
+		background: var(--bg-hover);
+		color: var(--text-dim);
+		border-radius: var(--radius-sm);
+	}
+
+	.btn-translate:hover:not(:disabled) {
+		background: var(--accent);
+		color: white;
+	}
+
+	.btn-translate:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
 	.segments {
 		display: flex;
 		flex-direction: column;
@@ -438,9 +536,26 @@
 		flex-shrink: 0;
 	}
 
+	.segment-text-wrapper {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
 	.segment-text {
 		font-size: 15px;
 		line-height: 1.6;
+	}
+
+	.segment-translation {
+		font-size: 14px;
+		line-height: 1.5;
+		color: var(--text-dim);
+	}
+
+	.segment-row.active .segment-translation {
+		color: var(--accent);
 	}
 
 	.full-text-section {

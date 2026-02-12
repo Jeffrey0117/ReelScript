@@ -28,6 +28,11 @@ export const getVideo = (id: string) =>
 export const deleteVideo = (id: string) =>
 	request<{ success: boolean }>(`/api/videos/${id}`, { method: 'DELETE' });
 
+export const translateVideo = (id: string) =>
+	request<{ success: boolean; segments: TranscriptSegment[] }>(`/api/videos/${id}/translate`, {
+		method: 'POST',
+	});
+
 // Collections
 export const createCollection = (name: string, description?: string) =>
 	request<{ id: string; name: string }>('/api/collections', {
