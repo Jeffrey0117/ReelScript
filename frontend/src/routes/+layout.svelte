@@ -1,17 +1,27 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
+	import { t, getLocale, setLocale, initLocale, onLocaleChange } from '$lib/i18n';
 
 	let { children } = $props();
 
 	let theme = $state<'dark' | 'light'>('dark');
+	let locale = $state<'zh' | 'en'>('zh');
+	let tick = $state(0);
 
 	onMount(() => {
-		const saved = localStorage.getItem('reelscript-theme');
-		if (saved === 'light' || saved === 'dark') {
-			theme = saved;
+		const savedTheme = localStorage.getItem('reelscript-theme');
+		if (savedTheme === 'light' || savedTheme === 'dark') {
+			theme = savedTheme;
 		}
 		document.documentElement.setAttribute('data-theme', theme);
+
+		initLocale();
+		locale = getLocale();
+		onLocaleChange(() => {
+			locale = getLocale();
+			tick++;
+		});
 	});
 
 	function toggleTheme() {
@@ -19,14 +29,23 @@
 		document.documentElement.setAttribute('data-theme', theme);
 		localStorage.setItem('reelscript-theme', theme);
 	}
+
+	function toggleLocale() {
+		const next = locale === 'zh' ? 'en' : 'zh';
+		setLocale(next);
+	}
 </script>
 
+{#key tick}
 <div class="app">
 	<nav class="navbar">
 		<a href="/" class="logo">ReelScript</a>
 		<div class="nav-links">
-			<a href="/">Home</a>
-			<a href="/collections">Collections</a>
+			<a href="/">{t('home')}</a>
+			<a href="/collections">{t('collections')}</a>
+			<button class="locale-toggle" onclick={toggleLocale} title="Toggle language">
+				{locale === 'zh' ? 'EN' : '中'}
+			</button>
 			<button class="theme-toggle" onclick={toggleTheme} title="Toggle theme">
 				{theme === 'dark' ? '☀' : '●'}
 			</button>
@@ -37,6 +56,7 @@
 		{@render children()}
 	</main>
 </div>
+{/key}
 
 <style>
 	.app {
@@ -78,6 +98,20 @@
 	}
 
 	.nav-links a:hover {
+		color: var(--text);
+	}
+
+	.locale-toggle {
+		padding: 4px 10px;
+		border-radius: var(--radius-sm);
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--text-dim);
+		transition: background 0.15s, color 0.15s;
+	}
+
+	.locale-toggle:hover {
+		background: var(--bg-hover);
 		color: var(--text);
 	}
 

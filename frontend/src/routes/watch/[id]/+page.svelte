@@ -13,6 +13,7 @@
 		type Collection,
 	} from '$lib/api';
 	import { goto } from '$app/navigation';
+	import { t } from '$lib/i18n';
 
 	let video = $state<VideoDetail | null>(null);
 	let videoEl = $state<HTMLVideoElement | null>(null);
@@ -108,7 +109,7 @@
 
 	async function handleDelete() {
 		if (!video) return;
-		if (!confirm('Delete this video and its transcript?')) return;
+		if (!confirm(t('confirmDelete'))) return;
 		await deleteVideo(video.id);
 		goto('/');
 	}
@@ -166,7 +167,7 @@
 </svelte:head>
 
 {#if !video}
-	<div class="loading">Loading...</div>
+	<div class="loading">{t('loading')}</div>
 {:else}
 	<div class="watch-layout">
 		<!-- Left: Video Player -->
@@ -183,11 +184,11 @@
 					<track kind="captions" />
 				</video>
 			{:else}
-				<div class="video-placeholder">Video not available</div>
+				<div class="video-placeholder">{t('videoNotAvailable')}</div>
 			{/if}
 
 			<div class="video-info">
-				<h1>{video.title || 'Untitled'}</h1>
+				<h1>{video.title || t('untitled')}</h1>
 				<div class="video-info-row">
 					{#if video.channel}
 						<span class="channel">{video.channel}</span>
@@ -205,21 +206,21 @@
 					title={playbackMode === 'off' ? 'Loop: Off' : playbackMode === 'loop' ? 'Loop: All' : 'Loop: Sentence'}
 				>
 					{#if playbackMode === 'off'}
-						Loop Off
+						{t('loopOff')}
 					{:else if playbackMode === 'loop'}
-						Loop All
+						{t('loopAll')}
 					{:else}
-						Loop 1
+						{t('loopOne')}
 					{/if}
 				</button>
 				<button class="btn btn-ghost" onclick={openCollectionPicker}>
-					+ Collection
+					{t('addToCollection')}
 				</button>
 				<button class="btn btn-ghost" onclick={copyFullText}>
-					{copySuccess ? 'Copied!' : 'Copy Text'}
+					{copySuccess ? t('copied') : t('copyText')}
 				</button>
 				<button class="btn btn-danger" onclick={handleDelete}>
-					Delete
+					{t('delete')}
 				</button>
 			</div>
 		</div>
@@ -227,9 +228,9 @@
 		<!-- Right: Transcript -->
 		<div class="transcript-panel">
 			<div class="transcript-header">
-				<h2>Transcript</h2>
+				<h2>{t('transcript')}</h2>
 				{#if video.transcript}
-					<span class="segment-count">{video.transcript.segments.length} segments</span>
+					<span class="segment-count">{video.transcript.segments.length} {t('segments')}</span>
 				{/if}
 				<div class="transcript-actions">
 					{#if hasTranslation}
@@ -242,7 +243,7 @@
 							onclick={handleTranslate}
 							disabled={translating || !video.transcript}
 						>
-							{translating ? 'Translating...' : 'Translate 中文'}
+							{translating ? t('translating') : t('translateChinese')}
 						</button>
 					{/if}
 				</div>
@@ -279,13 +280,13 @@
 				</div>
 
 				<div class="full-text-section">
-					<h3>Full Text</h3>
+					<h3>{t('fullText')}</h3>
 					<div class="full-text">
 						{video.transcript.full_text}
 					</div>
 				</div>
 			{:else}
-				<p class="no-transcript">No transcript available yet.</p>
+				<p class="no-transcript">{t('noTranscript')}</p>
 			{/if}
 		</div>
 	</div>
@@ -296,9 +297,9 @@
 		<div class="modal-overlay" onclick={() => (showCollectionPicker = false)} role="presentation">
 			<!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
 			<div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
-				<h3>Add to Collection</h3>
+				<h3>{t('addToCollectionTitle')}</h3>
 				{#if collections.length === 0}
-					<p class="empty">No collections yet. Create one from the Collections page.</p>
+					<p class="empty">{t('noCollectionsYet')}</p>
 				{:else}
 					<div class="collection-list">
 						{#each collections as col (col.id)}
@@ -309,7 +310,7 @@
 						{/each}
 					</div>
 				{/if}
-				<button class="btn btn-ghost" onclick={() => (showCollectionPicker = false)}>Cancel</button>
+				<button class="btn btn-ghost" onclick={() => (showCollectionPicker = false)}>{t('cancel')}</button>
 			</div>
 		</div>
 	{/if}

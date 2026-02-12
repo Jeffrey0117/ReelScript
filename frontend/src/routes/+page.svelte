@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { processVideo, listVideos, connectWS, type Video } from '$lib/api';
+	import { t } from '$lib/i18n';
 
 	let url = $state('');
 	let loading = $state(false);
@@ -75,6 +76,17 @@
 		};
 		return map[status] || 'badge-processing';
 	}
+
+	function statusLabel(status: string): string {
+		const map: Record<string, () => string> = {
+			ready: () => t('statusReady'),
+			downloading: () => t('statusDownloading'),
+			transcribing: () => t('statusTranscribing'),
+			failed: () => t('statusFailed'),
+			pending: () => t('statusPending'),
+		};
+		return (map[status] ?? (() => status))();
+	}
 </script>
 
 <svelte:head>
@@ -82,8 +94,8 @@
 </svelte:head>
 
 <section class="hero">
-	<h1>Learn from any video</h1>
-	<p>Paste an Instagram or YouTube link to get a full transcript for study.</p>
+	<h1>{t('addVideo')}</h1>
+	<p>{t('urlPlaceholder')}</p>
 
 	<form class="url-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
 		<input
@@ -93,7 +105,7 @@
 			disabled={loading}
 		/>
 		<button class="btn btn-primary" type="submit" disabled={loading || !url.trim()}>
-			{loading ? 'Processing...' : 'Go'}
+			{loading ? t('processing') : t('start')}
 		</button>
 	</form>
 
@@ -104,7 +116,7 @@
 
 {#if videos.length > 0}
 	<section class="video-list">
-		<h2>Your Videos</h2>
+		<h2>{t('myVideos')}</h2>
 
 		<div class="grid">
 			{#each videos as video (video.id)}
@@ -118,10 +130,10 @@
 						<span class="badge {video.source === 'ig' ? 'badge-ig' : 'badge-youtube'}">
 							{video.source === 'ig' ? 'IG' : video.source === 'youtube' ? 'YT' : '?'}
 						</span>
-						<span class="badge {statusBadgeClass(video.status)}">{video.status}</span>
+						<span class="badge {statusBadgeClass(video.status)}">{statusLabel(video.status)}</span>
 					</div>
 
-					<h3 class="video-title">{video.title || 'Untitled'}</h3>
+					<h3 class="video-title">{video.title || t('untitled')}</h3>
 
 					<div class="video-meta">
 						{#if video.channel}

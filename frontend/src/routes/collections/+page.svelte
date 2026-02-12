@@ -9,6 +9,7 @@
 		type Collection,
 		type CollectionDetail,
 	} from '$lib/api';
+	import { t } from '$lib/i18n';
 
 	let collections = $state<Collection[]>([]);
 	let newName = $state('');
@@ -53,22 +54,22 @@
 </script>
 
 <svelte:head>
-	<title>Collections — ReelScript</title>
+	<title>{t('collections')} — ReelScript</title>
 </svelte:head>
 
 <div class="collections-layout">
 	<div class="sidebar">
-		<h2>Collections</h2>
+		<h2>{t('myCollections')}</h2>
 
 		<form class="create-form" onsubmit={(e) => { e.preventDefault(); handleCreate(); }}>
 			<input
 				type="text"
 				bind:value={newName}
-				placeholder="New collection name..."
+				placeholder={t('collectionName')}
 				disabled={creating}
 			/>
 			<button class="btn btn-primary" type="submit" disabled={creating || !newName.trim()}>
-				Create
+				{t('create')}
 			</button>
 		</form>
 
@@ -86,7 +87,7 @@
 			{/each}
 
 			{#if collections.length === 0}
-				<p class="empty">No collections yet. Create one above.</p>
+				<p class="empty">{t('noCollections')}</p>
 			{/if}
 		</div>
 	</div>
@@ -99,14 +100,14 @@
 			{/if}
 
 			{#if selectedDetail.videos.length === 0}
-				<p class="empty">No videos in this collection. Add videos from the watch page.</p>
+				<p class="empty">{t('noCollectionsYet')}</p>
 			{:else}
 				<div class="video-grid">
 					{#each selectedDetail.videos as item (item.item_id)}
 						<div class="video-item card">
 							<div class="video-item-header">
 								<a href="/watch/{item.video_id}" class="video-item-title">
-									{item.title || 'Untitled'}
+									{item.title || t('untitled')}
 								</a>
 								<button class="btn btn-danger btn-sm" onclick={() => handleRemoveVideo(item.video_id)}>
 									x
@@ -126,7 +127,7 @@
 			{/if}
 		{:else}
 			<div class="empty-detail">
-				<p>Select a collection to view its videos</p>
+				<p>{t('myCollections')}</p>
 			</div>
 		{/if}
 	</div>
