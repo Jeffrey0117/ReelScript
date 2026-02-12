@@ -49,11 +49,17 @@
 		video?.filename ? videoFileUrl(video.filename) : ''
 	);
 
+	// Playback state for transcript
+	let activeSentenceIndex = $state(-1);
+	let repeatIndex = $state(-1);
+
 	// Merge whisper fragments into proper sentences
 	interface MergedSentence {
 		en: string;
 		zh: string;
 		vocabulary: VocabularyItem[];
+		start: number;
+		end: number;
 	}
 
 	let sentences = $derived.by(() => {
@@ -61,8 +67,12 @@
 		let enBuf = '';
 		let zhParts: string[] = [];
 		let vocabBuf: VocabularyItem[] = [];
+		let startTime = 0;
+		let endTime = 0;
 
 		for (const seg of segments) {
+			if (!enBuf) startTime = seg.start;
+			endTime = seg.end;
 			enBuf += (enBuf ? ' ' : '') + seg.text;
 			if (seg.translation) zhParts.push(seg.translation);
 			vocabBuf = [...vocabBuf, ...(seg.vocabulary ?? [])];
@@ -72,6 +82,8 @@
 					en: enBuf.trim(),
 					zh: zhParts.join(''),
 					vocabulary: vocabBuf,
+					start: startTime,
+					end: endTime,
 				});
 				enBuf = '';
 				zhParts = [];
@@ -79,7 +91,7 @@
 			}
 		}
 		if (enBuf.trim()) {
-			result.push({ en: enBuf.trim(), zh: zhParts.join(''), vocabulary: vocabBuf });
+			result.push({ en: enBuf.trim(), zh: zhParts.join(''), vocabulary: vocabBuf, start: startTime, end: endTime });
 		}
 		return result;
 	});
@@ -171,19 +183,49 @@
 	}
 
 	function onTimeUpdate() {
-		if (audioEl) currentTime = audioEl.currentTime;
+		if (!audioEl) return;
+		currentTime = audioEl.currentTime;
+
+		// Track active sentence
+		const idx = sentences.findIndex(
+			(s) => currentTime >= s.start && currentTime < s.end
+		);
+		activeSentenceIndex = idx;
+
+		// Repeat single sentence
+		if (repeatIndex >= 0 && repeatIndex < sentences.length) {
+			const sent = sentences[repeatIndex];
+			if (currentTime >= sent.end) {
+				audioEl.currentTime = sent.start;
+			}
+		}
 	}
 
 	function onLoadedMetadata() {
 		if (audioEl) duration = audioEl.duration;
 	}
 
-	function seekTo(e: MouseEvent) {
+	function seekToBar(e: MouseEvent) {
 		if (!audioEl || !duration) return;
 		const bar = e.currentTarget as HTMLElement;
 		const rect = bar.getBoundingClientRect();
 		const ratio = (e.clientX - rect.left) / rect.width;
 		audioEl.currentTime = ratio * duration;
+	}
+
+	function seekToSentence(index: number) {
+		if (!audioEl || index < 0 || index >= sentences.length) return;
+		audioEl.currentTime = sentences[index].start;
+		audioEl.play();
+	}
+
+	function toggleRepeat(index: number) {
+		if (repeatIndex === index) {
+			repeatIndex = -1;
+		} else {
+			repeatIndex = index;
+			seekToSentence(index);
+		}
 	}
 
 	function cycleSpeed() {
@@ -234,27 +276,27 @@
 			<div class="audio-bar">
 				<audio
 					bind:this={audioEl}
-					on:timeupdate={onTimeUpdate}
-					on:loadedmetadata={onLoadedMetadata}
-					on:play={() => playing = true}
-					on:pause={() => playing = false}
-					on:ended={() => playing = false}
+					ontimeupdate={onTimeUpdate}
+					onloadedmetadata={onLoadedMetadata}
+					onplay={() => playing = true}
+					onpause={() => playing = false}
+					onended={() => playing = false}
 					preload="auto"
 					playsinline
 				>
 					<source src={audioSrc} type="video/mp4" />
 				</audio>
-				<button class="audio-play-btn" on:click={togglePlay}>
+				<button class="audio-play-btn" onclick={togglePlay}>
 					{playing ? '⏸' : '▶'}
 				</button>
 				<span class="audio-time">{formatTime(currentTime)}</span>
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="audio-progress" on:click={seekTo}>
+				<div class="audio-progress" onclick={seekToBar}>
 					<div class="audio-progress-fill" style="width: {duration ? (currentTime / duration * 100) : 0}%"></div>
 				</div>
 				<span class="audio-time">{formatTime(duration)}</span>
-				<button class="audio-speed-btn" on:click={cycleSpeed}>
+				<button class="audio-speed-btn" onclick={cycleSpeed}>
 					{playbackRate}x
 				</button>
 				<input
@@ -264,7 +306,7 @@
 					max="1"
 					step="0.05"
 					value={volume}
-					on:input={onVolumeChange}
+					oninput={onVolumeChange}
 				/>
 			</div>
 		{/if}
@@ -334,9 +376,25 @@
 				<h2>{t('transcript')}</h2>
 				<div class="bilingual-list">
 					{#each sentences as sent, i}
-						<div class="bilingual-row">
-							<span class="row-num">{i + 1}</span>
-							<div class="row-content">
+						<div class="bilingual-row" class:active={i === activeSentenceIndex} class:repeating={i === repeatIndex}>
+							<div class="row-controls">
+								<button
+									class="row-play-btn"
+									onclick={() => seekToSentence(i)}
+									title="Play"
+								>
+									{i === activeSentenceIndex && playing ? '⏸' : '▶'}
+								</button>
+								<button
+									class="row-repeat-btn"
+									class:locked={i === repeatIndex}
+									onclick={() => toggleRepeat(i)}
+									title="Repeat"
+								>
+									{i === repeatIndex ? '■' : '⟳'}
+								</button>
+							</div>
+							<div class="row-content" role="button" tabindex="0" onclick={() => seekToSentence(i)} onkeydown={(e) => e.key === 'Enter' && seekToSentence(i)}>
 								<p class="row-en">
 									{#if sent.vocabulary.length}
 										{@html highlightVocabulary(sent.en, sent.vocabulary)}
@@ -426,6 +484,9 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		margin-bottom: 32px;
+		position: sticky;
+		top: 60px;
+		z-index: 50;
 	}
 
 	.audio-play-btn {
@@ -652,24 +713,75 @@
 
 	.bilingual-row {
 		display: flex;
-		gap: 16px;
+		gap: 12px;
 		padding: 14px 16px;
 		border-radius: var(--radius-sm);
 		transition: background 0.15s;
+		cursor: pointer;
 	}
 
 	.bilingual-row:hover {
 		background: var(--bg-card);
 	}
 
-	.row-num {
-		color: var(--text-dim);
-		font-size: 12px;
-		min-width: 28px;
-		padding-top: 3px;
+	.bilingual-row.active {
+		background: rgba(99, 102, 241, 0.1);
+	}
+
+	.bilingual-row.active .row-en {
+		color: var(--accent-hover);
+	}
+
+	.bilingual-row.repeating {
+		background: rgba(99, 102, 241, 0.16);
+		outline: 1px solid var(--accent);
+	}
+
+	.row-controls {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
 		flex-shrink: 0;
-		text-align: right;
-		font-variant-numeric: tabular-nums;
+		padding-top: 2px;
+	}
+
+	.row-play-btn,
+	.row-repeat-btn {
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 12px;
+		color: var(--text-dim);
+		background: transparent;
+		transition: background 0.15s, color 0.15s;
+	}
+
+	.row-play-btn:hover {
+		background: var(--accent);
+		color: white;
+	}
+
+	.row-repeat-btn {
+		opacity: 0;
+		font-size: 14px;
+	}
+
+	.bilingual-row:hover .row-repeat-btn {
+		opacity: 1;
+	}
+
+	.row-repeat-btn:hover {
+		background: var(--bg-hover);
+		color: var(--accent);
+	}
+
+	.row-repeat-btn.locked {
+		opacity: 1;
+		color: var(--accent);
+		background: rgba(99, 102, 241, 0.2);
 	}
 
 	.row-content {
@@ -740,15 +852,21 @@
 		}
 
 		.audio-bar {
-			gap: 8px;
+			gap: 6px;
 			padding: 10px 12px;
 			margin-bottom: 24px;
+			flex-wrap: wrap;
+			top: 0;
 		}
 
 		.audio-play-btn {
-			width: 32px;
-			height: 32px;
-			font-size: 12px;
+			width: 40px;
+			height: 40px;
+			font-size: 16px;
+		}
+
+		.audio-volume {
+			display: none;
 		}
 
 		.section {
@@ -761,12 +879,24 @@
 
 		.bilingual-row {
 			padding: 10px 8px;
-			gap: 10px;
+			gap: 8px;
 		}
 
-		.row-num {
-			min-width: 22px;
-			font-size: 11px;
+		.row-controls {
+			flex-direction: row;
+			gap: 2px;
+		}
+
+		.row-play-btn {
+			width: 32px;
+			height: 32px;
+			font-size: 14px;
+		}
+
+		.row-repeat-btn {
+			opacity: 1;
+			width: 32px;
+			height: 32px;
 		}
 
 		.row-en {
