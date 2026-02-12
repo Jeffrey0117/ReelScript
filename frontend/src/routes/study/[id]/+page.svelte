@@ -234,15 +234,16 @@
 			<div class="audio-bar">
 				<audio
 					bind:this={audioEl}
-					src={audioSrc}
 					on:timeupdate={onTimeUpdate}
 					on:loadedmetadata={onLoadedMetadata}
 					on:play={() => playing = true}
 					on:pause={() => playing = false}
 					on:ended={() => playing = false}
-					preload="metadata"
+					preload="auto"
 					playsinline
-				></audio>
+				>
+					<source src={audioSrc} type="video/mp4" />
+				</audio>
 				<button class="audio-play-btn" on:click={togglePlay}>
 					{playing ? '⏸' : '▶'}
 				</button>

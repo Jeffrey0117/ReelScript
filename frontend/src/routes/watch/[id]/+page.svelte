@@ -173,18 +173,18 @@
 		<!-- Left: Video Player -->
 		<div class="player-panel">
 			{#if video.filename}
+				<!-- svelte-ignore a11y_media_has_caption -->
 				<video
 					bind:this={videoEl}
 					ontimeupdate={handleTimeUpdate}
 					onended={handleVideoEnded}
+					onerror={() => console.error('Video error:', videoEl?.error?.code, videoEl?.error?.message)}
 					controls
 					playsinline
-					webkit-playsinline
-					preload="metadata"
+					preload="auto"
 					class="video-player"
-					src={videoFileUrl(video.filename)}
 				>
-					<track kind="captions" />
+					<source src={videoFileUrl(video.filename)} type="video/mp4" />
 				</video>
 			{:else}
 				<div class="video-placeholder">{t('videoNotAvailable')}</div>
