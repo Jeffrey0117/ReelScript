@@ -25,6 +25,7 @@
 	let currentTime = $state(0);
 	let duration = $state(0);
 	let playbackRate = $state(1);
+	let volume = $state(1);
 
 	let videoId = '';
 	page.subscribe((p) => {
@@ -192,6 +193,12 @@
 		if (audioEl) audioEl.playbackRate = playbackRate;
 	}
 
+	function onVolumeChange(e: Event) {
+		const input = e.target as HTMLInputElement;
+		volume = parseFloat(input.value);
+		if (audioEl) audioEl.volume = volume;
+	}
+
 	function formatTime(sec: number): string {
 		const m = Math.floor(sec / 60);
 		const s = Math.floor(sec % 60);
@@ -248,6 +255,15 @@
 				<button class="audio-speed-btn" on:click={cycleSpeed}>
 					{playbackRate}x
 				</button>
+				<input
+					class="audio-volume"
+					type="range"
+					min="0"
+					max="1"
+					step="0.05"
+					value={volume}
+					on:input={onVolumeChange}
+				/>
 			</div>
 		{/if}
 
@@ -470,6 +486,36 @@
 	.audio-speed-btn:hover {
 		border-color: var(--accent);
 		color: var(--accent);
+	}
+
+	.audio-volume {
+		width: 64px;
+		height: 4px;
+		-webkit-appearance: none;
+		appearance: none;
+		background: var(--border);
+		border-radius: 2px;
+		outline: none;
+		flex-shrink: 0;
+		cursor: pointer;
+	}
+
+	.audio-volume::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: var(--accent);
+		cursor: pointer;
+	}
+
+	.audio-volume::-moz-range-thumb {
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: var(--accent);
+		border: none;
+		cursor: pointer;
 	}
 
 	/* Sections */
