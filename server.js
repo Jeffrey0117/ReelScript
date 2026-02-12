@@ -72,22 +72,29 @@ function serveVideo(req, res) {
 	const contentType = mimeTypes[extname(filename)] || 'application/octet-stream';
 	const range = req.headers.range;
 
+	// Use file mtime as ETag for cache busting after re-encodes
+	const etag = `"${stat.mtimeMs.toString(36)}-${stat.size.toString(36)}"`;
+	const cacheHeaders = {
+		'Content-Type': contentType,
+		'Accept-Ranges': 'bytes',
+		'ETag': etag,
+		'Cache-Control': 'public, max-age=3600',
+	};
+
 	if (range) {
 		const parts = range.replace(/bytes=/, '').split('-');
 		const start = parseInt(parts[0], 10);
 		const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
 		res.writeHead(206, {
+			...cacheHeaders,
 			'Content-Range': `bytes ${start}-${end}/${stat.size}`,
-			'Accept-Ranges': 'bytes',
 			'Content-Length': end - start + 1,
-			'Content-Type': contentType,
 		});
 		createReadStream(filePath, { start, end }).pipe(res);
 	} else {
 		res.writeHead(200, {
+			...cacheHeaders,
 			'Content-Length': stat.size,
-			'Content-Type': contentType,
-			'Accept-Ranges': 'bytes',
 		});
 		createReadStream(filePath).pipe(res);
 	}
