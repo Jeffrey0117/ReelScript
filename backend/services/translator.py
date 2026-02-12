@@ -31,7 +31,7 @@ Example output: ["大家好", "今天我們來聊聊打光"]"""
 BATCH_SIZE = 30
 
 # Provider preference order
-PROVIDERS = ["deepseek", "groq"]
+PROVIDERS = ["openai", "groq"]
 
 
 def _call_llm(prompt: str) -> str:

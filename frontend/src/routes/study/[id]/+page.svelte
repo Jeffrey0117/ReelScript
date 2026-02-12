@@ -27,8 +27,41 @@
 	);
 
 	let fullChinese = $derived(
-		segments.filter((s) => s.translation).map((s) => s.translation).join(' ')
+		segments.filter((s) => s.translation).map((s) => s.translation).join('')
 	);
+
+	// Merge whisper fragments into proper sentences (by punctuation)
+	interface MergedSentence {
+		en: string;
+		zh: string;
+		vocabulary: VocabularyItem[];
+	}
+
+	let sentences = $derived.by(() => {
+		const result: MergedSentence[] = [];
+		let enBuf = '';
+		let zhBuf = '';
+		let vocabBuf: VocabularyItem[] = [];
+
+		for (const seg of segments) {
+			enBuf += (enBuf ? ' ' : '') + seg.text;
+			zhBuf += seg.translation || '';
+			vocabBuf = [...vocabBuf, ...(seg.vocabulary ?? [])];
+
+			// Split on sentence-ending punctuation
+			if (/[.!?]$/.test(seg.text.trim())) {
+				result.push({ en: enBuf.trim(), zh: zhBuf.trim(), vocabulary: vocabBuf });
+				enBuf = '';
+				zhBuf = '';
+				vocabBuf = [];
+			}
+		}
+		// Flush remaining
+		if (enBuf.trim()) {
+			result.push({ en: enBuf.trim(), zh: zhBuf.trim(), vocabulary: vocabBuf });
+		}
+		return result;
+	});
 
 	let allVocabulary = $derived(
 		segments
@@ -113,42 +146,7 @@
 		</div>
 
 		{#if segments.length > 0}
-			<!-- Section 1: Full Text -->
-			<section class="section">
-				<h2>{t('fullText')}</h2>
-				<div class="fulltext-block">
-					<div class="fulltext-en">{fullEnglish}</div>
-					{#if fullChinese}
-						<div class="fulltext-zh">{fullChinese}</div>
-					{/if}
-				</div>
-			</section>
-
-			<!-- Section 2: Sentence-by-Sentence Bilingual -->
-			<section class="section">
-				<h2>{t('transcript')}</h2>
-				<div class="bilingual-list">
-					{#each segments as seg, i (seg.index)}
-						<div class="bilingual-row">
-							<span class="row-num">{i + 1}</span>
-							<div class="row-content">
-								{#if seg.translation}
-									<p class="row-zh">{seg.translation}</p>
-								{/if}
-								<p class="row-en">
-									{#if seg.vocabulary?.length}
-										{@html highlightVocabulary(seg.text, seg.vocabulary)}
-									{:else}
-										{seg.text}
-									{/if}
-								</p>
-							</div>
-						</div>
-					{/each}
-				</div>
-			</section>
-
-			<!-- Section 3: Vocabulary -->
+			<!-- Section 1: Vocabulary (top) -->
 			<section class="section">
 				<h2>{t('vocabularyList')}</h2>
 				{#if allVocabulary.length > 0}
@@ -165,6 +163,41 @@
 				{:else}
 					<p class="empty">{t('noVocabulary')}</p>
 				{/if}
+			</section>
+
+			<!-- Section 2: Sentence-by-Sentence Bilingual (merged sentences) -->
+			<section class="section">
+				<h2>{t('transcript')}</h2>
+				<div class="bilingual-list">
+					{#each sentences as sent, i}
+						<div class="bilingual-row">
+							<span class="row-num">{i + 1}</span>
+							<div class="row-content">
+								<p class="row-en">
+									{#if sent.vocabulary.length}
+										{@html highlightVocabulary(sent.en, sent.vocabulary)}
+									{:else}
+										{sent.en}
+									{/if}
+								</p>
+								{#if sent.zh}
+									<p class="row-zh">{sent.zh}</p>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			</section>
+
+			<!-- Section 3: Full Text -->
+			<section class="section">
+				<h2>{t('fullText')}</h2>
+				<div class="fulltext-block">
+					<div class="fulltext-en">{fullEnglish}</div>
+					{#if fullChinese}
+						<div class="fulltext-zh">{fullChinese}</div>
+					{/if}
+				</div>
 			</section>
 		{:else}
 			<p class="empty">{t('noTranscript')}</p>
@@ -235,28 +268,42 @@
 		border-bottom: 1px solid var(--border);
 	}
 
-	/* Section 1: Full Text */
-	.fulltext-block {
+	/* Vocabulary Grid (top section) */
+	.vocab-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+		gap: 8px;
+	}
+
+	.vocab-card {
 		display: flex;
-		flex-direction: column;
-		gap: 24px;
+		justify-content: space-between;
+		align-items: center;
+		padding: 12px 16px;
+		border-radius: var(--radius-sm);
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		transition: border-color 0.15s;
+		gap: 12px;
 	}
 
-	.fulltext-en {
-		font-size: 17px;
-		line-height: 2;
-		color: var(--text);
+	.vocab-card:hover {
+		border-color: var(--accent);
 	}
 
-	.fulltext-zh {
-		font-size: 16px;
-		line-height: 2;
+	.vocab-en {
+		font-weight: 600;
+		font-size: 15px;
+		color: var(--accent);
+	}
+
+	.vocab-zh {
+		font-size: 14px;
 		color: var(--text-dim);
-		padding-top: 16px;
-		border-top: 1px dashed var(--border);
+		flex-shrink: 0;
 	}
 
-	/* Section 2: Bilingual */
+	/* Bilingual (English on top, Chinese below) */
 	.bilingual-list {
 		display: flex;
 		flex-direction: column;
@@ -290,14 +337,15 @@
 		min-width: 0;
 	}
 
-	.row-zh {
+	.row-en {
 		font-size: 16px;
 		line-height: 1.7;
-		margin-bottom: 2px;
+		margin-bottom: 4px;
+		color: var(--text);
 	}
 
-	.row-en {
-		font-size: 15px;
+	.row-zh {
+		font-size: 14px;
 		line-height: 1.6;
 		color: var(--text-dim);
 	}
@@ -309,37 +357,25 @@
 		padding: 0 2px;
 	}
 
-	/* Section 3: Vocabulary Grid */
-	.vocab-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-		gap: 8px;
-	}
-
-	.vocab-card {
+	/* Full Text (bottom) */
+	.fulltext-block {
 		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 12px 16px;
-		border-radius: var(--radius-sm);
-		background: var(--bg-card);
-		border: 1px solid var(--border);
-		transition: border-color 0.15s;
+		flex-direction: column;
+		gap: 24px;
 	}
 
-	.vocab-card:hover {
-		border-color: var(--accent);
+	.fulltext-en {
+		font-size: 17px;
+		line-height: 2;
+		color: var(--text);
 	}
 
-	.vocab-en {
-		font-weight: 600;
-		font-size: 15px;
-		color: var(--accent);
-	}
-
-	.vocab-zh {
-		font-size: 14px;
+	.fulltext-zh {
+		font-size: 16px;
+		line-height: 2;
 		color: var(--text-dim);
+		padding-top: 16px;
+		border-top: 1px dashed var(--border);
 	}
 
 	.empty {
@@ -367,14 +403,8 @@
 			margin-bottom: 32px;
 		}
 
-		.fulltext-en {
-			font-size: 15px;
-			line-height: 1.8;
-		}
-
-		.fulltext-zh {
-			font-size: 14px;
-			line-height: 1.8;
+		.vocab-grid {
+			grid-template-columns: 1fr;
 		}
 
 		.bilingual-row {
@@ -395,8 +425,14 @@
 			font-size: 13px;
 		}
 
-		.vocab-grid {
-			grid-template-columns: 1fr;
+		.fulltext-en {
+			font-size: 15px;
+			line-height: 1.8;
+		}
+
+		.fulltext-zh {
+			font-size: 14px;
+			line-height: 1.8;
 		}
 	}
 </style>

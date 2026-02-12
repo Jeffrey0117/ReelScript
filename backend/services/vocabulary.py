@@ -13,23 +13,25 @@ if MEEI_PATH not in sys.path:
 
 from meei.chat import chat  # noqa: E402
 
-SYSTEM_PROMPT = """You are an English vocabulary analyzer for language learners.
-Analyze the following English subtitle segments and identify difficult/useful vocabulary words.
+SYSTEM_PROMPT = """You are an English vocabulary analyzer for intermediate Chinese-speaking learners.
+Analyze the following English subtitle segments and extract USEFUL phrases and difficult vocabulary.
 
 Rules:
-- For each segment, pick 1-3 words or phrases that are intermediate+ level
-- Focus on: useful verbs, nouns, adjectives, phrasal verbs, idioms
-- SKIP basic words like: is, am, are, the, a, an, I, you, he, she, it, this, that, and, or, but, in, on, at, to, for, of, with
-- For each word, provide the original form and 繁體中文 translation
-- Output ONLY a JSON array of arrays, one inner array per segment
-- Each inner array contains objects with "word" and "translation" fields
-- If a segment has no difficult words, use an empty array
+- PRIORITIZE: phrasal verbs, idioms, collocations, multi-word expressions
+  e.g. "break their trust", "done for good", "act like", "run deeper than"
+- Also include: intermediate+ single words that are NOT basic
+- SKIP all basic/common words: cared, treat, hurt, lose, find, make, keep, break, love, hate, feel, think, want, need, know, see, go, come, get, take, give, let, tell, say, ask, try, use, help, call, look, show, turn, play, run, move, hold, bring, set, put, leave, work, live, start, stop, open, close, read, write, etc.
+- For each item provide the EXACT phrase as it appears and 繁體中文 translation
+- Output ONLY a JSON array of arrays, one per segment
+- Each inner array has objects with "word" and "translation" fields
+- If a segment has nothing notable, use empty array
+- Aim for 0-2 items per segment, quality over quantity
 
-Example input: ["The algorithm demonstrates efficiency", "Hello everyone"]
-Example output: [[{"word":"algorithm","translation":"演算法"},{"word":"demonstrate","translation":"展示"},{"word":"efficiency","translation":"效率"}],[]]"""
+Example input: ["Once you break their trust, that's it", "They forgive not because they're weak"]
+Example output: [[{"word":"break their trust","translation":"破壞他們的信任"}],[{"word":"forgive","translation":"原諒"}]]"""
 
 BATCH_SIZE = 20
-PROVIDERS = ["groq", "deepseek"]
+PROVIDERS = ["openai", "groq"]
 
 
 def _call_llm(prompt: str) -> str:
