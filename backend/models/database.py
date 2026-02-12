@@ -39,6 +39,7 @@ class Transcript(Base):
     language = Column(String, default="en")
     segments = Column(JSON, nullable=True)  # [{index, start, end, text, translation}]
     full_text = Column(Text, nullable=True)  # plain text version
+    appreciation = Column(JSON, nullable=True)  # {theme, keyPoints, goldenQuotes}
     created_at = Column(DateTime, default=datetime.utcnow)
 
     video = relationship("Video", back_populates="transcript")
@@ -70,6 +71,14 @@ class CollectionItem(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    # Migrate: add appreciation column if missing
+    with engine.connect() as conn:
+        from sqlalchemy import text, inspect
+        inspector = inspect(engine)
+        columns = [c["name"] for c in inspector.get_columns("transcripts")]
+        if "appreciation" not in columns:
+            conn.execute(text("ALTER TABLE transcripts ADD COLUMN appreciation JSON"))
+            conn.commit()
 
 
 def get_db():

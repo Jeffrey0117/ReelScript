@@ -63,6 +63,11 @@ const translations = {
 		meaning: '意思',
 		noVocabulary: '尚無單字分析。',
 		preparing: '準備學習內容中...',
+		mainIdea: '主旨',
+		theme: '主題',
+		keyPoints: '重點',
+		goldenQuotes: '金句',
+		appreciating: '生成主旨中...',
 	},
 	en: {
 		// Navbar
@@ -126,6 +131,11 @@ const translations = {
 		meaning: 'Meaning',
 		noVocabulary: 'No vocabulary analysis yet.',
 		preparing: 'Preparing study content...',
+		mainIdea: 'Main Idea',
+		theme: 'Theme',
+		keyPoints: 'Key Points',
+		goldenQuotes: 'Golden Quotes',
+		appreciating: 'Generating summary...',
 	},
 } as const;
 

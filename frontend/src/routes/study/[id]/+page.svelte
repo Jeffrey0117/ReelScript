@@ -5,8 +5,10 @@
 		getVideo,
 		translateVideo,
 		analyzeVocabulary,
+		appreciateVideo,
 		type VideoDetail,
 		type VocabularyItem,
+		type Appreciation,
 	} from '$lib/api';
 	import { t } from '$lib/i18n';
 
@@ -14,6 +16,7 @@
 	let loading = $state(true);
 	let translating = $state(false);
 	let analyzing = $state(false);
+	let appreciating = $state(false);
 
 	let videoId = '';
 	page.subscribe((p) => {
@@ -27,10 +30,12 @@
 	);
 
 	let fullChinese = $derived(
-		segments.filter((s) => s.translation).map((s) => s.translation).join('')
+		segments.map((s) => s.translation || '').join('')
 	);
 
-	// Merge whisper fragments into proper sentences (by punctuation)
+	let appreciation = $derived(video?.transcript?.appreciation ?? null);
+
+	// Merge into proper sentences by splitting full text independently
 	interface MergedSentence {
 		en: string;
 		zh: string;
@@ -38,29 +43,44 @@
 	}
 
 	let sentences = $derived.by(() => {
-		const result: MergedSentence[] = [];
-		let enBuf = '';
-		let zhBuf = '';
-		let vocabBuf: VocabularyItem[] = [];
+		const fullEn = segments.map((s) => s.text).join(' ');
+		const fullZh = segments.map((s) => s.translation || '').join('');
 
-		for (const seg of segments) {
-			enBuf += (enBuf ? ' ' : '') + seg.text;
-			zhBuf += seg.translation || '';
-			vocabBuf = [...vocabBuf, ...(seg.vocabulary ?? [])];
+		// Split English into sentences by .!?
+		const enSentences = fullEn.match(/[^.!?]+[.!?]+/g)?.map((s) => s.trim()) || [];
+		if (!enSentences.length && fullEn.trim()) enSentences.push(fullEn.trim());
 
-			// Split on sentence-ending punctuation
-			if (/[.!?]$/.test(seg.text.trim())) {
-				result.push({ en: enBuf.trim(), zh: zhBuf.trim(), vocabulary: vocabBuf });
-				enBuf = '';
-				zhBuf = '';
-				vocabBuf = [];
+		// Split Chinese into sentences by 。！？
+		let zhSentences: string[] = [];
+		if (/[。！？]/.test(fullZh)) {
+			zhSentences = fullZh.split(/(?<=[。！？])/).map((s) => s.trim()).filter(Boolean);
+		} else if (fullZh.trim()) {
+			// No Chinese sentence punctuation — split by ，and group to match English count
+			const clauses = fullZh.split(/[，,]/).filter((s) => s.trim());
+			if (clauses.length <= enSentences.length) {
+				zhSentences = clauses;
+			} else {
+				const perGroup = Math.ceil(clauses.length / enSentences.length);
+				for (let i = 0; i < clauses.length; i += perGroup) {
+					zhSentences.push(clauses.slice(i, i + perGroup).join('，'));
+				}
 			}
 		}
-		// Flush remaining
-		if (enBuf.trim()) {
-			result.push({ en: enBuf.trim(), zh: zhBuf.trim(), vocabulary: vocabBuf });
-		}
-		return result;
+
+		// Collect all vocabulary for text matching
+		const allVocab = segments.flatMap((s) => s.vocabulary ?? []);
+
+		return enSentences.map((en, i) => {
+			const matchedVocab = allVocab.filter((v) => {
+				const escaped = v.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+				return new RegExp(`\\b${escaped}\\b`, 'i').test(en);
+			});
+			return {
+				en,
+				zh: zhSentences[i] || '',
+				vocabulary: matchedVocab,
+			};
+		});
 	});
 
 	let allVocabulary = $derived(
@@ -78,6 +98,9 @@
 		}
 		if (video?.transcript?.segments && !video.transcript.segments.some((s) => s.vocabulary?.length)) {
 			await handleAnalyze();
+		}
+		if (video?.transcript?.full_text && !video.transcript.appreciation?.theme) {
+			await handleAppreciate();
 		}
 	});
 
@@ -111,6 +134,21 @@
 		}
 	}
 
+	async function handleAppreciate() {
+		if (!video || appreciating) return;
+		appreciating = true;
+		try {
+			const result = await appreciateVideo(video.id);
+			if (result.success && video.transcript) {
+				video = { ...video, transcript: { ...video.transcript, appreciation: result.appreciation } };
+			}
+		} catch (e) {
+			console.error('Appreciation failed:', e);
+		} finally {
+			appreciating = false;
+		}
+	}
+
 	function highlightVocabulary(text: string, vocabulary: VocabularyItem[]): string {
 		let result = text;
 		for (const v of vocabulary) {
@@ -138,15 +176,55 @@
 				<a href="/watch/{video.id}" class="btn btn-ghost">{t('backToVideo')}</a>
 				<h1>{video.title || t('untitled')}</h1>
 			</div>
-			{#if translating || analyzing}
+			{#if translating || analyzing || appreciating}
 				<span class="status-pill">
-					{translating ? t('translating') : t('analyzing')}
+					{translating ? t('translating') : analyzing ? t('analyzing') : t('appreciating')}
 				</span>
 			{/if}
 		</div>
 
 		{#if segments.length > 0}
-			<!-- Section 1: Vocabulary (top) -->
+			<!-- Section 1: 主旨 (top) -->
+			<section class="section">
+				<h2>{t('mainIdea')}</h2>
+				{#if appreciation?.theme}
+					<div class="appreciation-block">
+						<div class="appr-item">
+							<h3>{t('theme')}</h3>
+							<p class="appr-theme">{appreciation.theme}</p>
+						</div>
+
+						{#if appreciation.keyPoints?.length}
+							<div class="appr-item">
+								<h3>{t('keyPoints')}</h3>
+								<ul class="appr-points">
+									{#each appreciation.keyPoints as point}
+										<li>{point}</li>
+									{/each}
+								</ul>
+							</div>
+						{/if}
+
+						{#if appreciation.goldenQuotes?.length}
+							<div class="appr-item">
+								<h3>{t('goldenQuotes')}</h3>
+								<div class="quotes-list">
+									{#each appreciation.goldenQuotes as quote}
+										<blockquote class="golden-quote">
+											<p class="quote-en">"{quote.en}"</p>
+											<p class="quote-zh">{quote.zh}</p>
+										</blockquote>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					</div>
+				{:else if appreciating}
+					<p class="empty">{t('appreciating')}</p>
+				{/if}
+			</section>
+
+			<!-- Section 2: Vocabulary -->
 			<section class="section">
 				<h2>{t('vocabularyList')}</h2>
 				{#if allVocabulary.length > 0}
@@ -165,7 +243,7 @@
 				{/if}
 			</section>
 
-			<!-- Section 2: Sentence-by-Sentence Bilingual (merged sentences) -->
+			<!-- Section 3: Sentence-by-Sentence Bilingual -->
 			<section class="section">
 				<h2>{t('transcript')}</h2>
 				<div class="bilingual-list">
@@ -189,7 +267,7 @@
 				</div>
 			</section>
 
-			<!-- Section 3: Full Text -->
+			<!-- Section 4: Full Text -->
 			<section class="section">
 				<h2>{t('fullText')}</h2>
 				<div class="fulltext-block">
@@ -268,23 +346,95 @@
 		border-bottom: 1px solid var(--border);
 	}
 
-	/* Vocabulary Grid (top section) */
+	/* Appreciation / Main Idea */
+	.appreciation-block {
+		display: flex;
+		flex-direction: column;
+		gap: 28px;
+	}
+
+	.appr-item h3 {
+		font-size: 14px;
+		font-weight: 600;
+		color: var(--accent);
+		margin-bottom: 8px;
+	}
+
+	.appr-theme {
+		font-size: 18px;
+		font-weight: 600;
+		line-height: 1.6;
+		color: var(--text);
+	}
+
+	.appr-points {
+		list-style: none;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.appr-points li {
+		font-size: 15px;
+		line-height: 1.6;
+		color: var(--text);
+		padding-left: 16px;
+		position: relative;
+	}
+
+	.appr-points li::before {
+		content: '\B7';
+		position: absolute;
+		left: 0;
+		color: var(--accent);
+		font-weight: 700;
+	}
+
+	.quotes-list {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.golden-quote {
+		margin: 0;
+		padding: 16px 20px;
+		border-left: 3px solid var(--accent);
+		background: var(--bg-card);
+		border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+	}
+
+	.quote-en {
+		font-size: 15px;
+		line-height: 1.7;
+		color: var(--text);
+		font-style: italic;
+		margin-bottom: 6px;
+	}
+
+	.quote-zh {
+		font-size: 14px;
+		line-height: 1.6;
+		color: var(--text-dim);
+	}
+
+	/* Vocabulary Grid */
 	.vocab-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 		gap: 8px;
 	}
 
 	.vocab-card {
 		display: flex;
-		justify-content: space-between;
-		align-items: center;
+		flex-direction: column;
+		gap: 4px;
 		padding: 12px 16px;
 		border-radius: var(--radius-sm);
 		background: var(--bg-card);
 		border: 1px solid var(--border);
 		transition: border-color 0.15s;
-		gap: 12px;
 	}
 
 	.vocab-card:hover {
@@ -295,15 +445,15 @@
 		font-weight: 600;
 		font-size: 15px;
 		color: var(--accent);
+		word-break: break-word;
 	}
 
 	.vocab-zh {
 		font-size: 14px;
 		color: var(--text-dim);
-		flex-shrink: 0;
 	}
 
-	/* Bilingual (English on top, Chinese below) */
+	/* Bilingual */
 	.bilingual-list {
 		display: flex;
 		flex-direction: column;
@@ -357,7 +507,7 @@
 		padding: 0 2px;
 	}
 
-	/* Full Text (bottom) */
+	/* Full Text */
 	.fulltext-block {
 		display: flex;
 		flex-direction: column;
@@ -433,6 +583,14 @@
 		.fulltext-zh {
 			font-size: 14px;
 			line-height: 1.8;
+		}
+
+		.appr-theme {
+			font-size: 16px;
+		}
+
+		.golden-quote {
+			padding: 12px 16px;
 		}
 	}
 </style>

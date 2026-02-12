@@ -14,6 +14,7 @@ from services.downloader import download_video, get_video_info, VIDEOS_DIR
 from services.transcriber import transcriber
 from services.translator import translate_segments
 from services.vocabulary import analyze_segments
+from services.appreciation import generate_appreciation
 from api.websocket import manager
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
@@ -167,6 +168,7 @@ async def get_video(video_id: str, db: Session = Depends(get_db)):
             "language": video.transcript.language,
             "segments": video.transcript.segments,
             "full_text": video.transcript.full_text,
+            "appreciation": video.transcript.appreciation,
         }
 
     return {
@@ -276,5 +278,36 @@ async def analyze_video_vocabulary(video_id: str, db: Session = Depends(get_db))
         db.commit()
 
         return {"success": True, "segments": analyzed}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{video_id}/appreciate")
+async def appreciate_video(video_id: str, db: Session = Depends(get_db)):
+    """Generate content appreciation: theme, key points, golden quotes."""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    transcript = video.transcript
+    if not transcript or not transcript.full_text:
+        raise HTTPException(status_code=400, detail="No transcript available")
+
+    # Check if already analyzed (stored in appreciation field)
+    if transcript.appreciation and transcript.appreciation.get("theme"):
+        return {"success": True, "appreciation": transcript.appreciation}
+
+    try:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None, generate_appreciation, transcript.full_text
+        )
+
+        transcript.appreciation = result
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(transcript, "appreciation")
+        db.commit()
+
+        return {"success": True, "appreciation": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

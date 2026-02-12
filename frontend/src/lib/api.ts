@@ -39,6 +39,11 @@ export const analyzeVocabulary = (id: string) =>
 		method: 'POST',
 	});
 
+export const appreciateVideo = (id: string) =>
+	request<{ success: boolean; appreciation: Appreciation }>(`/api/videos/${id}/appreciate`, {
+		method: 'POST',
+	});
+
 // Collections
 export const createCollection = (name: string, description?: string) =>
 	request<{ id: string; name: string }>('/api/collections', {
@@ -115,12 +120,24 @@ export interface TranscriptSegment {
 	vocabulary: VocabularyItem[];
 }
 
+export interface GoldenQuote {
+	en: string;
+	zh: string;
+}
+
+export interface Appreciation {
+	theme: string;
+	keyPoints: string[];
+	goldenQuotes: GoldenQuote[];
+}
+
 export interface VideoDetail extends Video {
 	filename: string | null;
 	transcript: {
 		language: string;
 		segments: TranscriptSegment[];
 		full_text: string;
+		appreciation: Appreciation | null;
 	} | null;
 }
 
