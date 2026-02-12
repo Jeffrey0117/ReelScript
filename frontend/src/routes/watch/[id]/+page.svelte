@@ -178,6 +178,9 @@
 					ontimeupdate={handleTimeUpdate}
 					onended={handleVideoEnded}
 					controls
+					playsinline
+					webkit-playsinline
+					preload="metadata"
 					class="video-player"
 					src={videoFileUrl(video.filename)}
 				>

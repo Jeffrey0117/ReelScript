@@ -241,6 +241,7 @@
 					on:pause={() => playing = false}
 					on:ended={() => playing = false}
 					preload="metadata"
+					playsinline
 				></audio>
 				<button class="audio-play-btn" on:click={togglePlay}>
 					{playing ? '⏸' : '▶'}
