@@ -38,12 +38,12 @@ def _is_video_url(text: str) -> bool:
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "ReelScript Bot\n\n"
-        "Send me a YouTube or Instagram video URL.\n"
-        "I'll download, transcribe, and translate it for you.\n\n"
-        "Commands:\n"
-        "/list — Show recent videos\n"
-        "/help — Show this message"
+        "🎬 ReelScript Bot\n\n"
+        "傳送 YouTube 或 Instagram 影片連結給我，\n"
+        "我會自動下載、轉錄並翻譯。\n\n"
+        "指令：\n"
+        "/list — 查看最近的影片\n"
+        "/help — 顯示說明"
     )
 
 
@@ -58,33 +58,33 @@ async def cmd_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         videos = resp.json()
 
     if not videos:
-        await update.message.reply_text("No videos yet.")
+        await update.message.reply_text("還沒有影片，傳個連結給我吧！")
         return
 
     lines = []
     for v in videos[:10]:
         status_icon = {"ready": "✅", "downloading": "⬇️", "transcribing": "🎙️", "failed": "❌"}.get(v["status"], "⏳")
-        title = v.get("title") or "Untitled"
+        title = v.get("title") or "未命名"
         lines.append(f"{status_icon} {title[:40]}")
 
     await update.message.reply_text(
-        f"Recent videos ({len(videos)} total):\n\n" + "\n".join(lines)
+        f"最近的影片（共 {len(videos)} 部）：\n\n" + "\n".join(lines)
     )
 
 
 async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     allowed = _get_allowed_users()
     if allowed and update.effective_user.id not in allowed:
-        await update.message.reply_text("Unauthorized. Your user ID: " + str(update.effective_user.id))
+        await update.message.reply_text("⛔ 未授權。你的 User ID: " + str(update.effective_user.id))
         return
 
     text = update.message.text.strip()
 
     if not _is_video_url(text):
-        await update.message.reply_text("Please send a YouTube or Instagram URL.")
+        await update.message.reply_text("請傳送 YouTube 或 Instagram 的影片連結。")
         return
 
-    msg = await update.message.reply_text("⬇️ Processing...")
+    msg = await update.message.reply_text("⬇️ 處理中...")
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -95,19 +95,18 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             resp.raise_for_status()
             data = resp.json()
 
-        title = data.get("title") or "Untitled"
+        title = data.get("title") or "未命名"
         video_id = data.get("video_id", "")
 
         await msg.edit_text(
-            f"✅ Started processing!\n\n"
-            f"Title: {title}\n"
-            f"Status: downloading → transcribing → ready\n\n"
-            f"View: {REELSCRIPT_API.replace('localhost', '127.0.0.1')}/watch/{video_id}\n\n"
-            f"Use /list to check status."
+            f"✅ 開始處理！\n\n"
+            f"標題：{title}\n"
+            f"流程：下載 → 轉錄 → 完成\n\n"
+            f"用 /list 查看進度"
         )
     except Exception as e:
         logger.error(f"Process failed: {e}")
-        await msg.edit_text(f"❌ Failed: {e}")
+        await msg.edit_text(f"❌ 失敗：{e}")
 
 
 def create_bot() -> Application:
