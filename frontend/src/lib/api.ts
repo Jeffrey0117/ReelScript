@@ -72,7 +72,7 @@ export const deleteCollection = (id: string) =>
 	request<{ success: boolean }>(`/api/collections/${id}`, { method: 'DELETE' });
 
 // Video file URL (cache key changes when videos are re-encoded)
-export const videoFileUrl = (filename: string) => `${API_BASE}/videos/${filename}?v=4`;
+export const videoFileUrl = (filename: string) => `${API_BASE}/videos/${filename}?v=5`;
 
 // WebSocket
 export function connectWS(onMessage: (data: Record<string, unknown>) => void): WebSocket {

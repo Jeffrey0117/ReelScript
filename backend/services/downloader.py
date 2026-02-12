@@ -88,8 +88,10 @@ def _ensure_h264(filepath: Path) -> None:
         subprocess.run(
             [
                 "ffmpeg", "-i", str(filepath),
-                "-c:v", "libx264", "-crf", "23", "-preset", "fast",
-                "-c:a", "copy", "-movflags", "+faststart",
+                "-c:v", "libx264", "-profile:v", "main", "-level", "3.1",
+                "-crf", "23", "-preset", "fast",
+                "-c:a", "aac", "-b:a", "128k",
+                "-movflags", "+faststart",
                 "-y", str(tmp),
             ],
             capture_output=True, timeout=600, check=True,
