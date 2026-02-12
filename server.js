@@ -51,7 +51,8 @@ backend.on('exit', (code) => {
 
 // Serve video files directly with Range support (mobile needs this)
 function serveVideo(req, res) {
-	const filename = decodeURIComponent(req.url.replace('/videos/', ''));
+	const urlPath = req.url.split('?')[0]; // Strip query params
+	const filename = decodeURIComponent(urlPath.replace('/videos/', ''));
 	if (filename.includes('..') || filename.includes('/')) {
 		res.writeHead(400);
 		res.end('Bad request');
