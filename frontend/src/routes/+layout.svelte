@@ -1,7 +1,24 @@
 <script lang="ts">
 	import '../app.css';
+	import { onMount } from 'svelte';
 
 	let { children } = $props();
+
+	let theme = $state<'dark' | 'light'>('dark');
+
+	onMount(() => {
+		const saved = localStorage.getItem('reelscript-theme');
+		if (saved === 'light' || saved === 'dark') {
+			theme = saved;
+		}
+		document.documentElement.setAttribute('data-theme', theme);
+	});
+
+	function toggleTheme() {
+		theme = theme === 'dark' ? 'light' : 'dark';
+		document.documentElement.setAttribute('data-theme', theme);
+		localStorage.setItem('reelscript-theme', theme);
+	}
 </script>
 
 <div class="app">
@@ -10,6 +27,9 @@
 		<div class="nav-links">
 			<a href="/">Home</a>
 			<a href="/collections">Collections</a>
+			<button class="theme-toggle" onclick={toggleTheme} title="Toggle theme">
+				{theme === 'dark' ? '☀' : '●'}
+			</button>
 		</div>
 	</nav>
 
@@ -58,6 +78,23 @@
 	}
 
 	.nav-links a:hover {
+		color: var(--text);
+	}
+
+	.theme-toggle {
+		font-size: 18px;
+		width: 36px;
+		height: 36px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-sm);
+		transition: background 0.15s;
+		color: var(--text-dim);
+	}
+
+	.theme-toggle:hover {
+		background: var(--bg-hover);
 		color: var(--text);
 	}
 

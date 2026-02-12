@@ -21,10 +21,14 @@
 	let collections = $state<Collection[]>([]);
 	let copySuccess = $state(false);
 
+	// Playback modes: 'off' | 'loop' | 'repeat-one'
+	let playbackMode = $state<'off' | 'loop' | 'repeat-one'>('off');
+	let repeatSegmentIndex = $state(-1);
+
 	// Derive from page store
 	let videoId = '';
 	page.subscribe((p) => {
-		videoId = p.params.id;
+		videoId = p.params.id ?? '';
 	});
 
 	onMount(async () => {
@@ -41,6 +45,38 @@
 			(s) => currentTime >= s.start && currentTime < s.end
 		);
 		activeSegmentIndex = idx;
+
+		// Single sentence repeat: loop within the locked segment
+		if (playbackMode === 'repeat-one' && repeatSegmentIndex >= 0) {
+			const seg = video.transcript.segments[repeatSegmentIndex];
+			if (seg && currentTime >= seg.end) {
+				videoEl.currentTime = seg.start;
+			}
+		}
+	}
+
+	function cyclePlaybackMode() {
+		if (playbackMode === 'off') {
+			playbackMode = 'loop';
+		} else if (playbackMode === 'loop') {
+			playbackMode = 'repeat-one';
+			repeatSegmentIndex = activeSegmentIndex >= 0 ? activeSegmentIndex : 0;
+		} else {
+			playbackMode = 'off';
+			repeatSegmentIndex = -1;
+		}
+	}
+
+	function lockSegment(index: number) {
+		playbackMode = 'repeat-one';
+		repeatSegmentIndex = index;
+	}
+
+	function handleVideoEnded() {
+		if (playbackMode === 'loop' && videoEl) {
+			videoEl.currentTime = 0;
+			videoEl.play();
+		}
 	}
 
 	function seekTo(segment: TranscriptSegment) {
@@ -99,6 +135,7 @@
 				<video
 					bind:this={videoEl}
 					ontimeupdate={handleTimeUpdate}
+					onended={handleVideoEnded}
 					controls
 					class="video-player"
 					src={videoFileUrl(video.filename)}
@@ -122,6 +159,19 @@
 			</div>
 
 			<div class="actions">
+				<button
+					class="btn {playbackMode !== 'off' ? 'btn-active' : 'btn-ghost'}"
+					onclick={cyclePlaybackMode}
+					title={playbackMode === 'off' ? 'Loop: Off' : playbackMode === 'loop' ? 'Loop: All' : 'Loop: Sentence'}
+				>
+					{#if playbackMode === 'off'}
+						Loop Off
+					{:else if playbackMode === 'loop'}
+						Loop All
+					{:else}
+						Loop 1
+					{/if}
+				</button>
 				<button class="btn btn-ghost" onclick={openCollectionPicker}>
 					+ Collection
 				</button>
@@ -146,14 +196,23 @@
 			{#if video.transcript?.segments}
 				<div class="segments">
 					{#each video.transcript.segments as segment, i (segment.index)}
+						<div class="segment-row" class:active={i === activeSegmentIndex} class:repeating={playbackMode === 'repeat-one' && i === repeatSegmentIndex}>
 						<button
 							class="segment"
-							class:active={i === activeSegmentIndex}
 							onclick={() => seekTo(segment)}
 						>
 							<span class="segment-time">{formatTime(segment.start)}</span>
 							<span class="segment-text">{segment.text}</span>
 						</button>
+						<button
+							class="segment-lock"
+							class:locked={playbackMode === 'repeat-one' && i === repeatSegmentIndex}
+							onclick={() => lockSegment(i)}
+							title="Repeat this sentence"
+						>
+							{playbackMode === 'repeat-one' && i === repeatSegmentIndex ? '■' : '⟳'}
+						</button>
+					</div>
 					{/each}
 				</div>
 
@@ -171,8 +230,10 @@
 
 	<!-- Collection Picker Modal -->
 	{#if showCollectionPicker}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<div class="modal-overlay" onclick={() => (showCollectionPicker = false)} role="presentation">
-			<div class="modal" onclick={(e) => e.stopPropagation()} role="dialog">
+			<!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
+			<div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
 				<h3>Add to Collection</h3>
 				{#if collections.length === 0}
 					<p class="empty">No collections yet. Create one from the Collections page.</p>
@@ -295,26 +356,77 @@
 		margin-bottom: 32px;
 	}
 
+	.segment-row {
+		display: flex;
+		align-items: center;
+		border-radius: var(--radius-sm);
+		transition: background 0.15s;
+	}
+
+	.segment-row:hover {
+		background: var(--bg-hover);
+	}
+
+	.segment-row.active {
+		background: rgba(99, 102, 241, 0.12);
+	}
+
+	.segment-row.active .segment-text {
+		color: var(--accent-hover);
+	}
+
+	.segment-row.repeating {
+		background: rgba(99, 102, 241, 0.18);
+		outline: 1px solid var(--accent);
+	}
+
 	.segment {
 		display: flex;
 		gap: 12px;
 		padding: 10px 12px;
-		border-radius: var(--radius-sm);
 		text-align: left;
-		transition: background 0.15s;
 		width: 100%;
+		flex: 1;
+		min-width: 0;
 	}
 
-	.segment:hover {
+	.segment-lock {
+		flex-shrink: 0;
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-sm);
+		font-size: 14px;
+		color: var(--text-dim);
+		opacity: 0;
+		transition: opacity 0.15s, color 0.15s, background 0.15s;
+		margin-right: 8px;
+	}
+
+	.segment-row:hover .segment-lock {
+		opacity: 1;
+	}
+
+	.segment-lock:hover {
 		background: var(--bg-hover);
+		color: var(--accent);
 	}
 
-	.segment.active {
-		background: rgba(99, 102, 241, 0.12);
+	.segment-lock.locked {
+		opacity: 1;
+		color: var(--accent);
+		background: rgba(99, 102, 241, 0.2);
 	}
 
-	.segment.active .segment-text {
-		color: var(--accent-hover);
+	.btn-active {
+		background: var(--accent);
+		color: white;
+	}
+
+	.btn-active:hover {
+		background: var(--accent-hover);
 	}
 
 	.segment-time {
