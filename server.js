@@ -8,7 +8,7 @@ import { createServer } from 'http';
 import { handler } from './frontend/build/handler.js';
 import httpProxy from 'http-proxy';
 
-const PORT = parseInt(process.env.PORT || '4004', 10);
+const PORT = parseInt(process.env.PORT || '4005', 10);
 const BACKEND_PORT = PORT + 1000; // Internal backend port
 const BACKEND_HOST = `http://127.0.0.1:${BACKEND_PORT}`;
 
