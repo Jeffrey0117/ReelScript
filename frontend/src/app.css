@@ -191,3 +191,21 @@ input:focus {
 body, .navbar, .card, .modal {
 	transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
+
+/* Mobile RWD */
+@media (max-width: 640px) {
+	.btn {
+		padding: 8px 14px;
+		font-size: 13px;
+	}
+
+	input[type="text"],
+	input[type="url"] {
+		padding: 10px 12px;
+		font-size: 14px;
+	}
+
+	.card {
+		padding: 16px;
+	}
+}

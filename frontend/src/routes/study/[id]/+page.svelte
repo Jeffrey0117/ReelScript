@@ -347,4 +347,56 @@
 		font-size: 14px;
 		padding: 16px 0;
 	}
+
+	@media (max-width: 640px) {
+		.study-header {
+			margin-bottom: 24px;
+		}
+
+		.study-header-left {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 8px;
+		}
+
+		.study-header h1 {
+			font-size: 17px;
+		}
+
+		.section {
+			margin-bottom: 32px;
+		}
+
+		.fulltext-en {
+			font-size: 15px;
+			line-height: 1.8;
+		}
+
+		.fulltext-zh {
+			font-size: 14px;
+			line-height: 1.8;
+		}
+
+		.bilingual-row {
+			padding: 10px 8px;
+			gap: 10px;
+		}
+
+		.row-num {
+			min-width: 22px;
+			font-size: 11px;
+		}
+
+		.row-en {
+			font-size: 14px;
+		}
+
+		.row-zh {
+			font-size: 13px;
+		}
+
+		.vocab-grid {
+			grid-template-columns: 1fr;
+		}
+	}
 </style>

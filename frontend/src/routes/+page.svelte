@@ -244,4 +244,31 @@
 		font-size: 13px;
 		color: var(--text-dim);
 	}
+
+	@media (max-width: 640px) {
+		.hero {
+			padding: 32px 0 24px;
+		}
+
+		.hero h1 {
+			font-size: 24px;
+		}
+
+		.hero p {
+			font-size: 14px;
+			margin-bottom: 20px;
+		}
+
+		.url-form {
+			flex-direction: column;
+		}
+
+		.url-form input {
+			width: 100%;
+		}
+
+		.grid {
+			grid-template-columns: 1fr;
+		}
+	}
 </style>

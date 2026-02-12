@@ -641,4 +641,63 @@
 		color: var(--text-dim);
 		font-size: 13px;
 	}
+
+	@media (max-width: 640px) {
+		.watch-layout {
+			grid-template-columns: 1fr;
+			gap: 20px;
+		}
+
+		.player-panel {
+			position: static;
+		}
+
+		.video-player {
+			max-height: 50vh;
+		}
+
+		.video-info h1 {
+			font-size: 17px;
+		}
+
+		.actions {
+			gap: 6px;
+		}
+
+		.transcript-header {
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+
+		.transcript-header h2 {
+			font-size: 16px;
+		}
+
+		.segment {
+			padding: 8px 8px;
+			gap: 8px;
+		}
+
+		.segment-text {
+			font-size: 14px;
+		}
+
+		.segment-translation {
+			font-size: 13px;
+		}
+
+		.segment-lock {
+			opacity: 1;
+			width: 28px;
+			height: 28px;
+		}
+
+		.full-text {
+			font-size: 14px;
+		}
+
+		.modal {
+			width: calc(100vw - 32px);
+		}
+	}
 </style>

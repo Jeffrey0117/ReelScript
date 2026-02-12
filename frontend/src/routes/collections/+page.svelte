@@ -144,6 +144,29 @@
 	@media (max-width: 768px) {
 		.collections-layout {
 			grid-template-columns: 1fr;
+			gap: 24px;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.sidebar h2 {
+			font-size: 16px;
+		}
+
+		.create-form input {
+			font-size: 13px;
+		}
+
+		.detail-panel h2 {
+			font-size: 17px;
+		}
+
+		.video-item {
+			padding: 12px;
+		}
+
+		.video-item-title {
+			font-size: 14px;
 		}
 	}
 

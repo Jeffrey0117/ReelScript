@@ -139,4 +139,27 @@
 		margin: 0 auto;
 		padding: 32px;
 	}
+
+	@media (max-width: 640px) {
+		.navbar {
+			padding: 0 16px;
+			height: 48px;
+		}
+
+		.logo {
+			font-size: 16px;
+		}
+
+		.nav-links {
+			gap: 12px;
+		}
+
+		.nav-links a {
+			font-size: 13px;
+		}
+
+		.main {
+			padding: 16px;
+		}
+	}
 </style>
