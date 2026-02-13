@@ -327,7 +327,7 @@
 
 					{#if isEditing}
 						<!-- svelte-ignore a11y_autofocus -->
-					<input
+						<input
 							class="title-input"
 							type="text"
 							bind:value={editTitle}
@@ -337,22 +337,37 @@
 							autofocus
 						/>
 					{:else}
-						<!-- svelte-ignore a11y_click_events_have_key_events -->
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-						<h3
-							class="video-title"
-							class:editable={isReady && !manageMode}
-							onclick={(e) => {
-								if (isReady && !manageMode) {
-									e.preventDefault();
-									e.stopPropagation();
-									startEditing(video);
-								}
-							}}
-						>
-							{video.title || t('untitled')}
-						</h3>
+						<div class="title-row">
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+							<h3
+								class="video-title"
+								class:editable={isReady}
+								onclick={(e) => {
+									if (isReady) {
+										e.preventDefault();
+										e.stopPropagation();
+										startEditing(video);
+									}
+								}}
+							>
+								{video.title || t('untitled')}
+							</h3>
+							{#if isReady}
+								<button
+									class="edit-btn"
+									onclick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										startEditing(video);
+									}}
+									aria-label="Rename"
+								>
+									&#9998;
+								</button>
+							{/if}
+						</div>
 					{/if}
 
 					<div class="video-meta">
@@ -561,15 +576,23 @@
 		margin-bottom: 12px;
 	}
 
+	.title-row {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		margin-bottom: 8px;
+		position: relative;
+		z-index: 2;
+	}
+
 	.video-title {
 		font-size: 15px;
 		font-weight: 600;
-		margin-bottom: 8px;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		position: relative;
-		z-index: 2;
+		flex: 1;
+		min-width: 0;
 	}
 
 	.video-title.editable {
@@ -581,6 +604,35 @@
 
 	.video-title.editable:hover {
 		background: var(--bg-hover);
+	}
+
+	.edit-btn {
+		flex-shrink: 0;
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 4px;
+		font-size: 14px;
+		color: var(--text-dim);
+		opacity: 0;
+		transition: opacity 0.15s;
+	}
+
+	.edit-btn:hover {
+		background: var(--bg-hover);
+		color: var(--text);
+	}
+
+	.video-card:hover .edit-btn {
+		opacity: 1;
+	}
+
+	@media (pointer: coarse) {
+		.edit-btn {
+			opacity: 1;
+		}
 	}
 
 	.title-input {
