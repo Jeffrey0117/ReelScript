@@ -271,46 +271,6 @@
 			{/if}
 		</div>
 
-		<!-- Audio Player Bar -->
-		{#if audioSrc}
-			<div class="audio-bar">
-				<audio
-					bind:this={audioEl}
-					ontimeupdate={onTimeUpdate}
-					onloadedmetadata={onLoadedMetadata}
-					onplay={() => playing = true}
-					onpause={() => playing = false}
-					onended={() => playing = false}
-					preload="auto"
-					playsinline
-				>
-					<source src={audioSrc} type="video/mp4" />
-				</audio>
-				<button class="audio-play-btn" onclick={togglePlay}>
-					{playing ? '⏸' : '▶'}
-				</button>
-				<span class="audio-time">{formatTime(currentTime)}</span>
-				<!-- svelte-ignore a11y_click_events_have_key_events -->
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="audio-progress" onclick={seekToBar}>
-					<div class="audio-progress-fill" style="width: {duration ? (currentTime / duration * 100) : 0}%"></div>
-				</div>
-				<span class="audio-time">{formatTime(duration)}</span>
-				<button class="audio-speed-btn" onclick={cycleSpeed}>
-					{playbackRate}x
-				</button>
-				<input
-					class="audio-volume"
-					type="range"
-					min="0"
-					max="1"
-					step="0.05"
-					value={volume}
-					oninput={onVolumeChange}
-				/>
-			</div>
-		{/if}
-
 		{#if segments.length > 0}
 			<!-- Section 1: 主旨 (top) -->
 			<section class="section">
@@ -425,6 +385,46 @@
 			<p class="empty">{t('noTranscript')}</p>
 		{/if}
 	</div>
+
+	<!-- Audio Player Bar — fixed bottom -->
+	{#if audioSrc}
+		<div class="audio-bar">
+			<audio
+				bind:this={audioEl}
+				ontimeupdate={onTimeUpdate}
+				onloadedmetadata={onLoadedMetadata}
+				onplay={() => playing = true}
+				onpause={() => playing = false}
+				onended={() => playing = false}
+				preload="auto"
+				playsinline
+			>
+				<source src={audioSrc} type="video/mp4" />
+			</audio>
+			<button class="audio-play-btn" onclick={togglePlay}>
+				{playing ? '⏸' : '▶'}
+			</button>
+			<span class="audio-time">{formatTime(currentTime)}</span>
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="audio-progress" onclick={seekToBar}>
+				<div class="audio-progress-fill" style="width: {duration ? (currentTime / duration * 100) : 0}%"></div>
+			</div>
+			<span class="audio-time">{formatTime(duration)}</span>
+			<button class="audio-speed-btn" onclick={cycleSpeed}>
+				{playbackRate}x
+			</button>
+			<input
+				class="audio-volume"
+				type="range"
+				min="0"
+				max="1"
+				step="0.05"
+				value={volume}
+				oninput={onVolumeChange}
+			/>
+		</div>
+	{/if}
 {/if}
 
 <style>
@@ -437,6 +437,7 @@
 	.study-page {
 		max-width: 800px;
 		margin: 0 auto;
+		padding-bottom: 88px;
 	}
 
 	/* Header */
@@ -474,19 +475,20 @@
 		50% { opacity: 0.5; }
 	}
 
-	/* Audio Player Bar */
+	/* Audio Player Bar — fixed bottom like music app */
 	.audio-bar {
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 12px 16px;
+		padding: 12px 24px;
 		background: var(--bg-card);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		margin-bottom: 32px;
-		position: sticky;
-		top: 60px;
+		border-top: 1px solid var(--border);
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
 		z-index: 50;
+		box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
 	}
 
 	.audio-play-btn {
@@ -853,10 +855,7 @@
 
 		.audio-bar {
 			gap: 6px;
-			padding: 10px 12px;
-			margin-bottom: 24px;
-			flex-wrap: wrap;
-			top: 0;
+			padding: 10px 16px;
 		}
 
 		.audio-play-btn {
