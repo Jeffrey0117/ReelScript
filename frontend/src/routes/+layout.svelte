@@ -39,7 +39,7 @@
 {#key tick}
 <div class="app">
 	<nav class="navbar">
-		<a href="/" class="logo">ReelScript</a>
+		<a href="/" class="logo">ReelScript <span class="logo-sub">一刷一句</span></a>
 
 		<div class="nav-right">
 			<div class="nav-links">
@@ -105,6 +105,16 @@
 		font-weight: 700;
 		color: var(--text) !important;
 		letter-spacing: -0.5px;
+		display: flex;
+		align-items: baseline;
+		gap: 6px;
+	}
+
+	.logo-sub {
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--text-dim);
+		letter-spacing: 1px;
 	}
 
 	.nav-right {
