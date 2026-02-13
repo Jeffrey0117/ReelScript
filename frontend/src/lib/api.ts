@@ -29,6 +29,18 @@ export const getVideo = (id: string) =>
 export const deleteVideo = (id: string) =>
 	request<{ success: boolean }>(`/api/videos/${id}`, { method: 'DELETE' });
 
+export const renameVideo = (id: string, title: string) =>
+	request<{ success: boolean; id: string; title: string }>(`/api/videos/${id}`, {
+		method: 'PATCH',
+		body: JSON.stringify({ title }),
+	});
+
+export const batchDeleteVideos = (videoIds: string[]) =>
+	request<{ success: boolean; deleted_count: number }>('/api/videos/batch-delete', {
+		method: 'POST',
+		body: JSON.stringify({ video_ids: videoIds }),
+	});
+
 export const translateVideo = (id: string) =>
 	request<{ success: boolean; segments: TranscriptSegment[] }>(`/api/videos/${id}/translate`, {
 		method: 'POST',

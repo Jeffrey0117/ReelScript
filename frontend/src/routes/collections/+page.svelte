@@ -78,7 +78,7 @@
 				<div class="collection-row" class:active={selectedDetail?.id === col.id}>
 					<button class="collection-btn" onclick={() => openCollection(col.id)}>
 						<span class="col-name">{col.name}</span>
-						<span class="col-count">{col.video_count}</span>
+						<span class="col-count-badge">{col.video_count}</span>
 					</button>
 					<button class="btn btn-danger btn-sm" onclick={() => handleDelete(col.id)}>
 						x
@@ -228,9 +228,14 @@
 		font-weight: 500;
 	}
 
-	.col-count {
+	.col-count-badge {
+		background: var(--bg-hover);
 		color: var(--text-dim);
-		font-size: 13px;
+		font-size: 12px;
+		padding: 2px 8px;
+		border-radius: 10px;
+		min-width: 24px;
+		text-align: center;
 	}
 
 	.btn-sm {

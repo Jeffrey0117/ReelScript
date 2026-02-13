@@ -24,6 +24,14 @@ class ProcessRequest(BaseModel):
     url: str
 
 
+class RenameRequest(BaseModel):
+    title: str
+
+
+class BatchDeleteRequest(BaseModel):
+    video_ids: list[str]
+
+
 @router.post("/process")
 async def process_video(req: ProcessRequest, db: Session = Depends(get_db)):
     """Download a video and transcribe it. Returns immediately, processes in background."""
@@ -153,6 +161,34 @@ async def list_videos(db: Session = Depends(get_db)):
         }
         for v in videos
     ]
+
+
+@router.post("/batch-delete")
+async def batch_delete_videos(req: BatchDeleteRequest, db: Session = Depends(get_db)):
+    """Delete multiple videos and their files."""
+    deleted_count = 0
+    for vid in req.video_ids:
+        video = db.query(Video).filter(Video.id == vid).first()
+        if video:
+            if video.filename:
+                video_path = VIDEOS_DIR / video.filename
+                if video_path.exists():
+                    video_path.unlink()
+            db.delete(video)
+            deleted_count += 1
+    db.commit()
+    return {"success": True, "deleted_count": deleted_count}
+
+
+@router.patch("/{video_id}")
+async def rename_video(video_id: str, req: RenameRequest, db: Session = Depends(get_db)):
+    """Update a video's title."""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    video.title = req.title
+    db.commit()
+    return {"success": True, "id": video.id, "title": video.title}
 
 
 @router.get("/{video_id}")

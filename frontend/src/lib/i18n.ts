@@ -53,6 +53,20 @@ const translations = {
 		removeFromCollection: '移除',
 		notes: '筆記',
 
+		// Video management
+		manage: '管理',
+		done: '完成',
+		selectAll: '全選',
+		deselectAll: '取消全選',
+		selected: '已選',
+		addSelectedToCollection: '加入收藏夾',
+		deleteSelected: '刪除已選',
+		confirmBatchDelete: '確定要刪除選取的 {count} 部影片嗎？',
+		createNewCollection: '建立新收藏夾',
+		renameSaved: '已儲存',
+		selectCollection: '選擇收藏夾',
+		addedToCollection: '已加入收藏夾',
+
 		// Study page
 		studyMode: '學習模式',
 		backToVideo: '返回影片',
@@ -120,6 +134,20 @@ const translations = {
 		noCollectionsYet: 'No collections yet. Create one from the Collections page.',
 		removeFromCollection: 'Remove',
 		notes: 'Notes',
+
+		// Video management
+		manage: 'Manage',
+		done: 'Done',
+		selectAll: 'Select All',
+		deselectAll: 'Deselect All',
+		selected: 'selected',
+		addSelectedToCollection: 'Add to Collection',
+		deleteSelected: 'Delete Selected',
+		confirmBatchDelete: 'Delete {count} selected videos?',
+		createNewCollection: 'Create New Collection',
+		renameSaved: 'Saved',
+		selectCollection: 'Select Collection',
+		addedToCollection: 'Added to collection',
 
 		// Study page
 		studyMode: 'Study Mode',
