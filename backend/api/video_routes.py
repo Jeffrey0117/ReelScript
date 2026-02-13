@@ -15,7 +15,7 @@ from services.transcriber import transcriber
 from services.translator import translate_segments
 from services.vocabulary import analyze_segments
 from services.appreciation import generate_appreciation
-from services.titler import generate_title
+from services.titler import generate_title_and_appreciation
 from api.websocket import manager
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
@@ -121,17 +121,25 @@ async def _process_pipeline(video_id: str, url: str):
         video.completed_at = datetime.utcnow()
         db.commit()
 
-        # Step 4: Auto-generate title from transcript
+        # Step 4: Auto-generate title + appreciation in one AI call
         try:
             full_text = transcriber.segments_to_full_text(segments)
-            ai_title = await loop.run_in_executor(
-                None, generate_title, full_text
+            analysis = await loop.run_in_executor(
+                None, generate_title_and_appreciation, full_text
             )
-            if ai_title:
-                video.title = ai_title
-                db.commit()
-        except Exception as title_err:
-            print(f"[Pipeline] Auto-title failed (non-fatal): {title_err}")
+            if analysis.get("title"):
+                video.title = analysis["title"]
+            appreciation = {
+                k: analysis[k] for k in ("theme", "keyPoints", "goldenQuotes")
+                if k in analysis
+            }
+            if appreciation.get("theme"):
+                transcript.appreciation = appreciation
+                from sqlalchemy.orm.attributes import flag_modified
+                flag_modified(transcript, "appreciation")
+            db.commit()
+        except Exception as ai_err:
+            print(f"[Pipeline] Auto-analysis failed (non-fatal): {ai_err}")
 
         await manager.broadcast({
             "type": "transcribe_completed",
