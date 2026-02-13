@@ -9,9 +9,12 @@
 		type AdminVideo,
 	} from '$lib/api';
 	import { t } from '$lib/i18n';
+	import { onAuthChange, isAdmin, type AdmanUser } from '$lib/auth';
 
 	const CATEGORIES = ['business', 'daily', 'tech', 'entertainment', 'motivation', 'education'];
 
+	// Auth state: JWT (adman) or legacy password
+	let authMode = $state<'checking' | 'jwt' | 'password' | 'none'>('checking');
 	let adminKey = $state('');
 	let authenticated = $state(false);
 	let authError = $state('');
@@ -28,14 +31,59 @@
 	let filterSearch = $state('');
 
 	onMount(() => {
-		const saved = sessionStorage.getItem('admin-key');
-		if (saved) {
-			adminKey = saved;
-			tryLogin();
-		}
+		// Listen for adman auth state
+		const unsub = onAuthChange(async (user) => {
+			if (user && user.role === 'admin') {
+				// Auto-authenticate via JWT
+				authMode = 'jwt';
+				await tryJwtAuth();
+			} else if (authMode === 'checking') {
+				// No JWT admin, check for saved legacy key
+				const saved = sessionStorage.getItem('admin-key');
+				if (saved) {
+					adminKey = saved;
+					authMode = 'password';
+					await tryLegacyLogin();
+				} else {
+					authMode = 'none';
+				}
+			}
+		});
+
+		// Fallback: if SDK doesn't load within 2s, show password form
+		setTimeout(() => {
+			if (authMode === 'checking') {
+				const saved = sessionStorage.getItem('admin-key');
+				if (saved) {
+					adminKey = saved;
+					authMode = 'password';
+					tryLegacyLogin();
+				} else {
+					authMode = 'none';
+				}
+			}
+		}, 2000);
+
+		return unsub;
 	});
 
-	async function tryLogin() {
+	async function tryJwtAuth() {
+		authError = '';
+		try {
+			loadingStats = true;
+			stats = await adminStats();
+			authenticated = true;
+			await loadVideos();
+		} catch {
+			authError = t('wrongPassword');
+			authenticated = false;
+			authMode = 'none';
+		} finally {
+			loadingStats = false;
+		}
+	}
+
+	async function tryLegacyLogin() {
 		authError = '';
 		try {
 			loadingStats = true;
@@ -58,12 +106,14 @@
 		if (filterCategory) params.category = filterCategory;
 		if (filterFeatured) params.featured = filterFeatured;
 		if (filterSearch) params.search = filterSearch;
-		videos = await adminListVideos(adminKey, Object.keys(params).length > 0 ? params : undefined);
+		const key = authMode === 'password' ? adminKey : '';
+		videos = await adminListVideos(key, Object.keys(params).length > 0 ? params : undefined);
 		loadingVideos = false;
 	}
 
 	async function toggleFeatured(video: AdminVideo) {
-		await adminUpdateVideo(adminKey, video.id, { is_featured: !video.is_featured });
+		const key = authMode === 'password' ? adminKey : '';
+		await adminUpdateVideo(key, video.id, { is_featured: !video.is_featured });
 		videos = videos.map((v) =>
 			v.id === video.id ? { ...v, is_featured: !v.is_featured } : v
 		);
@@ -77,7 +127,8 @@
 
 	async function setCategory(video: AdminVideo, category: string) {
 		const cat = category || undefined;
-		await adminUpdateVideo(adminKey, video.id, { category: cat ?? '' });
+		const key = authMode === 'password' ? adminKey : '';
+		await adminUpdateVideo(key, video.id, { category: cat ?? '' });
 		videos = videos.map((v) =>
 			v.id === video.id ? { ...v, category: cat ?? null } : v
 		);
@@ -85,23 +136,18 @@
 
 	async function handleDelete(video: AdminVideo) {
 		if (!confirm(`Delete "${video.title}"?`)) return;
-		await adminDeleteVideo(adminKey, video.id);
+		const key = authMode === 'password' ? adminKey : '';
+		await adminDeleteVideo(key, video.id);
 		videos = videos.filter((v) => v.id !== video.id);
 		if (stats) {
 			stats = { ...stats, total_videos: stats.total_videos - 1 };
 		}
 	}
 
-	function formatDuration(seconds: number | null): string {
-		if (!seconds) return '-';
-		const m = Math.floor(seconds / 60);
-		const s = Math.floor(seconds % 60);
-		return `${m}:${s.toString().padStart(2, '0')}`;
-	}
-
-	function logout() {
+	function handleLogout() {
 		authenticated = false;
 		adminKey = '';
+		authMode = 'none';
 		sessionStorage.removeItem('admin-key');
 	}
 </script>
@@ -110,12 +156,17 @@
 	<title>{t('admin')} — ReelScript</title>
 </svelte:head>
 
-{#if !authenticated}
+{#if authMode === 'checking'}
+	<div class="login-page">
+		<p class="loading-text">{t('loading')}</p>
+	</div>
+{:else if !authenticated}
 	<div class="login-page">
 		<div class="login-card card">
 			<h1>{t('admin')}</h1>
 			<p>{t('adminLogin')}</p>
-			<form onsubmit={(e) => { e.preventDefault(); tryLogin(); }}>
+			<form onsubmit={(e) => { e.preventDefault(); authMode = 'password'; tryLegacyLogin(); }}>
+				<!-- svelte-ignore a11y_autofocus -->
 				<input
 					type="password"
 					bind:value={adminKey}
@@ -135,7 +186,9 @@
 	<div class="admin-page">
 		<div class="admin-header">
 			<h1>{t('admin')}</h1>
-			<button class="btn btn-ghost btn-sm" onclick={logout}>Logout</button>
+			{#if authMode === 'password'}
+				<button class="btn btn-ghost btn-sm" onclick={handleLogout}>{t('logout')}</button>
+			{/if}
 		</div>
 
 		<!-- Stats Dashboard -->
@@ -275,6 +328,11 @@
 		align-items: center;
 		justify-content: center;
 		min-height: 60vh;
+	}
+
+	.loading-text {
+		color: var(--text-dim);
+		font-size: 14px;
 	}
 
 	.login-card {

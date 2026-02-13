@@ -100,6 +100,13 @@ const translations = {
 		keyPoints: '重點',
 		goldenQuotes: '金句',
 		appreciating: '生成主旨中...',
+
+		// Auth
+		login: '登入',
+		register: '註冊',
+		logout: '登出',
+		loginRequired: '請先登入',
+		welcome: '歡迎',
 	},
 	en: {
 		// Navbar
@@ -200,6 +207,13 @@ const translations = {
 		keyPoints: 'Key Points',
 		goldenQuotes: 'Golden Quotes',
 		appreciating: 'Generating summary...',
+
+		// Auth
+		login: 'Login',
+		register: 'Register',
+		logout: 'Logout',
+		loginRequired: 'Please login first',
+		welcome: 'Welcome',
 	},
 } as const;
 

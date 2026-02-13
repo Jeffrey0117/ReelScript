@@ -1,27 +1,17 @@
 """
 Admin API routes — stats, video management, categories, featured.
-Temp auth: X-Admin-Key header checked against ADMIN_KEY env var.
-Will be replaced by adman JWT when ready.
+Auth: adman JWT with admin role, or legacy X-Admin-Key fallback.
 """
 
-import os
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from models import get_db, Video, Transcript, Collection
+from middleware.auth import require_admin
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-
-ADMIN_KEY = os.environ.get("ADMIN_KEY", "reelscript-admin-2024")
-
-
-def require_admin(request: Request):
-    """Temp admin auth — will be replaced by adman JWT."""
-    key = request.headers.get("X-Admin-Key", "")
-    if key != ADMIN_KEY:
-        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 class UpdateVideoAdmin(BaseModel):

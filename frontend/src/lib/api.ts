@@ -1,10 +1,26 @@
+import { getToken } from '$lib/auth';
+
 const DEV = import.meta.env.DEV;
 const API_BASE = DEV ? 'http://localhost:4005' : '';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+	const token = getToken();
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+	};
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
+	// Merge caller headers (e.g. X-Admin-Key for legacy admin)
+	if (options?.headers) {
+		const extra = options.headers instanceof Headers
+			? Object.fromEntries(options.headers.entries())
+			: options.headers as Record<string, string>;
+		Object.assign(headers, extra);
+	}
 	const res = await fetch(`${API_BASE}${path}`, {
-		headers: { 'Content-Type': 'application/json' },
 		...options,
+		headers,
 	});
 	if (!res.ok) {
 		const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -83,30 +99,30 @@ export const removeFromCollection = (collectionId: string, videoId: string) =>
 export const deleteCollection = (id: string) =>
 	request<{ success: boolean }>(`/api/collections/${id}`, { method: 'DELETE' });
 
-// Admin
-export const adminStats = (adminKey: string) =>
+// Admin — Bearer token auto-injected by request(), X-Admin-Key for legacy fallback
+export const adminStats = (adminKey = '') =>
 	request<AdminStats>('/api/admin/stats', {
-		headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+		headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
 	});
 
-export const adminListVideos = (adminKey: string, params?: Record<string, string>) => {
+export const adminListVideos = (adminKey = '', params?: Record<string, string>) => {
 	const query = params ? '?' + new URLSearchParams(params).toString() : '';
 	return request<AdminVideo[]>(`/api/admin/videos${query}`, {
-		headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+		headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
 	});
 };
 
-export const adminUpdateVideo = (adminKey: string, videoId: string, data: { category?: string; is_featured?: boolean; title?: string }) =>
+export const adminUpdateVideo = (adminKey = '', videoId: string, data: { category?: string; is_featured?: boolean; title?: string }) =>
 	request<{ success: boolean }>(`/api/admin/videos/${videoId}`, {
 		method: 'PATCH',
-		headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+		headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
 		body: JSON.stringify(data),
 	});
 
-export const adminDeleteVideo = (adminKey: string, videoId: string) =>
+export const adminDeleteVideo = (adminKey = '', videoId: string) =>
 	request<{ success: boolean }>(`/api/admin/videos/${videoId}`, {
 		method: 'DELETE',
-		headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+		headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
 	});
 
 // Video file URL (cache key changes when videos are re-encoded)

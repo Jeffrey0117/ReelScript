@@ -2,12 +2,15 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { t, getLocale, setLocale, initLocale, onLocaleChange } from '$lib/i18n';
+	import { initAuth, onAuthChange, login, logout, isAdmin, type AdmanUser } from '$lib/auth';
 
 	let { children } = $props();
 
 	let theme = $state<'dark' | 'light'>('dark');
 	let locale = $state<'zh' | 'en'>('zh');
 	let tick = $state(0);
+	let user = $state<AdmanUser | null>(null);
+	let showUserMenu = $state(false);
 
 	onMount(() => {
 		const savedTheme = localStorage.getItem('reelscript-theme');
@@ -22,6 +25,16 @@
 			locale = getLocale();
 			tick++;
 		});
+
+		initAuth();
+		onAuthChange((u) => {
+			user = u;
+		});
+
+		// Close user menu on outside click
+		const handleClick = () => { showUserMenu = false; };
+		document.addEventListener('click', handleClick);
+		return () => document.removeEventListener('click', handleClick);
 	});
 
 	function toggleTheme() {
@@ -34,6 +47,20 @@
 		const next = locale === 'zh' ? 'en' : 'zh';
 		setLocale(next);
 	}
+
+	function handleLogin() {
+		login();
+	}
+
+	async function handleLogout() {
+		await logout();
+		showUserMenu = false;
+	}
+
+	function toggleUserMenu(e: MouseEvent) {
+		e.stopPropagation();
+		showUserMenu = !showUserMenu;
+	}
 </script>
 
 {#key tick}
@@ -45,6 +72,9 @@
 			<div class="nav-links">
 				<a href="/">{t('home')}</a>
 				<a href="/collections">{t('collections')}</a>
+				{#if user?.role === 'admin'}
+					<a href="/admin">{t('admin')}</a>
+				{/if}
 			</div>
 
 			<div class="nav-actions">
@@ -70,6 +100,31 @@
 						</svg>
 					{/if}
 				</button>
+
+				{#if user}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="user-menu-wrapper" onclick={toggleUserMenu}>
+						<button class="nav-btn user-btn" title={user.displayName || user.email}>
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+								<circle cx="12" cy="7" r="4"/>
+							</svg>
+						</button>
+						{#if showUserMenu}
+							<div class="user-dropdown">
+								<div class="user-info">
+									<span class="user-name">{user.displayName || user.email}</span>
+									<span class="user-email">{user.email}</span>
+								</div>
+								<button class="dropdown-item" onclick={handleLogout}>{t('logout')}</button>
+							</div>
+						{/if}
+					</div>
+				{:else}
+					<button class="nav-btn login-btn" onclick={handleLogin}>
+						{t('login')}
+					</button>
+				{/if}
 			</div>
 		</div>
 	</nav>
@@ -164,6 +219,77 @@
 	.nav-btn:hover {
 		background: var(--bg-hover);
 		color: var(--text);
+	}
+
+	.login-btn {
+		width: auto;
+		padding: 0 12px;
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--accent);
+		border: 1px solid var(--accent);
+		border-radius: var(--radius-sm);
+	}
+
+	.login-btn:hover {
+		background: var(--accent);
+		color: #fff;
+	}
+
+	.user-menu-wrapper {
+		position: relative;
+	}
+
+	.user-btn {
+		color: var(--accent);
+	}
+
+	.user-dropdown {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		margin-top: 4px;
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		min-width: 180px;
+		z-index: 200;
+		overflow: hidden;
+	}
+
+	.user-info {
+		padding: 12px 16px;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.user-name {
+		display: block;
+		font-size: 14px;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.user-email {
+		display: block;
+		font-size: 12px;
+		color: var(--text-dim);
+		margin-top: 2px;
+	}
+
+	.dropdown-item {
+		width: 100%;
+		padding: 10px 16px;
+		font-size: 13px;
+		color: var(--text);
+		background: none;
+		border: none;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.dropdown-item:hover {
+		background: var(--bg-hover);
 	}
 
 	.main {
