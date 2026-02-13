@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Integer, Float, ForeignKey, JSON
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Integer, Float, Boolean, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -24,6 +24,8 @@ class Video(Base):
     filename = Column(String, nullable=True)
     status = Column(String, default="pending")  # pending, downloading, transcribing, ready, failed
     error_message = Column(Text, nullable=True)
+    category = Column(String, nullable=True)  # e.g. business, daily, tech, entertainment
+    is_featured = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 
@@ -71,13 +73,20 @@ class CollectionItem(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
-    # Migrate: add appreciation column if missing
+    # Migrate: add missing columns
     with engine.connect() as conn:
         from sqlalchemy import text, inspect
         inspector = inspect(engine)
-        columns = [c["name"] for c in inspector.get_columns("transcripts")]
-        if "appreciation" not in columns:
+        transcript_cols = [c["name"] for c in inspector.get_columns("transcripts")]
+        if "appreciation" not in transcript_cols:
             conn.execute(text("ALTER TABLE transcripts ADD COLUMN appreciation JSON"))
+            conn.commit()
+        video_cols = [c["name"] for c in inspector.get_columns("videos")]
+        if "category" not in video_cols:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN category VARCHAR"))
+            conn.commit()
+        if "is_featured" not in video_cols:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN is_featured BOOLEAN DEFAULT 0"))
             conn.commit()
 
 

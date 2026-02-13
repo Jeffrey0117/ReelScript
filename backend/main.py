@@ -12,6 +12,7 @@ from pathlib import Path
 from models import init_db
 from api.video_routes import router as video_router
 from api.collection_routes import router as collection_router
+from api.admin_routes import router as admin_router
 from api.websocket import manager
 
 DATA_DIR = Path("./data")
@@ -44,6 +45,7 @@ app.add_middleware(
 # API routes
 app.include_router(video_router)
 app.include_router(collection_router)
+app.include_router(admin_router)
 
 # Serve video files
 if VIDEOS_DIR.exists():

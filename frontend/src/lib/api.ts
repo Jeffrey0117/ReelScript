@@ -83,6 +83,32 @@ export const removeFromCollection = (collectionId: string, videoId: string) =>
 export const deleteCollection = (id: string) =>
 	request<{ success: boolean }>(`/api/collections/${id}`, { method: 'DELETE' });
 
+// Admin
+export const adminStats = (adminKey: string) =>
+	request<AdminStats>('/api/admin/stats', {
+		headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+	});
+
+export const adminListVideos = (adminKey: string, params?: Record<string, string>) => {
+	const query = params ? '?' + new URLSearchParams(params).toString() : '';
+	return request<AdminVideo[]>(`/api/admin/videos${query}`, {
+		headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+	});
+};
+
+export const adminUpdateVideo = (adminKey: string, videoId: string, data: { category?: string; is_featured?: boolean; title?: string }) =>
+	request<{ success: boolean }>(`/api/admin/videos/${videoId}`, {
+		method: 'PATCH',
+		headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+		body: JSON.stringify(data),
+	});
+
+export const adminDeleteVideo = (adminKey: string, videoId: string) =>
+	request<{ success: boolean }>(`/api/admin/videos/${videoId}`, {
+		method: 'DELETE',
+		headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey },
+	});
+
 // Video file URL (cache key changes when videos are re-encoded)
 export const videoFileUrl = (filename: string) => `${API_BASE}/videos/${filename}?v=5`;
 
@@ -159,6 +185,21 @@ export interface Collection {
 	description: string | null;
 	video_count: number;
 	created_at: string | null;
+}
+
+export interface AdminStats {
+	total_videos: number;
+	ready_videos: number;
+	failed_videos: number;
+	featured_count: number;
+	total_collections: number;
+	sources: Record<string, number>;
+	categories: Record<string, number>;
+}
+
+export interface AdminVideo extends Video {
+	category: string | null;
+	is_featured: boolean;
 }
 
 export interface CollectionDetail {

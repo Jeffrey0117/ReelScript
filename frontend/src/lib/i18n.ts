@@ -67,6 +67,24 @@ const translations = {
 		selectCollection: '選擇收藏夾',
 		addedToCollection: '已加入收藏夾',
 
+		// Admin
+		admin: '管理後台',
+		adminLogin: '輸入管理密碼',
+		adminPassword: '管理密碼',
+		enter: '進入',
+		wrongPassword: '密碼錯誤',
+		dashboard: '總覽',
+		totalVideos: '影片總數',
+		readyVideos: '已完成',
+		failedVideos: '失敗',
+		featuredVideos: '精選',
+		allVideos: '全部影片',
+		category: '分類',
+		featured: '精選',
+		uncategorized: '未分類',
+		source: '來源',
+		noCategory: '無',
+
 		// Study page
 		studyMode: '學習模式',
 		backToVideo: '返回影片',
@@ -148,6 +166,24 @@ const translations = {
 		renameSaved: 'Saved',
 		selectCollection: 'Select Collection',
 		addedToCollection: 'Added to collection',
+
+		// Admin
+		admin: 'Admin',
+		adminLogin: 'Enter admin password',
+		adminPassword: 'Admin password',
+		enter: 'Enter',
+		wrongPassword: 'Wrong password',
+		dashboard: 'Dashboard',
+		totalVideos: 'Total Videos',
+		readyVideos: 'Ready',
+		failedVideos: 'Failed',
+		featuredVideos: 'Featured',
+		allVideos: 'All Videos',
+		category: 'Category',
+		featured: 'Featured',
+		uncategorized: 'Uncategorized',
+		source: 'Source',
+		noCategory: 'None',
 
 		// Study page
 		studyMode: 'Study Mode',

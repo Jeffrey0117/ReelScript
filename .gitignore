@@ -8,3 +8,4 @@ node_modules/
 .svelte-kit/
 frontend/build/
 PLAN.md
+ADMAN_SPEC.md
