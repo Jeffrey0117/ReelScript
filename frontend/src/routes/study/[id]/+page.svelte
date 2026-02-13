@@ -343,7 +343,11 @@
 									onclick={() => seekToSentence(i)}
 									title="Play"
 								>
-									{i === activeSentenceIndex && playing ? '⏸' : '▶'}
+									{#if i === activeSentenceIndex && playing}
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+									{:else}
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+									{/if}
 								</button>
 								<button
 									class="row-repeat-btn"
@@ -351,7 +355,11 @@
 									onclick={() => toggleRepeat(i)}
 									title="Repeat"
 								>
-									{i === repeatIndex ? '■' : '⟳'}
+									{#if i === repeatIndex}
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+									{:else}
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+									{/if}
 								</button>
 							</div>
 							<div class="row-content" role="button" tabindex="0" onclick={() => seekToSentence(i)} onkeydown={(e) => e.key === 'Enter' && seekToSentence(i)}>
@@ -402,7 +410,11 @@
 				<source src={audioSrc} type="video/mp4" />
 			</audio>
 			<button class="audio-play-btn" onclick={togglePlay}>
-				{playing ? '⏸' : '▶'}
+				{#if playing}
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+				{:else}
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+				{/if}
 			</button>
 			<span class="audio-time">{formatTime(currentTime)}</span>
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
