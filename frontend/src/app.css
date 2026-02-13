@@ -101,7 +101,8 @@ button {
 }
 
 input[type="text"],
-input[type="url"] {
+input[type="url"],
+input[type="password"] {
 	width: 100%;
 	padding: 12px 16px;
 	background: var(--bg);
@@ -115,6 +116,21 @@ input[type="url"] {
 
 input:focus {
 	border-color: var(--accent);
+}
+
+/* Don't let global resets override adman SDK modal */
+#adman-auth-modal *:not(.adman-close) {
+	margin: revert;
+	padding: revert;
+}
+
+#adman-auth-modal input {
+	all: revert;
+}
+
+#adman-auth-modal button {
+	all: revert;
+	cursor: pointer;
 }
 
 .card {
