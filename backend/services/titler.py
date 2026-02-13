@@ -20,7 +20,7 @@ Rules:
 - Output ONLY the title text, nothing else
 - No quotes, no punctuation wrapping"""
 
-PROVIDERS = ["groq", "openai"]
+PROVIDERS = ["openai", "deepseek", "groq"]
 
 
 def generate_title(full_text: str) -> str:
