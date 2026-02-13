@@ -12,6 +12,9 @@ import asyncio
 import logging
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import httpx
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -210,15 +213,16 @@ async def _poll_and_notify(chat_id: int, video_id: str, title: str, bot):
 
             status = data.get("status")
             if status == "ready":
-                study_url = f"{REELSCRIPT_WEB}/study/{video_id}"
+                watch_url = f"{REELSCRIPT_WEB}/watch/{video_id}"
                 await bot.send_message(
                     chat_id=chat_id,
                     text=(
                         f"✅ 處理完成！\n\n"
                         f"📹 {title}\n\n"
-                        f"📖 學習連結：\n{study_url}\n\n"
+                        f"🎬 觀看連結：\n{watch_url}\n\n"
                         f"/translate {short_id} — 翻譯\n"
-                        f"/vocab {short_id} — 分析單字"
+                        f"/vocab {short_id} — 分析單字\n"
+                        f"/study {short_id} — 學習模式"
                     ),
                 )
                 return
@@ -308,6 +312,4 @@ def run_bot():
 
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
     run_bot()
