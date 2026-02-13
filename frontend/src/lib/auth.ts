@@ -3,8 +3,7 @@
  * Dynamically loads the SDK and provides reactive user state.
  */
 
-const DEV = import.meta.env.DEV;
-const ADMAN_URL = DEV ? 'http://localhost:3000' : 'https://adman.isnowfriend.com';
+const ADMAN_URL = 'https://adman.isnowfriend.com';
 const APP_ID = 'app_yX0u0SiJ';
 
 interface AdmanUser {
