@@ -1,10 +1,8 @@
 /**
  * Auth wrapper for adman SDK.
- * Dynamically loads the SDK and provides reactive user state.
+ * SDK is loaded via static <script> tag in app.html.
+ * This module provides reactive helpers around window.adman.
  */
-
-const ADMAN_URL = 'https://adman.isnowfriend.com';
-const APP_ID = 'app_yX0u0SiJ';
 
 interface AdmanUser {
 	id: string;
@@ -44,36 +42,35 @@ function notify() {
 	}
 }
 
-/** Load adman SDK script and set up auth change listener. */
+/** Connect to adman SDK (already loaded via app.html script tag). */
 export function initAuth(): void {
-	if (typeof document === 'undefined') return;
-	if (document.getElementById('adman-sdk')) return;
+	if (typeof window === 'undefined') return;
 
-	const script = document.createElement('script');
-	script.id = 'adman-sdk';
-	script.src = `${ADMAN_URL}/sdk.js`;
-	script.setAttribute('data-app-id', APP_ID);
-	script.setAttribute('data-theme', document.documentElement.getAttribute('data-theme') || 'dark');
-	script.setAttribute('data-accent', '#6366f1');
-	script.setAttribute('data-locale', localStorage.getItem('reelscript-locale') || 'zh');
-	script.setAttribute('data-mode', 'modal');
-
-	script.onload = () => {
-		if (!window.adman) return;
+	function tryConnect() {
+		if (!window.adman) return false;
 		sdkReady = true;
 		window.adman.onAuthChange((user) => {
 			currentUser = user;
 			notify();
 		});
-	};
+		return true;
+	}
 
-	document.head.appendChild(script);
+	// SDK might already be loaded
+	if (tryConnect()) return;
+
+	// Otherwise wait for it
+	const check = setInterval(() => {
+		if (tryConnect()) clearInterval(check);
+	}, 100);
+
+	// Stop checking after 5s
+	setTimeout(() => clearInterval(check), 5000);
 }
 
 /** Subscribe to auth state changes. Returns unsubscribe function. */
 export function onAuthChange(cb: (user: AdmanUser | null) => void): () => void {
 	subscribers.add(cb);
-	// Immediately call with current state if SDK is ready
 	if (sdkReady) {
 		try {
 			cb(currentUser);
