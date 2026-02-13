@@ -125,8 +125,8 @@
 			if (result.success && video.transcript) {
 				video = { ...video, transcript: { ...video.transcript, segments: result.segments } };
 			}
-		} catch (e) {
-			console.error('Translation failed:', e);
+		} catch {
+			// silent fail — UI already shows fallback
 		} finally {
 			translating = false;
 		}
@@ -140,8 +140,8 @@
 			if (result.success && video.transcript) {
 				video = { ...video, transcript: { ...video.transcript, segments: result.segments } };
 			}
-		} catch (e) {
-			console.error('Vocabulary analysis failed:', e);
+		} catch {
+			// silent fail
 		} finally {
 			analyzing = false;
 		}
@@ -155,8 +155,8 @@
 			if (result.success && video.transcript) {
 				video = { ...video, transcript: { ...video.transcript, appreciation: result.appreciation } };
 			}
-		} catch (e) {
-			console.error('Appreciation failed:', e);
+		} catch {
+			// silent fail
 		} finally {
 			appreciating = false;
 		}

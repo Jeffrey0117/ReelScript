@@ -12,12 +12,14 @@
 	import { t } from '$lib/i18n';
 
 	let collections = $state<Collection[]>([]);
+	let loadingCollections = $state(true);
 	let newName = $state('');
 	let creating = $state(false);
 	let selectedDetail = $state<CollectionDetail | null>(null);
 
 	onMount(async () => {
 		collections = await listCollections();
+		loadingCollections = false;
 	});
 
 	async function handleCreate() {
@@ -86,7 +88,9 @@
 				</div>
 			{/each}
 
-			{#if collections.length === 0}
+			{#if loadingCollections}
+				<p class="empty">{t('loading')}</p>
+			{:else if collections.length === 0}
 				<p class="empty">{t('noCollections')}</p>
 			{/if}
 		</div>

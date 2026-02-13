@@ -3,6 +3,7 @@ Video API routes — download, transcribe, list, get, delete.
 """
 
 import asyncio
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -33,9 +34,35 @@ class BatchDeleteRequest(BaseModel):
     video_ids: list[str]
 
 
+URL_PATTERNS = [
+    re.compile(r"https?://(www\.)?(youtube\.com|youtu\.be)/"),
+    re.compile(r"https?://(www\.)?instagram\.com/"),
+    re.compile(r"https?://(www\.)?(bilibili\.com|b23\.tv)/"),
+    re.compile(r"https?://(www\.)?tiktok\.com/"),
+]
+
+
+def _is_valid_url(url: str) -> bool:
+    return any(p.match(url) for p in URL_PATTERNS)
+
+
 @router.post("/process")
 async def process_video(req: ProcessRequest, db: Session = Depends(get_db)):
     """Download a video and transcribe it. Returns immediately, processes in background."""
+
+    if not _is_valid_url(req.url):
+        raise HTTPException(status_code=400, detail="Unsupported URL. Use YouTube, Instagram, Bilibili, or TikTok links.")
+
+    # Dedup: check if this URL is already processed
+    existing = db.query(Video).filter(Video.url == req.url).first()
+    if existing:
+        return {
+            "success": True,
+            "video_id": existing.id,
+            "title": existing.title,
+            "status": existing.status,
+            "duplicate": True,
+        }
 
     # Fetch info first
     info = await get_video_info(req.url)
@@ -305,7 +332,8 @@ async def translate_video(video_id: str, db: Session = Depends(get_db)):
             "type": "translate_error",
             "data": {"video_id": video_id, "error": str(e)},
         })
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[API Error] {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/{video_id}/analyze-vocabulary")
@@ -337,7 +365,8 @@ async def analyze_video_vocabulary(video_id: str, db: Session = Depends(get_db))
 
         return {"success": True, "segments": analyzed}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[API Error] {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/{video_id}/appreciate")
@@ -368,4 +397,5 @@ async def appreciate_video(video_id: str, db: Session = Depends(get_db)):
 
         return {"success": True, "appreciation": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[API Error] {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")

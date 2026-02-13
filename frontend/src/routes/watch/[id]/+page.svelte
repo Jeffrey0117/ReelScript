@@ -178,7 +178,7 @@
 					bind:this={videoEl}
 					ontimeupdate={handleTimeUpdate}
 					onended={handleVideoEnded}
-					onerror={() => console.error('Video error:', videoEl?.error?.code, videoEl?.error?.message)}
+					onerror={() => {}}
 					controls
 					playsinline
 					preload="auto"

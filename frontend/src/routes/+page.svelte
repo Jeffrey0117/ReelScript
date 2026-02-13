@@ -16,6 +16,7 @@
 
 	let url = $state('');
 	let loading = $state(false);
+	let loadingVideos = $state(true);
 	let error = $state('');
 	let videos = $state<Video[]>([]);
 	let progress = $state<Record<string, number>>({});
@@ -42,6 +43,7 @@
 
 	onMount(async () => {
 		videos = await listVideos();
+		loadingVideos = false;
 
 		connectWS((msg: Record<string, unknown>) => {
 			const data = msg.data as Record<string, unknown>;
@@ -259,7 +261,20 @@
 	{/if}
 </section>
 
-{#if videos.length > 0}
+{#if loadingVideos}
+	<section class="video-list">
+		<h2>{t('myVideos')}</h2>
+		<div class="grid">
+			{#each Array(3) as _}
+				<div class="video-card card skeleton-card">
+					<div class="skeleton-line short"></div>
+					<div class="skeleton-line"></div>
+					<div class="skeleton-line short"></div>
+				</div>
+			{/each}
+		</div>
+	</section>
+{:else if videos.length > 0}
 	<section class="video-list">
 		<div class="video-list-header">
 			<h2>{t('myVideos')}</h2>
@@ -318,6 +333,16 @@
 						<a href="/watch/{video.id}" class="card-link" aria-label={video.title || t('untitled')}></a>
 					{/if}
 
+					{#if video.thumbnail}
+						<div class="video-thumb">
+							<img src={video.thumbnail} alt="" loading="lazy" />
+							{#if video.duration}
+								<span class="thumb-duration">{formatDuration(video.duration)}</span>
+							{/if}
+						</div>
+					{/if}
+
+					<div class="video-card-body">
 					<div class="video-card-header">
 						<span class="badge {video.source === 'ig' ? 'badge-ig' : 'badge-youtube'}">
 							{video.source === 'ig' ? 'IG' : video.source === 'youtube' ? 'YT' : '?'}
@@ -377,7 +402,7 @@
 						{#if video.channel}
 							<span>{video.channel}</span>
 						{/if}
-						{#if video.duration}
+						{#if video.duration && !video.thumbnail}
 							<span>{formatDuration(video.duration)}</span>
 						{/if}
 					</div>
@@ -387,6 +412,7 @@
 							<div class="progress-bar-fill" style="width: {progress[video.id]}%"></div>
 						</div>
 					{/if}
+					</div>
 				</div>
 			{/each}
 		</div>
@@ -536,6 +562,40 @@
 		transition: border-color 0.15s, transform 0.15s;
 		color: inherit;
 		cursor: default;
+	}
+
+	.video-thumb {
+		position: relative;
+		margin: -16px -16px 12px -16px;
+		border-radius: var(--radius) var(--radius) 0 0;
+		overflow: hidden;
+		aspect-ratio: 16 / 9;
+		background: var(--border);
+	}
+
+	.video-thumb img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.thumb-duration {
+		position: absolute;
+		bottom: 6px;
+		right: 6px;
+		background: rgba(0, 0, 0, 0.75);
+		color: #fff;
+		font-size: 12px;
+		font-weight: 600;
+		padding: 2px 6px;
+		border-radius: 4px;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.video-card-body {
+		display: flex;
+		flex-direction: column;
 	}
 
 	.video-card:hover:not(.disabled) {
@@ -771,6 +831,29 @@
 	.modal-cancel {
 		margin-top: 16px;
 		width: 100%;
+	}
+
+	/* Skeleton loading */
+	.skeleton-card {
+		padding: 20px;
+	}
+
+	.skeleton-line {
+		height: 14px;
+		background: var(--border);
+		border-radius: 4px;
+		margin-bottom: 12px;
+		animation: shimmer 1.5s infinite;
+	}
+
+	.skeleton-line.short {
+		width: 40%;
+	}
+
+	@keyframes shimmer {
+		0% { opacity: 0.5; }
+		50% { opacity: 1; }
+		100% { opacity: 0.5; }
 	}
 
 	@media (max-width: 640px) {
