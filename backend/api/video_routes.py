@@ -34,6 +34,39 @@ class BatchDeleteRequest(BaseModel):
     video_ids: list[str]
 
 
+_ERROR_ZH = [
+    ("Sign in to confirm", "需要登入驗證，無法下載"),
+    ("Private video", "私人影片，無法存取"),
+    ("Video unavailable", "影片不存在或已被刪除"),
+    ("This video is private", "私人影片，無法存取"),
+    ("Requested content is not available", "內容不可用，可能是私人或已刪除"),
+    ("login required", "需要登入才能下載"),
+    ("Sign in if you", "需要登入驗證，無法下載"),
+    ("HTTP Error 429", "請求太頻繁，請稍後再試"),
+    ("HTTP Error 403", "存取被拒絕"),
+    ("HTTP Error 404", "影片不存在"),
+    ("Unsupported URL", "不支援的連結格式"),
+    ("No video formats found", "找不到可下載的影片格式"),
+    ("not available in your country", "影片在你的地區不可用"),
+    ("copyright", "影片因版權問題被移除"),
+    ("age", "影片有年齡限制，需要登入"),
+    ("geo", "影片有地區限制"),
+    ("unable to extract", "無法解析此連結"),
+    ("Incomplete data", "資料不完整，下載失敗"),
+    ("timed out", "連線逾時，請稍後再試"),
+    ("Network", "網路錯誤，請稍後再試"),
+]
+
+
+def _localize_error(raw: str) -> str:
+    """Translate common yt-dlp errors to Chinese."""
+    lower = raw.lower()
+    for pattern, zh in _ERROR_ZH:
+        if pattern.lower() in lower:
+            return zh
+    return f"下載失敗：{raw[:120]}"
+
+
 URL_PATTERNS = [
     re.compile(r"https?://(www\.)?(youtube\.com|youtu\.be)/"),
     re.compile(r"https?://(www\.)?instagram\.com/"),
@@ -56,6 +89,19 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db)):
     # Dedup: check if this URL is already processed
     existing = db.query(Video).filter(Video.url == req.url).first()
     if existing:
+        # Auto-retry if previously failed
+        if existing.status == "failed":
+            existing.status = "downloading"
+            existing.error_message = None
+            db.commit()
+            asyncio.create_task(_process_pipeline(existing.id, existing.url))
+            return {
+                "success": True,
+                "video_id": existing.id,
+                "title": existing.title,
+                "status": "downloading",
+                "duplicate": True,
+            }
         return {
             "success": True,
             "video_id": existing.id,
@@ -109,7 +155,7 @@ async def _process_pipeline(video_id: str, url: str):
 
         if not result.get("success"):
             video.status = "failed"
-            video.error_message = result.get("error", "Download failed")
+            video.error_message = _localize_error(result.get("error", "Download failed"))
             db.commit()
             return
 
@@ -181,7 +227,7 @@ async def _process_pipeline(video_id: str, url: str):
         video = db.query(Video).filter(Video.id == video_id).first()
         if video:
             video.status = "failed"
-            video.error_message = str(e)
+            video.error_message = _localize_error(str(e))
             db.commit()
 
         await manager.broadcast({
@@ -206,10 +252,31 @@ async def list_videos(db: Session = Depends(get_db)):
             "thumbnail": v.thumbnail,
             "channel": v.channel,
             "status": v.status,
+            "error_message": v.error_message,
             "created_at": v.created_at.isoformat() if v.created_at else None,
         }
         for v in videos
     ]
+
+
+@router.post("/retry-all-failed")
+async def retry_all_failed(db: Session = Depends(get_db)):
+    """Retry all failed videos."""
+    failed = db.query(Video).filter(Video.status == "failed").all()
+    if not failed:
+        return {"retried": 0, "video_ids": []}
+
+    video_ids = []
+    for video in failed:
+        video.status = "downloading"
+        video.error_message = None
+        video_ids.append(video.id)
+    db.commit()
+
+    for video in failed:
+        asyncio.create_task(_process_pipeline(video.id, video.url))
+
+    return {"retried": len(video_ids), "video_ids": video_ids}
 
 
 @router.post("/batch-delete")
@@ -266,6 +333,7 @@ async def get_video(video_id: str, db: Session = Depends(get_db)):
         "channel": video.channel,
         "filename": video.filename,
         "status": video.status,
+        "error_message": video.error_message,
         "created_at": video.created_at.isoformat() if video.created_at else None,
         "transcript": transcript_data,
     }
@@ -287,6 +355,24 @@ async def delete_video(video_id: str, db: Session = Depends(get_db)):
     db.delete(video)
     db.commit()
     return {"success": True}
+
+
+@router.post("/{video_id}/retry")
+async def retry_video(video_id: str, db: Session = Depends(get_db)):
+    """Retry a failed video: reset status and re-run pipeline."""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if video.status != "failed":
+        raise HTTPException(status_code=400, detail="Only failed videos can be retried")
+
+    video.status = "downloading"
+    video.error_message = None
+    db.commit()
+
+    asyncio.create_task(_process_pipeline(video.id, video.url))
+
+    return {"success": True, "video_id": video.id, "status": "downloading"}
 
 
 @router.post("/{video_id}/translate")

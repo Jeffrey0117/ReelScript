@@ -57,6 +57,16 @@ export const batchDeleteVideos = (videoIds: string[]) =>
 		body: JSON.stringify({ video_ids: videoIds }),
 	});
 
+export const retryVideo = (id: string) =>
+	request<{ success: boolean; video_id: string; status: string }>(`/api/videos/${id}/retry`, {
+		method: 'POST',
+	});
+
+export const retryAllFailed = () =>
+	request<{ retried: number; video_ids: string[] }>('/api/videos/retry-all-failed', {
+		method: 'POST',
+	});
+
 export const translateVideo = (id: string) =>
 	request<{ success: boolean; segments: TranscriptSegment[] }>(`/api/videos/${id}/translate`, {
 		method: 'POST',
@@ -157,6 +167,7 @@ export interface Video {
 	thumbnail: string | null;
 	channel: string | null;
 	status: string;
+	error_message: string | null;
 	created_at: string | null;
 }
 

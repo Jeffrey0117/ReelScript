@@ -101,6 +101,19 @@ const translations = {
 		goldenQuotes: '金句',
 		appreciating: '生成主旨中...',
 
+		// IG Mode
+		igMode: 'IG 模式',
+		exitIgMode: '返回',
+		noReadyVideos: '沒有可播放的影片',
+
+		// Failed videos
+		failedVideos2: '失敗的影片',
+		retryAll: '全部重試',
+		retry: '重試',
+		retrying: '重試中...',
+		deleteFailed: '刪除',
+		errorReason: '原因',
+
 		// Auth
 		login: '登入',
 		register: '註冊',
@@ -207,6 +220,19 @@ const translations = {
 		keyPoints: 'Key Points',
 		goldenQuotes: 'Golden Quotes',
 		appreciating: 'Generating summary...',
+
+		// IG Mode
+		igMode: 'IG Mode',
+		exitIgMode: 'Back',
+		noReadyVideos: 'No videos available',
+
+		// Failed videos
+		failedVideos2: 'Failed Videos',
+		retryAll: 'Retry All',
+		retry: 'Retry',
+		retrying: 'Retrying...',
+		deleteFailed: 'Delete',
+		errorReason: 'Reason',
 
 		// Auth
 		login: 'Login',

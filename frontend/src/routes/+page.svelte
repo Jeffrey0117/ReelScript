@@ -6,12 +6,16 @@
 		connectWS,
 		renameVideo,
 		batchDeleteVideos,
+		retryVideo,
+		retryAllFailed,
+		deleteVideo,
 		listCollections,
 		createCollection,
 		addToCollection,
 		type Video,
 		type Collection,
 	} from '$lib/api';
+	import { goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
 
 	let url = $state('');
@@ -36,6 +40,10 @@
 	let creatingCollection = $state(false);
 
 	let readyVideos = $derived(videos.filter((v) => v.status === 'ready'));
+	let failedVideos = $derived(videos.filter((v) => v.status === 'failed'));
+	let activeVideos = $derived(videos.filter((v) => v.status !== 'failed'));
+	let retryingIds = $state<Set<string>>(new Set());
+	let retryingAll = $state(false);
 	let selectedCount = $derived(selectedIds.size);
 	let allSelected = $derived(
 		readyVideos.length > 0 && readyVideos.every((v) => selectedIds.has(v.id))
@@ -71,25 +79,78 @@
 
 		try {
 			const result = await processVideo(url.trim());
-			videos = [
-				{
-					id: result.video_id,
-					url: url,
-					title: result.title || 'Processing...',
-					source: 'unknown',
-					duration: null,
-					thumbnail: null,
-					channel: null,
-					status: 'downloading',
-					created_at: new Date().toISOString(),
-				},
-				...videos,
-			];
+			const existingIdx = videos.findIndex((v) => v.id === result.video_id);
+			if (existingIdx >= 0) {
+				// Duplicate — update status in place (e.g. failed → downloading)
+				videos = videos.map((v) =>
+					v.id === result.video_id
+						? { ...v, status: result.status || 'downloading', error_message: null }
+						: v
+				);
+			} else {
+				videos = [
+					{
+						id: result.video_id,
+						url: url,
+						title: result.title || 'Processing...',
+						source: 'unknown',
+						duration: null,
+						thumbnail: null,
+						channel: null,
+						status: 'downloading',
+						error_message: null,
+						created_at: new Date().toISOString(),
+					},
+					...videos,
+				];
+			}
 			url = '';
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Something went wrong';
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function handleRetry(videoId: string) {
+		retryingIds = new Set([...retryingIds, videoId]);
+		try {
+			await retryVideo(videoId);
+			videos = videos.map((v) =>
+				v.id === videoId ? { ...v, status: 'downloading', error_message: null } : v
+			);
+		} catch {
+			// refresh list to get actual state
+			videos = await listVideos();
+		} finally {
+			const next = new Set(retryingIds);
+			next.delete(videoId);
+			retryingIds = next;
+		}
+	}
+
+	async function handleRetryAll() {
+		retryingAll = true;
+		try {
+			const result = await retryAllFailed();
+			if (result.retried > 0) {
+				videos = videos.map((v) =>
+					v.status === 'failed' ? { ...v, status: 'downloading', error_message: null } : v
+				);
+			}
+		} catch {
+			videos = await listVideos();
+		} finally {
+			retryingAll = false;
+		}
+	}
+
+	async function handleDeleteFailed(videoId: string) {
+		try {
+			await deleteVideo(videoId);
+			videos = videos.filter((v) => v.id !== videoId);
+		} catch {
+			// ignore
 		}
 	}
 
@@ -279,6 +340,16 @@
 		<div class="video-list-header">
 			<h2>{t('myVideos')}</h2>
 			<div class="header-actions">
+				{#if !manageMode && readyVideos.length > 0}
+					<button class="btn btn-ghost btn-sm ig-mode-btn" onclick={() => goto('/ig')}>
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+							<path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+							<line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+						</svg>
+						{t('igMode')}
+					</button>
+				{/if}
 				{#if manageMode}
 					<button class="btn btn-ghost btn-sm" onclick={toggleSelectAll}>
 						{allSelected ? t('deselectAll') : t('selectAll')}
@@ -294,7 +365,7 @@
 		</div>
 
 		<div class="grid">
-			{#each videos as video (video.id)}
+			{#each activeVideos as video (video.id)}
 				{@const isReady = video.status === 'ready'}
 				{@const isSelected = selectedIds.has(video.id)}
 				{@const isEditing = editingVideoId === video.id}
@@ -338,6 +409,17 @@
 							<img src={video.thumbnail} alt="" loading="lazy" />
 							{#if video.duration}
 								<span class="thumb-duration">{formatDuration(video.duration)}</span>
+							{/if}
+							{#if !manageMode && isReady}
+								<button
+									class="ig-play-btn"
+									onclick={(e) => { e.preventDefault(); e.stopPropagation(); goto(`/ig?start=${video.id}`); }}
+									aria-label={t('igMode')}
+								>
+									<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+										<path d="M8 5v14l11-7z"/>
+									</svg>
+								</button>
 							{/if}
 						</div>
 					{/if}
@@ -412,6 +494,54 @@
 							<div class="progress-bar-fill" style="width: {progress[video.id]}%"></div>
 						</div>
 					{/if}
+					</div>
+				</div>
+			{/each}
+		</div>
+	</section>
+{/if}
+
+{#if failedVideos.length > 0}
+	<section class="failed-section">
+		<div class="failed-header">
+			<h2>{t('failedVideos2')} ({failedVideos.length})</h2>
+			<button
+				class="btn btn-primary btn-sm"
+				onclick={handleRetryAll}
+				disabled={retryingAll}
+			>
+				{retryingAll ? t('retrying') : t('retryAll')}
+			</button>
+		</div>
+		<div class="failed-list">
+			{#each failedVideos as video (video.id)}
+				{@const isRetrying = retryingIds.has(video.id)}
+				<div class="failed-item card">
+					<div class="failed-info">
+						<div class="failed-top">
+							<span class="badge badge-ig">
+								{video.source === 'ig' ? 'IG' : video.source === 'youtube' ? 'YT' : '?'}
+							</span>
+							<span class="failed-title">{video.title || video.url}</span>
+						</div>
+						{#if video.error_message}
+							<p class="failed-error">{t('errorReason')}: {video.error_message}</p>
+						{/if}
+					</div>
+					<div class="failed-actions">
+						<button
+							class="btn btn-primary btn-sm"
+							onclick={() => handleRetry(video.id)}
+							disabled={isRetrying}
+						>
+							{isRetrying ? t('retrying') : t('retry')}
+						</button>
+						<button
+							class="btn btn-ghost btn-sm btn-danger-ghost"
+							onclick={() => handleDeleteFailed(video.id)}
+						>
+							{t('deleteFailed')}
+						</button>
 					</div>
 				</div>
 			{/each}
@@ -833,6 +963,82 @@
 		width: 100%;
 	}
 
+	/* Failed videos section */
+	.failed-section {
+		margin-top: 32px;
+		margin-bottom: 24px;
+	}
+
+	.failed-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 12px;
+	}
+
+	.failed-header h2 {
+		font-size: 16px;
+		font-weight: 600;
+		color: var(--danger);
+	}
+
+	.failed-list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.failed-item {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 12px;
+		padding: 12px 16px;
+	}
+
+	.failed-info {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.failed-top {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.failed-title {
+		font-size: 14px;
+		font-weight: 500;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.failed-error {
+		font-size: 12px;
+		color: var(--text-dim);
+		margin-top: 4px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.failed-actions {
+		display: flex;
+		gap: 6px;
+		flex-shrink: 0;
+	}
+
+	.btn-danger-ghost {
+		color: var(--danger);
+		border-color: var(--danger);
+	}
+
+	.btn-danger-ghost:hover {
+		background: color-mix(in srgb, var(--danger) 10%, transparent);
+	}
+
 	/* Skeleton loading */
 	.skeleton-card {
 		padding: 20px;
@@ -893,6 +1099,62 @@
 		.video-list-header {
 			flex-wrap: wrap;
 			gap: 8px;
+		}
+
+		.failed-item {
+			flex-direction: column;
+			align-items: flex-start;
+		}
+
+		.failed-actions {
+			width: 100%;
+		}
+
+		.failed-actions .btn {
+			flex: 1;
+		}
+	}
+
+	/* IG Mode button */
+	.ig-mode-btn {
+		border: 1px solid var(--border);
+	}
+
+	.ig-mode-btn svg {
+		flex-shrink: 0;
+	}
+
+	/* IG play button on thumbnail */
+	.ig-play-btn {
+		position: absolute;
+		bottom: 6px;
+		left: 6px;
+		z-index: 2;
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(0, 0, 0, 0.6);
+		color: #fff;
+		border-radius: 50%;
+		border: none;
+		cursor: pointer;
+		opacity: 0;
+		transition: opacity 0.15s, background 0.15s;
+	}
+
+	.ig-play-btn:hover {
+		background: var(--accent);
+	}
+
+	.video-card:hover .ig-play-btn {
+		opacity: 1;
+	}
+
+	@media (pointer: coarse) {
+		.ig-play-btn {
+			opacity: 1;
 		}
 	}
 </style>
