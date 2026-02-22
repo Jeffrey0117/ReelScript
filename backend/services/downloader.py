@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 # Project data dir (relative to backend/)
 VIDEOS_DIR = Path("./data/videos")
 VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
+THUMBS_DIR = Path("./data/thumbnails")
+THUMBS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _detect_source(url: str) -> str:
@@ -105,6 +107,28 @@ def _ensure_h264(filepath: Path) -> None:
         tmp = filepath.with_suffix(".tmp.mp4")
         if tmp.exists():
             tmp.unlink()
+
+
+def generate_thumbnail(video_path: Path, video_id: str) -> str | None:
+    """Extract a frame from the video as a JPEG thumbnail."""
+    thumb_path = THUMBS_DIR / f"{video_id}.jpg"
+    if thumb_path.exists():
+        return thumb_path.name
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-i", str(video_path),
+                "-ss", "00:00:01", "-frames:v", "1",
+                "-vf", "scale=480:-2",
+                "-q:v", "3", "-y", str(thumb_path),
+            ],
+            capture_output=True, timeout=30, check=True,
+        )
+        logger.info(f"[Downloader] Thumbnail generated: {thumb_path.name}")
+        return thumb_path.name
+    except Exception as e:
+        logger.error(f"[Downloader] Thumbnail generation failed: {e}")
+        return None
 
 
 async def download_video(url: str, video_id: str) -> Dict[str, Any]:

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from models import get_db, Video, Transcript
-from services.downloader import download_video, get_video_info, VIDEOS_DIR
+from services.downloader import download_video, get_video_info, generate_thumbnail, VIDEOS_DIR, THUMBS_DIR
 from services.transcriber import transcriber
 from services.translator import translate_segments
 from services.vocabulary import analyze_segments
@@ -162,9 +162,17 @@ async def _process_pipeline(video_id: str, url: str):
         video.filename = result.get("filename")
         video.title = result.get("title") or video.title
         video.duration = result.get("duration") or video.duration
-        video.thumbnail = result.get("thumbnail") or video.thumbnail
         video.channel = result.get("channel") or video.channel
         video.source = result.get("source") or video.source
+
+        # Generate local thumbnail from downloaded video
+        if video.filename:
+            thumb = await asyncio.to_thread(
+                generate_thumbnail, VIDEOS_DIR / video.filename, video_id
+            )
+            if thumb:
+                video.thumbnail = thumb
+
         video.status = "transcribing"
         db.commit()
 
@@ -236,6 +244,33 @@ async def _process_pipeline(video_id: str, url: str):
         })
     finally:
         db.close()
+
+
+@router.post("/backfill-thumbnails")
+async def backfill_thumbnails(db: Session = Depends(get_db)):
+    """Generate thumbnails for all videos that don't have one yet."""
+    videos = db.query(Video).filter(
+        Video.filename.isnot(None),
+        Video.status == "ready",
+    ).all()
+
+    generated = 0
+    for video in videos:
+        # Skip if already has a local thumbnail
+        if video.thumbnail and (THUMBS_DIR / video.thumbnail).exists():
+            continue
+
+        video_path = VIDEOS_DIR / video.filename
+        if not video_path.exists():
+            continue
+
+        thumb = generate_thumbnail(video_path, video.id)
+        if thumb:
+            video.thumbnail = thumb
+            generated += 1
+
+    db.commit()
+    return {"success": True, "generated": generated, "total": len(videos)}
 
 
 @router.get("")

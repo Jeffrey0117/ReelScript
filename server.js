@@ -14,6 +14,7 @@ const PORT = parseInt(process.env.PORT || '4005', 10);
 const BACKEND_PORT = PORT + 1000; // Internal backend port
 const BACKEND_HOST = `http://127.0.0.1:${BACKEND_PORT}`;
 const VIDEOS_DIR = join(import.meta.dirname, 'data', 'videos');
+const THUMBS_DIR = join(import.meta.dirname, 'data', 'thumbnails');
 
 // Create reverse proxy for API calls
 const proxy = httpProxy.createProxyServer({
@@ -101,10 +102,40 @@ function serveVideo(req, res) {
 	}
 }
 
+// Serve thumbnail images
+function serveThumbnail(req, res) {
+	const urlPath = req.url.split('?')[0];
+	const filename = decodeURIComponent(urlPath.replace('/thumbnails/', ''));
+	if (filename.includes('..') || filename.includes('/')) {
+		res.writeHead(400);
+		res.end('Bad request');
+		return;
+	}
+
+	const filePath = join(THUMBS_DIR, filename);
+	let stat;
+	try {
+		stat = statSync(filePath);
+	} catch {
+		res.writeHead(404);
+		res.end('Not found');
+		return;
+	}
+
+	res.writeHead(200, {
+		'Content-Type': 'image/jpeg',
+		'Content-Length': stat.size,
+		'Cache-Control': 'public, max-age=86400',
+	});
+	createReadStream(filePath).pipe(res);
+}
+
 // HTTP server: videos direct, API to backend, rest to SvelteKit
 const server = createServer((req, res) => {
 	if (req.url?.startsWith('/videos/')) {
 		serveVideo(req, res);
+	} else if (req.url?.startsWith('/thumbnails/')) {
+		serveThumbnail(req, res);
 	} else if (req.url?.startsWith('/api/')) {
 		proxy.web(req, res);
 	} else {

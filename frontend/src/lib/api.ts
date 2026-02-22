@@ -67,6 +67,11 @@ export const retryAllFailed = () =>
 		method: 'POST',
 	});
 
+export const backfillThumbnails = () =>
+	request<{ success: boolean; generated: number; total: number }>('/api/videos/backfill-thumbnails', {
+		method: 'POST',
+	});
+
 export const translateVideo = (id: string) =>
 	request<{ success: boolean; segments: TranscriptSegment[] }>(`/api/videos/${id}/translate`, {
 		method: 'POST',
@@ -137,6 +142,9 @@ export const adminDeleteVideo = (adminKey = '', videoId: string) =>
 
 // Video file URL (cache key changes when videos are re-encoded)
 export const videoFileUrl = (filename: string) => `${API_BASE}/videos/${filename}?v=5`;
+
+// Thumbnail URL — local file served from /thumbnails/
+export const thumbnailUrl = (thumb: string) => `${API_BASE}/thumbnails/${thumb}`;
 
 // WebSocket
 export function connectWS(onMessage: (data: Record<string, unknown>) => void): WebSocket {

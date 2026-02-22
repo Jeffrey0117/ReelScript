@@ -12,6 +12,7 @@
 		listCollections,
 		createCollection,
 		addToCollection,
+		thumbnailUrl,
 		type Video,
 		type Collection,
 	} from '$lib/api';
@@ -406,7 +407,7 @@
 
 					{#if video.thumbnail}
 						<div class="video-thumb">
-							<img src={video.thumbnail} alt="" loading="lazy" />
+							<img src={thumbnailUrl(video.thumbnail)} alt="" loading="lazy" />
 							{#if video.duration}
 								<span class="thumb-duration">{formatDuration(video.duration)}</span>
 							{/if}
