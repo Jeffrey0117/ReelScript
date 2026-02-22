@@ -163,6 +163,18 @@
 		try {
 			const detail = await getVideo(videoId);
 			videoDetails = new Map([...videoDetails, [videoId, detail]]);
+
+			// After detail loads, the video element renders — try auto-play
+			await tick();
+			if (currentVideo?.id === videoId) {
+				const slide = scrollContainer?.querySelector(`[data-video-id="${videoId}"]`);
+				if (slide) {
+					const el = getVideoEl(slide, videoId);
+					if (el && el.paused) {
+						el.play().catch(() => {});
+					}
+				}
+			}
 		} catch {
 			// ignore
 		}
@@ -355,12 +367,17 @@
 						<!-- svelte-ignore a11y_media_has_caption -->
 						<video
 							playsinline
-							muted
 							loop
-							preload={Math.abs(i - currentIndex) <= 1 ? 'metadata' : 'none'}
+							preload={Math.abs(i - currentIndex) <= 1 ? 'auto' : 'none'}
 							poster={video.thumbnail ? thumbnailUrl(video.thumbnail) : undefined}
 							ontimeupdate={() => handleTimeUpdate(video.id)}
 							onloadedmetadata={(e) => registerVideo(video.id, e.currentTarget as HTMLVideoElement)}
+							oncanplay={(e) => {
+								const el = e.currentTarget as HTMLVideoElement;
+								if (videos[currentIndex]?.id === video.id && el.paused) {
+									el.play().catch(() => {});
+								}
+							}}
 							onpointerdown={handleVideoPointerDown}
 							onpointerup={handleVideoPointerUp}
 						>
@@ -554,9 +571,9 @@
 		height: 100vh;
 		height: 100dvh;
 		z-index: 510;
-		background: rgba(18, 18, 26, 0.85);
-		backdrop-filter: blur(12px);
-		-webkit-backdrop-filter: blur(12px);
+		background: rgba(18, 18, 26, 0.55);
+		backdrop-filter: blur(16px);
+		-webkit-backdrop-filter: blur(16px);
 		border-radius: 16px 16px 0 0;
 		display: flex;
 		flex-direction: column;
@@ -598,9 +615,22 @@
 
 	.ig-sheet-content {
 		flex: 1;
-		overflow-y: auto;
+		overflow-y: scroll;
 		padding: 4px 16px 24px;
 		-webkit-overflow-scrolling: touch;
+	}
+
+	.ig-sheet-content::-webkit-scrollbar {
+		width: 3px;
+	}
+
+	.ig-sheet-content::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.ig-sheet-content::-webkit-scrollbar-thumb {
+		background: rgba(255, 255, 255, 0.2);
+		border-radius: 3px;
 	}
 
 	.ig-no-transcript {
