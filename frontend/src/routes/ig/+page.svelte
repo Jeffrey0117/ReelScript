@@ -8,7 +8,6 @@
 		thumbnailUrl,
 		type Video,
 		type VideoDetail,
-		type TranscriptSegment,
 	} from '$lib/api';
 	import { t } from '$lib/i18n';
 
@@ -20,6 +19,8 @@
 	let currentTime = $state(0);
 	let activeSegmentIndex = $state(-1);
 	let sheetState = $state<'peek' | 'half' | 'full'>('half');
+	let paused = $state(false);
+	let playbackRate = $state(1);
 	let loading = $state(true);
 
 	// Scroll container ref
@@ -40,6 +41,12 @@
 		currentVideo ? videoDetails.get(currentVideo.id) : undefined
 	);
 	let segments = $derived(currentDetail?.transcript?.segments ?? []);
+	let fullText = $derived(segments.map((s) => s.text).join(' '));
+	let fullTranslation = $derived(
+		segments.some((s) => s.translation)
+			? segments.map((s) => s.translation || '').join('')
+			: ''
+	);
 	let totalCount = $derived(videos.length);
 
 	// Sheet heights (vh)
@@ -127,8 +134,13 @@
 							currentIndex = idx;
 							activeSegmentIndex = -1;
 							currentTime = 0;
+							paused = false;
+							playbackRate = 1;
 						}
-						el?.play().catch(() => {});
+						if (el) {
+							el.playbackRate = 1;
+							el.play().catch(() => {});
+						}
 						loadDetail(videoId);
 					} else {
 						el?.pause();
@@ -181,24 +193,58 @@
 		}
 	}
 
-	function seekTo(segment: TranscriptSegment) {
-		if (!currentVideo) return;
-		const el = videoEls.get(currentVideo.id);
-		if (!el) return;
-		el.currentTime = segment.start;
-		el.play().catch(() => {});
-	}
-
-	function formatTime(seconds: number): string {
-		const m = Math.floor(seconds / 60);
-		const s = Math.floor(seconds % 60);
-		return `${m}:${s.toString().padStart(2, '0')}`;
-	}
 
 	function registerVideo(videoId: string, el: HTMLVideoElement | null) {
 		if (el && !videoEls.has(videoId)) {
 			videoEls = new Map([...videoEls, [videoId, el]]);
 		}
+	}
+
+	// --- Tap to pause/play, long-press to speed up ---
+	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let isLongPress = false;
+
+	function handleVideoPointerDown() {
+		isLongPress = false;
+		longPressTimer = setTimeout(() => {
+			isLongPress = true;
+			setPlaybackRate(2);
+		}, 400);
+	}
+
+	function handleVideoPointerUp() {
+		if (longPressTimer) {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+		}
+		if (isLongPress) {
+			// Release long press → back to normal speed
+			setPlaybackRate(1);
+			isLongPress = false;
+			return;
+		}
+		// Short tap → toggle play/pause
+		togglePlay();
+	}
+
+	function togglePlay() {
+		if (!currentVideo) return;
+		const el = videoEls.get(currentVideo.id);
+		if (!el) return;
+		if (el.paused) {
+			el.play().catch(() => {});
+			paused = false;
+		} else {
+			el.pause();
+			paused = true;
+		}
+	}
+
+	function setPlaybackRate(rate: number) {
+		playbackRate = rate;
+		if (!currentVideo) return;
+		const el = videoEls.get(currentVideo.id);
+		if (el) el.playbackRate = rate;
 	}
 
 	// --- Bottom sheet drag ---
@@ -309,13 +355,27 @@
 						<!-- svelte-ignore a11y_media_has_caption -->
 						<video
 							playsinline
+							muted
+							loop
 							preload={Math.abs(i - currentIndex) <= 1 ? 'metadata' : 'none'}
 							poster={video.thumbnail ? thumbnailUrl(video.thumbnail) : undefined}
 							ontimeupdate={() => handleTimeUpdate(video.id)}
 							onloadedmetadata={(e) => registerVideo(video.id, e.currentTarget as HTMLVideoElement)}
+							onpointerdown={handleVideoPointerDown}
+							onpointerup={handleVideoPointerUp}
 						>
 							<source src={videoFileUrl(detail.filename)} type="video/mp4" />
 						</video>
+						{#if paused && video.id === currentVideo?.id}
+							<div class="ig-play-overlay">
+								<svg width="48" height="48" viewBox="0 0 24 24" fill="white" opacity="0.8">
+									<path d="M8 5v14l11-7z"/>
+								</svg>
+							</div>
+						{/if}
+						{#if playbackRate > 1 && video.id === currentVideo?.id}
+							<div class="ig-speed-overlay">{playbackRate}x</div>
+						{/if}
 					{:else if video.thumbnail}
 						<img class="ig-poster" src={thumbnailUrl(video.thumbnail)} alt="" />
 					{:else}
@@ -342,10 +402,7 @@
 			>
 				<div class="ig-handle-bar"></div>
 				<span class="ig-sheet-title">
-					{t('transcript')}
-					{#if segments.length > 0}
-						<span class="ig-seg-count">{segments.length} {t('segments')}</span>
-					{/if}
+					{t('fullText')}
 				</span>
 			</div>
 
@@ -353,22 +410,12 @@
 				{#if segments.length === 0}
 					<p class="ig-no-transcript">{t('noTranscript')}</p>
 				{:else}
-					{#each segments as seg, i (seg.index)}
-						<!-- svelte-ignore a11y_click_events_have_key_events -->
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div
-							class="ig-segment"
-							class:active={i === activeSegmentIndex}
-							data-seg-idx={i}
-							onclick={() => seekTo(seg)}
-						>
-							<span class="ig-seg-time">{formatTime(seg.start)}</span>
-							<span class="ig-seg-text">{seg.text}</span>
-							{#if seg.translation}
-								<span class="ig-seg-translation">{seg.translation}</span>
-							{/if}
-						</div>
-					{/each}
+					<div class="ig-article">
+						<p class="ig-article-en">{fullText}</p>
+						{#if fullTranslation}
+							<p class="ig-article-zh">{fullTranslation}</p>
+						{/if}
+					</div>
 				{/if}
 			</div>
 		</div>
@@ -469,6 +516,7 @@
 	}
 
 	.ig-slide {
+		position: relative;
 		height: 100vh;
 		height: 100dvh;
 		scroll-snap-align: start;
@@ -546,12 +594,6 @@
 		gap: 8px;
 	}
 
-	.ig-seg-count {
-		font-size: 12px;
-		font-weight: 400;
-		color: var(--text-dim, #8888a0);
-	}
-
 	.ig-sheet-content {
 		flex: 1;
 		overflow-y: auto;
@@ -566,47 +608,48 @@
 		font-size: 14px;
 	}
 
-	/* Segments */
-	.ig-segment {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		gap: 8px;
-		padding: 10px 12px;
-		border-radius: 8px;
-		cursor: pointer;
-		transition: background 0.15s;
+	/* Article-style transcript */
+	.ig-article {
+		padding: 4px 0 24px;
 	}
 
-	.ig-segment:hover {
-		background: rgba(255, 255, 255, 0.05);
-	}
-
-	.ig-segment.active {
-		background: rgba(99, 102, 241, 0.15);
-	}
-
-	.ig-seg-time {
-		font-size: 12px;
-		color: var(--accent, #6366f1);
-		font-variant-numeric: tabular-nums;
-		flex-shrink: 0;
-		min-width: 36px;
-	}
-
-	.ig-seg-text {
+	.ig-article-en {
 		font-size: 15px;
+		line-height: 1.7;
 		color: var(--text, #e4e4ef);
-		line-height: 1.5;
-		flex: 1;
-		min-width: 0;
+		margin: 0;
 	}
 
-	.ig-seg-translation {
-		width: 100%;
-		font-size: 13px;
+	.ig-article-zh {
+		font-size: 14px;
+		line-height: 1.7;
 		color: var(--text-dim, #8888a0);
-		padding-left: 44px;
-		line-height: 1.4;
+		margin: 16px 0 0;
+		padding-top: 16px;
+		border-top: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	/* Video overlays */
+	.ig-play-overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+	}
+
+	.ig-speed-overlay {
+		position: absolute;
+		top: 80px;
+		left: 50%;
+		transform: translateX(-50%);
+		background: rgba(0, 0, 0, 0.6);
+		color: #fff;
+		font-size: 14px;
+		font-weight: 600;
+		padding: 4px 12px;
+		border-radius: 16px;
+		pointer-events: none;
 	}
 </style>
