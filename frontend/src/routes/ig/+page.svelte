@@ -554,7 +554,9 @@
 		height: 100vh;
 		height: 100dvh;
 		z-index: 510;
-		background: var(--bg-card, #12121a);
+		background: rgba(18, 18, 26, 0.85);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
 		border-radius: 16px 16px 0 0;
 		display: flex;
 		flex-direction: column;
@@ -586,9 +588,9 @@
 	}
 
 	.ig-sheet-title {
-		font-size: 14px;
+		font-size: 12px;
 		font-weight: 600;
-		color: var(--text, #e4e4ef);
+		color: rgba(228, 228, 239, 0.8);
 		display: flex;
 		align-items: center;
 		gap: 8px;
@@ -614,16 +616,16 @@
 	}
 
 	.ig-article-en {
-		font-size: 15px;
+		font-size: 13px;
 		line-height: 1.7;
-		color: var(--text, #e4e4ef);
+		color: rgba(228, 228, 239, 0.9);
 		margin: 0;
 	}
 
 	.ig-article-zh {
-		font-size: 14px;
+		font-size: 12px;
 		line-height: 1.7;
-		color: var(--text-dim, #8888a0);
+		color: rgba(136, 136, 160, 0.85);
 		margin: 16px 0 0;
 		padding-top: 16px;
 		border-top: 1px solid rgba(255, 255, 255, 0.08);
