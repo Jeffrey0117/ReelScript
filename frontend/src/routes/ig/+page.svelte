@@ -28,6 +28,7 @@
 	let playbackRate = $state(1);
 	let loading = $state(true);
 	let activeTab = $state<'text' | 'vocab' | 'theme'>('text');
+	let userInteracted = $state(false); // track first user interaction to unmute
 
 	// Scroll container ref
 	let scrollContainer: HTMLDivElement | undefined = $state();
@@ -151,6 +152,7 @@
 						}
 						if (el) {
 							el.playbackRate = 1;
+							if (userInteracted) el.muted = false;
 							el.play().catch(() => {});
 						}
 						loadDetail(videoId);
@@ -272,6 +274,7 @@
 
 	function registerVideo(videoId: string, el: HTMLVideoElement | null) {
 		if (el && !videoEls.has(videoId)) {
+			if (userInteracted) el.muted = false;
 			videoEls = new Map([...videoEls, [videoId, el]]);
 		}
 	}
@@ -293,6 +296,7 @@
 			clearTimeout(longPressTimer);
 			longPressTimer = null;
 		}
+		unmuteAll();
 		if (isLongPress) {
 			setPlaybackRate(1);
 			isLongPress = false;
@@ -307,8 +311,17 @@
 		}
 	}
 
+	function unmuteAll() {
+		if (userInteracted) return;
+		userInteracted = true;
+		for (const el of videoEls.values()) {
+			el.muted = false;
+		}
+	}
+
 	function togglePlay() {
 		if (!currentVideo) return;
+		unmuteAll();
 		const el = videoEls.get(currentVideo.id);
 		if (!el) return;
 		if (el.paused) {
@@ -435,6 +448,7 @@
 						<!-- svelte-ignore a11y_media_has_caption -->
 						<video
 							playsinline
+							muted
 							loop
 							preload={Math.abs(i - currentIndex) <= 1 ? 'auto' : 'none'}
 							poster={video.thumbnail ? thumbnailUrl(video.thumbnail) : undefined}
