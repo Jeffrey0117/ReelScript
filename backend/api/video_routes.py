@@ -269,6 +269,21 @@ async def backfill_thumbnails(db: Session = Depends(get_db)):
 @router.get("")
 async def list_videos(db: Session = Depends(get_db), user: dict = Depends(require_auth)):
     user_id = _get_user_id(user)
+
+    # Migration: if user has no videos yet, adopt all orphan videos (no UserVideo link)
+    user_count = db.query(UserVideo).filter(UserVideo.user_id == user_id).count()
+    if user_count == 0:
+        from sqlalchemy import exists
+        orphan_videos = (
+            db.query(Video)
+            .filter(~exists().where(UserVideo.video_id == Video.id))
+            .all()
+        )
+        if orphan_videos:
+            for v in orphan_videos:
+                db.add(UserVideo(user_id=user_id, video_id=v.id))
+            db.commit()
+
     user_vids = (
         db.query(Video)
         .join(UserVideo, UserVideo.video_id == Video.id)
