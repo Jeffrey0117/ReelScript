@@ -22,6 +22,7 @@ interface LetMeUseSDK {
 	getToken(): string | null;
 	onAuthChange(cb: (user: AuthUser | null) => void): () => void;
 	openAdmin(): void;
+	openProfile?(): void;
 }
 
 declare global {
@@ -116,4 +117,9 @@ export function register(): void {
 /** Logout. */
 export async function logout(): Promise<void> {
 	await window.letmeuse?.logout();
+}
+
+/** Open profile/account settings. */
+export function openProfile(): void {
+	window.letmeuse?.openProfile?.();
 }

@@ -76,6 +76,15 @@
 		login();
 	}
 
+	function handleProfile() {
+		if (window.letmeuse?.openProfile) {
+			window.letmeuse.openProfile();
+		} else {
+			window.open('https://letmeuse.isnowfriend.com/account?app=app_3lXIxPKb', '_blank');
+		}
+		showUserMenu = false;
+	}
+
 	async function handleLogout() {
 		await logout();
 		showUserMenu = false;
@@ -140,6 +149,7 @@
 									<span class="user-name">{user.displayName || user.email}</span>
 									<span class="user-email">{user.email}</span>
 								</div>
+								<button class="dropdown-item" onclick={handleProfile}>{t('accountSettings')}</button>
 								<button class="dropdown-item" onclick={handleLogout}>{t('logout')}</button>
 							</div>
 						{/if}

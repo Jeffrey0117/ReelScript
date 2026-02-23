@@ -125,6 +125,7 @@ const translations = {
 		logout: '登出',
 		loginRequired: '請先登入',
 		welcome: '歡迎',
+		accountSettings: '帳號設定',
 
 		// Invite
 		inviteFriends: '邀請好友',
@@ -255,6 +256,7 @@ const translations = {
 		logout: 'Logout',
 		loginRequired: 'Please login first',
 		welcome: 'Welcome',
+		accountSettings: 'Account Settings',
 
 		// Invite
 		inviteFriends: 'Invite Friends',
