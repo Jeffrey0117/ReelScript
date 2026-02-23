@@ -31,6 +31,7 @@
 	let activeTab = $state<'text' | 'vocab' | 'theme'>('text');
 	let userInteracted = $state(false); // track first user interaction to unmute
 	let pendingPlayId = $state<string | null>(null); // video ID waiting to auto-play
+	let fontScale = $state(1); // sheet text scale (0.7 ~ 1.6)
 
 	// Scroll container ref
 	let scrollContainer: HTMLDivElement | undefined = $state();
@@ -570,9 +571,13 @@
 				<button class="ig-tab" class:active={activeTab === 'theme'} onclick={() => (activeTab = 'theme')}>
 					{t('mainIdea')}
 				</button>
+				<div class="ig-font-controls">
+					<button class="ig-font-btn" onclick={() => { fontScale = Math.max(0.7, fontScale - 0.1); }} aria-label="Decrease font">A-</button>
+					<button class="ig-font-btn" onclick={() => { fontScale = Math.min(1.6, fontScale + 0.1); }} aria-label="Increase font">A+</button>
+				</div>
 			</div>
 
-			<div class="ig-sheet-content" bind:this={transcriptEl} style="max-height: {sheetContentMaxH}px">
+			<div class="ig-sheet-content" bind:this={transcriptEl} style="max-height: {sheetContentMaxH}px; --fs: {fontScale}">
 				{#if detailLoading}
 					<div class="ig-loading-dots"><span></span><span></span><span></span></div>
 				{:else if activeTab === 'text'}
@@ -839,6 +844,33 @@
 		border-bottom-color: var(--accent, #6366f1);
 	}
 
+	.ig-font-controls {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		margin-left: auto;
+		flex-shrink: 0;
+		padding: 0 4px;
+	}
+
+	.ig-font-btn {
+		padding: 4px 8px;
+		font-size: 11px;
+		font-weight: 700;
+		color: rgba(255, 255, 255, 0.5);
+		background: none;
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 4px;
+		cursor: pointer;
+		line-height: 1;
+		transition: color 0.15s, border-color 0.15s;
+	}
+
+	.ig-font-btn:hover {
+		color: rgba(255, 255, 255, 0.9);
+		border-color: rgba(255, 255, 255, 0.4);
+	}
+
 	.ig-tab-badge {
 		font-size: 10px;
 		background: rgba(99, 102, 241, 0.3);
@@ -910,14 +942,14 @@
 	}
 
 	.ig-article-en {
-		font-size: 13px;
+		font-size: calc(13px * var(--fs, 1));
 		line-height: 1.7;
 		color: rgba(228, 228, 239, 0.9);
 		margin: 0;
 	}
 
 	.ig-article-zh {
-		font-size: 12px;
+		font-size: calc(12px * var(--fs, 1));
 		line-height: 1.7;
 		color: rgba(136, 136, 160, 0.85);
 		margin: 16px 0 0;
@@ -939,13 +971,13 @@
 	}
 
 	.ig-vocab-word {
-		font-size: 13px;
+		font-size: calc(13px * var(--fs, 1));
 		font-weight: 600;
 		color: rgba(228, 228, 239, 0.9);
 	}
 
 	.ig-vocab-meaning {
-		font-size: 12px;
+		font-size: calc(12px * var(--fs, 1));
 		color: rgba(136, 136, 160, 0.85);
 		text-align: right;
 		max-width: 55%;
@@ -961,7 +993,7 @@
 	}
 
 	.ig-theme-section h4 {
-		font-size: 12px;
+		font-size: calc(12px * var(--fs, 1));
 		font-weight: 600;
 		color: var(--accent, #6366f1);
 		margin: 0 0 6px;
@@ -970,7 +1002,7 @@
 	}
 
 	.ig-theme-section p {
-		font-size: 13px;
+		font-size: calc(13px * var(--fs, 1));
 		line-height: 1.6;
 		color: rgba(228, 228, 239, 0.9);
 		margin: 0;
@@ -982,7 +1014,7 @@
 	}
 
 	.ig-theme-section li {
-		font-size: 13px;
+		font-size: calc(13px * var(--fs, 1));
 		line-height: 1.6;
 		color: rgba(228, 228, 239, 0.85);
 		margin-bottom: 4px;
@@ -997,7 +1029,7 @@
 	}
 
 	.ig-quote-en {
-		font-size: 13px;
+		font-size: calc(13px * var(--fs, 1));
 		font-style: italic;
 		color: rgba(228, 228, 239, 0.9);
 		margin: 0;
@@ -1005,7 +1037,7 @@
 	}
 
 	.ig-quote-zh {
-		font-size: 12px;
+		font-size: calc(12px * var(--fs, 1));
 		color: rgba(136, 136, 160, 0.85);
 		margin: 4px 0 0;
 		line-height: 1.5;
