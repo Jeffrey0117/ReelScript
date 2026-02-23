@@ -73,6 +73,19 @@
 	let appreciation = $derived<Appreciation | null>(currentDetail?.transcript?.appreciation ?? null);
 	let totalCount = $derived(videos.length);
 
+	// Video scale: shrink as sheet rises (like IG comments view)
+	// When sheet is at peek (bottom), scale=1. When sheet is at full, scale~0.45
+	let videoScale = $derived(() => {
+		if (typeof window === 'undefined') return 1;
+		const vh = window.innerHeight;
+		const peekY = vh - SHEET_PEEK;
+		const fullY = getSheetTranslateY('full');
+		// How far sheet has risen from peek (0 = peek, 1 = full)
+		const progress = Math.max(0, Math.min(1, (peekY - currentTranslateY) / (peekY - fullY)));
+		// Scale from 1.0 down to 0.45
+		return 1 - progress * 0.55;
+	});
+
 	// Visible content height: screen - translateY - handle(~44px) - tabs(~40px)
 	let sheetContentMaxH = $derived(
 		typeof window !== 'undefined'
@@ -498,7 +511,12 @@
 		</div>
 
 		<!-- Scroll-snap container -->
-		<div class="ig-scroll" bind:this={scrollContainer}>
+		<div
+			class="ig-scroll"
+			class:dragging={isDragging}
+			bind:this={scrollContainer}
+			style="transform: scale({videoScale()}) translateY(0); transform-origin: top center;"
+		>
 			{#each videos as video, i (video.id)}
 				{@const detail = videoDetails.get(video.id)}
 				<div class="ig-slide" data-video-id={video.id}>
@@ -736,6 +754,13 @@
 		overflow-y: scroll;
 		scroll-snap-type: y mandatory;
 		-webkit-overflow-scrolling: touch;
+		transition: transform 0.3s ease;
+		border-radius: 12px;
+		will-change: transform;
+	}
+
+	.ig-scroll.dragging {
+		transition: none;
 	}
 
 	.ig-scroll::-webkit-scrollbar {
@@ -781,9 +806,7 @@
 		height: 100vh;
 		height: 100dvh;
 		z-index: 510;
-		background: rgba(10, 10, 18, 0.25);
-		backdrop-filter: blur(24px);
-		-webkit-backdrop-filter: blur(24px);
+		background: rgb(15, 15, 20);
 		border-radius: 16px 16px 0 0;
 		display: flex;
 		flex-direction: column;
