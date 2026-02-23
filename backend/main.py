@@ -15,6 +15,7 @@ from api.collection_routes import router as collection_router
 from api.admin_routes import router as admin_router
 from api.quota_routes import router as quota_router
 from api.invite_routes import router as invite_router
+from api.public_routes import router as public_router
 from api.websocket import manager
 
 DATA_DIR = Path("./data")
@@ -52,6 +53,7 @@ app.include_router(collection_router)
 app.include_router(admin_router)
 app.include_router(quota_router)
 app.include_router(invite_router)
+app.include_router(public_router)
 
 # Serve video files and thumbnails
 if VIDEOS_DIR.exists():

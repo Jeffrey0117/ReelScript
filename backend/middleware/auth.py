@@ -8,8 +8,8 @@ import jwt
 from fastapi import HTTPException, Request, Depends
 
 
-LMU_APP_SECRET = os.environ.get("LMU_APP_SECRET", "0E82ZR8kalZcHn0C4RBFYi_tF9KhUk1Q")
-LMU_APP_ID = os.environ.get("LMU_APP_ID", "app_3lXIxPKb")
+LMU_APP_SECRET = os.environ.get("LMU_APP_SECRET", "UEpzMyu5ItZ8Bx6vxqV6H56SzLhnXscO")
+LMU_APP_ID = os.environ.get("LMU_APP_ID", "app_yX0u0SiJ")
 LEGACY_ADMIN_KEY = os.environ.get("ADMIN_KEY", "reelscript-admin-2024")
 
 
