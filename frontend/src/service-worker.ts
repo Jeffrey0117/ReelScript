@@ -31,6 +31,9 @@ sw.addEventListener('fetch', (event) => {
 
 	const url = new URL(event.request.url);
 
+	// Only handle same-origin requests — skip third-party (adman SDK, Cloudflare, etc.)
+	if (url.origin !== sw.location.origin) return;
+
 	// API calls: network-first (never cache)
 	if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws')) return;
 
