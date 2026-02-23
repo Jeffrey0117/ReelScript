@@ -294,13 +294,17 @@
 			longPressTimer = null;
 		}
 		if (isLongPress) {
-			// Release long press → back to normal speed
 			setPlaybackRate(1);
 			isLongPress = false;
 			return;
 		}
-		// Short tap → toggle play/pause
-		togglePlay();
+		// Short tap → collapse sheet if open, otherwise toggle play/pause
+		if (sheetState !== 'peek') {
+			sheetState = 'peek';
+			currentTranslateY = getSheetTranslateY('peek');
+		} else {
+			togglePlay();
+		}
 	}
 
 	function togglePlay() {
@@ -695,9 +699,9 @@
 		height: 100vh;
 		height: 100dvh;
 		z-index: 510;
-		background: rgba(10, 10, 18, 0.35);
-		backdrop-filter: blur(20px);
-		-webkit-backdrop-filter: blur(20px);
+		background: rgba(10, 10, 18, 0.25);
+		backdrop-filter: blur(24px);
+		-webkit-backdrop-filter: blur(24px);
 		border-radius: 16px 16px 0 0;
 		display: flex;
 		flex-direction: column;
