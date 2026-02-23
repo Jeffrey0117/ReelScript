@@ -29,7 +29,7 @@
 	let error = $state('');
 	let videos = $state<Video[]>([]);
 	let progress = $state<Record<string, number>>({});
-	let isLoggedIn = $state(!!getUser());
+	let isLoggedIn = $state(false);
 	let quota = $state<Quota | null>(null);
 	let inviteCode = $state('');
 	let inviteCopied = $state(false);
