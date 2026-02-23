@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 REELSCRIPT_API = os.getenv("REELSCRIPT_API", "http://localhost:8002")
 REELSCRIPT_WEB = os.getenv("REELSCRIPT_WEB", "http://localhost:5173")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "WcxHAMuFcPmzNwgEMTZDtSf4axNvjwaUp-w2JxojGi0")
+BOT_HEADERS = {"X-Bot-Token": BOT_TOKEN}
 
 
 def _get_allowed_users() -> set[int]:
@@ -68,7 +70,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(f"{REELSCRIPT_API}/api/videos")
+        resp = await client.get(f"{REELSCRIPT_API}/api/videos", headers=BOT_HEADERS)
         resp.raise_for_status()
         videos = resp.json()
 
@@ -103,7 +105,7 @@ async def _get_video_id(context: ContextTypes.DEFAULT_TYPE, update: Update) -> s
     short_id = context.args[0].strip()
 
     async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(f"{REELSCRIPT_API}/api/videos")
+        resp = await client.get(f"{REELSCRIPT_API}/api/videos", headers=BOT_HEADERS)
         resp.raise_for_status()
         videos = resp.json()
 
@@ -133,7 +135,7 @@ async def cmd_translate(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(f"{REELSCRIPT_API}/api/videos/{video_id}/translate")
+            resp = await client.post(f"{REELSCRIPT_API}/api/videos/{video_id}/translate", headers=BOT_HEADERS)
             resp.raise_for_status()
             data = resp.json()
 
@@ -160,7 +162,7 @@ async def cmd_vocab(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(f"{REELSCRIPT_API}/api/videos/{video_id}/analyze-vocabulary")
+            resp = await client.post(f"{REELSCRIPT_API}/api/videos/{video_id}/analyze-vocabulary", headers=BOT_HEADERS)
             resp.raise_for_status()
             data = resp.json()
 
@@ -206,7 +208,7 @@ async def _poll_and_notify(chat_id: int, video_id: str, title: str, bot):
         await asyncio.sleep(5)
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(f"{REELSCRIPT_API}/api/videos/{video_id}")
+                resp = await client.get(f"{REELSCRIPT_API}/api/videos/{video_id}", headers=BOT_HEADERS)
                 if resp.status_code != 200:
                     continue
                 data = resp.json()
@@ -261,6 +263,7 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             resp = await client.post(
                 f"{REELSCRIPT_API}/api/videos/process",
                 json={"url": text},
+                headers=BOT_HEADERS,
             )
             resp.raise_for_status()
             data = resp.json()

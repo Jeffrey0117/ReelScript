@@ -11,11 +11,19 @@ from fastapi import HTTPException, Request, Depends
 LMU_APP_SECRET = os.environ.get("LMU_APP_SECRET", "Rs7kW2mNpQ4xYvB9cD1fH3jL5tA8uE6g")
 LMU_APP_ID = os.environ.get("LMU_APP_ID", "app_3lXIxPKb")
 LEGACY_ADMIN_KEY = os.environ.get("ADMIN_KEY", "reelscript-admin-2024")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "WcxHAMuFcPmzNwgEMTZDtSf4axNvjwaUp-w2JxojGi0")
+BOT_USER_ID = os.environ.get("BOT_USER_ID", "usr_reelscript_admin")
 
 
 def get_current_user(request: Request) -> dict:
-    """Extract and verify user from LetMeUse JWT in Authorization header."""
+    """Extract and verify user from LetMeUse JWT, or bot service token."""
     auth_header = request.headers.get("Authorization", "")
+
+    # Bot service token: X-Bot-Token header
+    bot_token = request.headers.get("X-Bot-Token", "")
+    if bot_token == BOT_TOKEN:
+        return {"sub": BOT_USER_ID, "role": "admin", "email": "bot@reelscript", "app": LMU_APP_ID}
+
     if not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
 
