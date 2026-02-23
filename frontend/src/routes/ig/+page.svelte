@@ -41,6 +41,15 @@
 
 	// Transcript container ref for auto-scroll
 	let transcriptEl: HTMLDivElement | undefined = $state();
+	let contentOverflows = $state(false);
+
+	// Check if sheet content overflows (need scroll hint)
+	function checkOverflow() {
+		if (!transcriptEl) { contentOverflows = false; return; }
+		const hasMore = transcriptEl.scrollHeight > transcriptEl.clientHeight + 10;
+		const notAtBottom = transcriptEl.scrollTop + transcriptEl.clientHeight < transcriptEl.scrollHeight - 10;
+		contentOverflows = hasMore && notAtBottom;
+	}
 
 	// Derived
 	let currentVideo = $derived(videos[currentIndex]);
@@ -61,6 +70,18 @@
 	);
 	let appreciation = $derived<Appreciation | null>(currentDetail?.transcript?.appreciation ?? null);
 	let totalCount = $derived(videos.length);
+
+	// Re-check overflow when sheet/tab/content changes
+	$effect(() => {
+		// Track these to re-run
+		void sheetState;
+		void activeTab;
+		void segments;
+		void allVocabulary;
+		void appreciation;
+		// Wait a tick for DOM update
+		setTimeout(checkOverflow, 50);
+	});
 
 	// Sheet heights (vh)
 	const SHEET_PEEK = 60; // px
@@ -518,7 +539,7 @@
 				</button>
 			</div>
 
-			<div class="ig-sheet-content" bind:this={transcriptEl}>
+			<div class="ig-sheet-content" bind:this={transcriptEl} onscroll={checkOverflow}>
 				{#if activeTab === 'text'}
 					{#if segments.length === 0}
 						<p class="ig-no-transcript">{t('noTranscript')}</p>
@@ -577,6 +598,14 @@
 					{/if}
 				{/if}
 			</div>
+
+			{#if contentOverflows}
+				<div class="ig-scroll-hint">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M6 9l6 6 6-6"/>
+					</svg>
+				</div>
+			{/if}
 		</div>
 	{/if}
 </div>
@@ -793,16 +822,43 @@
 	}
 
 	.ig-sheet-content::-webkit-scrollbar {
-		width: 3px;
+		width: 5px;
 	}
 
 	.ig-sheet-content::-webkit-scrollbar-track {
-		background: transparent;
+		background: rgba(255, 255, 255, 0.05);
+		border-radius: 5px;
 	}
 
 	.ig-sheet-content::-webkit-scrollbar-thumb {
-		background: rgba(255, 255, 255, 0.2);
-		border-radius: 3px;
+		background: rgba(255, 255, 255, 0.35);
+		border-radius: 5px;
+	}
+
+	.ig-sheet-content::-webkit-scrollbar-thumb:hover {
+		background: rgba(255, 255, 255, 0.5);
+	}
+
+	/* Scroll hint overlaid at bottom of sheet */
+	.ig-scroll-hint {
+		flex-shrink: 0;
+		height: 32px;
+		margin-top: -32px;
+		background: linear-gradient(to bottom, transparent, rgba(10, 10, 18, 0.7));
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+		padding-bottom: 6px;
+		color: rgba(255, 255, 255, 0.5);
+		pointer-events: none;
+		animation: ig-bounce 1.5s ease infinite;
+		position: relative;
+		z-index: 1;
+	}
+
+	@keyframes ig-bounce {
+		0%, 100% { transform: translateY(0); }
+		50% { transform: translateY(-4px); }
 	}
 
 	.ig-no-transcript {
