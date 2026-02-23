@@ -27,8 +27,10 @@
 	let paused = $state(false);
 	let playbackRate = $state(1);
 	let loading = $state(true);
+	let detailLoading = $state(false); // true while fetching current video detail
 	let activeTab = $state<'text' | 'vocab' | 'theme'>('text');
 	let userInteracted = $state(false); // track first user interaction to unmute
+	let pendingPlayId = $state<string | null>(null); // video ID waiting to auto-play
 
 	// Scroll container ref
 	let scrollContainer: HTMLDivElement | undefined = $state();
@@ -182,6 +184,10 @@
 							el.playbackRate = 1;
 							if (userInteracted) el.muted = false;
 							el.play().catch(() => {});
+							pendingPlayId = null;
+						} else {
+							// Video element not rendered yet, play after detail loads
+							pendingPlayId = videoId;
 						}
 						loadDetail(videoId);
 					} else {
@@ -202,26 +208,31 @@
 
 	async function loadDetail(videoId: string) {
 		if (videoDetails.has(videoId)) return;
+		const isCurrent = currentVideo?.id === videoId;
+		if (isCurrent) detailLoading = true;
 		try {
 			const detail = await getVideo(videoId);
 			videoDetails = new Map([...videoDetails, [videoId, detail]]);
+			if (isCurrent) detailLoading = false;
 
 			// After detail loads, the video element renders — try auto-play
 			await tick();
-			if (currentVideo?.id === videoId) {
+			if (pendingPlayId === videoId || currentVideo?.id === videoId) {
 				const slide = scrollContainer?.querySelector(`[data-video-id="${videoId}"]`);
 				if (slide) {
 					const el = getVideoEl(slide, videoId);
 					if (el && el.paused) {
+						if (userInteracted) el.muted = false;
 						el.play().catch(() => {});
 					}
 				}
+				pendingPlayId = null;
 			}
 
 			// Auto-load study data in background
 			loadStudyData(videoId, detail);
 		} catch {
-			// ignore
+			if (isCurrent) detailLoading = false;
 		}
 	}
 
@@ -566,7 +577,9 @@
 			</div>
 
 			<div class="ig-sheet-content" bind:this={transcriptEl} onscroll={checkOverflow} style="max-height: {sheetContentMaxH}px">
-				{#if activeTab === 'text'}
+				{#if detailLoading}
+					<div class="ig-loading-dots"><span></span><span></span><span></span></div>
+				{:else if activeTab === 'text'}
 					{#if segments.length === 0}
 						<p class="ig-no-transcript">{t('noTranscript')}</p>
 					{:else}
@@ -579,7 +592,7 @@
 					{/if}
 				{:else if activeTab === 'vocab'}
 					{#if allVocabulary.length === 0}
-						<p class="ig-no-transcript">{t('noVocabulary')}</p>
+						<div class="ig-loading-dots"><span></span><span></span><span></span></div>
 					{:else}
 						<div class="ig-vocab-list">
 							{#each allVocabulary as v (v.word)}
@@ -592,7 +605,7 @@
 					{/if}
 				{:else if activeTab === 'theme'}
 					{#if !appreciation?.theme}
-						<p class="ig-no-transcript">{t('appreciating')}</p>
+						<div class="ig-loading-dots"><span></span><span></span><span></span></div>
 					{:else}
 						<div class="ig-theme">
 							<div class="ig-theme-section">
@@ -838,6 +851,31 @@
 		color: rgba(255, 255, 255, 0.8);
 		padding: 1px 5px;
 		border-radius: 8px;
+	}
+
+	/* Loading dots */
+	.ig-loading-dots {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 6px;
+		padding: 32px 0;
+	}
+
+	.ig-loading-dots span {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: rgba(255, 255, 255, 0.4);
+		animation: ig-dot-pulse 1.2s ease infinite;
+	}
+
+	.ig-loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+	.ig-loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+	@keyframes ig-dot-pulse {
+		0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+		40% { opacity: 1; transform: scale(1.2); }
 	}
 
 	.ig-sheet-content {
