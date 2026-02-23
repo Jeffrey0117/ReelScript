@@ -381,8 +381,23 @@
 	function onDragEnd() {
 		if (!isDragging) return;
 		isDragging = false;
-		sheetState = snapToNearest(currentTranslateY);
-		currentTranslateY = getSheetTranslateY(sheetState);
+		const vh = window.innerHeight;
+		const peekY = vh - SHEET_PEEK;
+		const fullY = getSheetTranslateY('full');
+
+		// Only snap if very close to peek (almost closed) or past full (too high)
+		if (currentTranslateY > peekY - 30) {
+			sheetState = 'peek';
+			currentTranslateY = peekY;
+		} else if (currentTranslateY < fullY + 20) {
+			sheetState = 'full';
+			currentTranslateY = fullY;
+		} else {
+			// Free-stop: stay wherever the user dragged
+			sheetState = 'half'; // label it half for state tracking
+		}
+		// Re-check overflow at new height
+		setTimeout(checkOverflow, 100);
 	}
 
 	// Touch handlers
@@ -418,14 +433,18 @@
 	}
 
 	function toggleSheet() {
-		if (sheetState === 'peek') {
+		const vh = window.innerHeight;
+		const halfY = getSheetTranslateY('half');
+		// If near peek, go to half; if near/below half, go to full; else go to peek
+		if (currentTranslateY > halfY + 30) {
 			sheetState = 'half';
-		} else if (sheetState === 'half') {
+		} else if (sheetState !== 'full') {
 			sheetState = 'full';
 		} else {
 			sheetState = 'peek';
 		}
 		currentTranslateY = getSheetTranslateY(sheetState);
+		setTimeout(checkOverflow, 100);
 	}
 </script>
 
