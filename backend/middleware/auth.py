@@ -1,5 +1,5 @@
 """
-Auth middleware — verify adman JWT tokens.
+Auth middleware — verify LetMeUse JWT tokens.
 Supports dual auth: JWT Bearer token OR legacy X-Admin-Key header.
 """
 
@@ -8,26 +8,26 @@ import jwt
 from fastapi import HTTPException, Request, Depends
 
 
-ADMAN_APP_SECRET = os.environ.get("ADMAN_APP_SECRET", "UEpzMyu5ItZ8Bx6vxqV6H56SzLhnXscO")
-ADMAN_APP_ID = os.environ.get("ADMAN_APP_ID", "app_yX0u0SiJ")
+LMU_APP_SECRET = os.environ.get("LMU_APP_SECRET", "0E82ZR8kalZcHn0C4RBFYi_tF9KhUk1Q")
+LMU_APP_ID = os.environ.get("LMU_APP_ID", "app_3lXIxPKb")
 LEGACY_ADMIN_KEY = os.environ.get("ADMIN_KEY", "reelscript-admin-2024")
 
 
 def get_current_user(request: Request) -> dict:
-    """Extract and verify user from adman JWT in Authorization header."""
+    """Extract and verify user from LetMeUse JWT in Authorization header."""
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     token = auth_header[7:]
     try:
-        payload = jwt.decode(token, ADMAN_APP_SECRET, algorithms=["HS256"])
+        payload = jwt.decode(token, LMU_APP_SECRET, algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    if payload.get("app") != ADMAN_APP_ID:
+    if payload.get("app") != LMU_APP_ID:
         raise HTTPException(status_code=401, detail="Invalid app")
 
     return payload

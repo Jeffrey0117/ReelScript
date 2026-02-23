@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { t, getLocale, setLocale, initLocale, onLocaleChange } from '$lib/i18n';
-	import { initAuth, onAuthChange, login, logout, isAdmin, type AdmanUser } from '$lib/auth';
+	import { initAuth, onAuthChange, login, logout, isAdmin, type AuthUser } from '$lib/auth';
 	import { redeemInvite } from '$lib/api';
 
 	let { children } = $props();
@@ -10,7 +10,7 @@
 	let theme = $state<'dark' | 'light'>('dark');
 	let locale = $state<'zh' | 'en'>('zh');
 	let tick = $state(0);
-	let user = $state<AdmanUser | null>(null);
+	let user = $state<AuthUser | null>(null);
 	let showUserMenu = $state(false);
 
 	onMount(() => {

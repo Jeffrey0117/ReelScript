@@ -1,36 +1,38 @@
 /**
- * Auth wrapper for adman SDK.
+ * Auth wrapper for LetMeUse SDK.
  * SDK is loaded via static <script> tag in app.html.
- * This module provides reactive helpers around window.adman.
+ * This module provides reactive helpers around window.letmeuse.
  */
 
-interface AdmanUser {
+export interface AuthUser {
 	id: string;
 	email: string;
 	displayName: string;
-	role: 'user' | 'admin';
+	avatar?: string;
+	role: string;
+	appId: string;
 }
 
-interface AdmanSDK {
+interface LetMeUseSDK {
 	ready: boolean;
-	user: AdmanUser | null;
+	user: AuthUser | null;
 	login(): void;
 	register(): void;
 	logout(): Promise<void>;
 	getToken(): string | null;
-	onAuthChange(cb: (user: AdmanUser | null) => void): () => void;
+	onAuthChange(cb: (user: AuthUser | null) => void): () => void;
 	openAdmin(): void;
 }
 
 declare global {
 	interface Window {
-		adman?: AdmanSDK;
+		letmeuse?: LetMeUseSDK;
 	}
 }
 
-let currentUser: AdmanUser | null = null;
+let currentUser: AuthUser | null = null;
 let sdkReady = false;
-const subscribers: Set<(user: AdmanUser | null) => void> = new Set();
+const subscribers: Set<(user: AuthUser | null) => void> = new Set();
 
 function notify() {
 	for (const fn of subscribers) {
@@ -42,14 +44,14 @@ function notify() {
 	}
 }
 
-/** Connect to adman SDK (already loaded via app.html script tag). */
+/** Connect to LetMeUse SDK (already loaded via app.html script tag). */
 export function initAuth(): void {
 	if (typeof window === 'undefined') return;
 
 	function tryConnect() {
-		if (!window.adman) return false;
+		if (!window.letmeuse) return false;
 		sdkReady = true;
-		window.adman.onAuthChange((user) => {
+		window.letmeuse.onAuthChange((user) => {
 			currentUser = user;
 			notify();
 		});
@@ -69,7 +71,7 @@ export function initAuth(): void {
 }
 
 /** Subscribe to auth state changes. Returns unsubscribe function. */
-export function onAuthChange(cb: (user: AdmanUser | null) => void): () => void {
+export function onAuthChange(cb: (user: AuthUser | null) => void): () => void {
 	subscribers.add(cb);
 	if (sdkReady) {
 		try {
@@ -84,13 +86,15 @@ export function onAuthChange(cb: (user: AdmanUser | null) => void): () => void {
 }
 
 /** Get current user (snapshot). */
-export function getUser(): AdmanUser | null {
-	return window.adman?.user ?? currentUser;
+export function getUser(): AuthUser | null {
+	if (typeof window === 'undefined') return null;
+	return window.letmeuse?.user ?? currentUser;
 }
 
 /** Get current JWT token. */
 export function getToken(): string | null {
-	return window.adman?.getToken() ?? null;
+	if (typeof window === 'undefined') return null;
+	return window.letmeuse?.getToken() ?? null;
 }
 
 /** Check if user is admin. */
@@ -101,17 +105,15 @@ export function isAdmin(): boolean {
 
 /** Open login modal. */
 export function login(): void {
-	window.adman?.login();
+	window.letmeuse?.login();
 }
 
 /** Open register modal. */
 export function register(): void {
-	window.adman?.register();
+	window.letmeuse?.register();
 }
 
 /** Logout. */
 export async function logout(): Promise<void> {
-	await window.adman?.logout();
+	await window.letmeuse?.logout();
 }
-
-export type { AdmanUser };
