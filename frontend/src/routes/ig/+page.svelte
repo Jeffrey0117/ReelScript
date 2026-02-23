@@ -4,10 +4,15 @@
 	import {
 		listVideos,
 		getVideo,
+		translateVideo,
+		analyzeVocabulary,
+		appreciateVideo,
 		videoFileUrl,
 		thumbnailUrl,
 		type Video,
 		type VideoDetail,
+		type VocabularyItem,
+		type Appreciation,
 	} from '$lib/api';
 	import { t } from '$lib/i18n';
 
@@ -22,6 +27,7 @@
 	let paused = $state(false);
 	let playbackRate = $state(1);
 	let loading = $state(true);
+	let activeTab = $state<'text' | 'vocab' | 'theme'>('text');
 
 	// Scroll container ref
 	let scrollContainer: HTMLDivElement | undefined = $state();
@@ -47,6 +53,12 @@
 			? segments.map((s) => s.translation || '').join('')
 			: ''
 	);
+	let allVocabulary = $derived<VocabularyItem[]>(
+		segments
+			.flatMap((s) => s.vocabulary ?? [])
+			.filter((v, i, arr) => arr.findIndex((a) => a.word === v.word) === i)
+	);
+	let appreciation = $derived<Appreciation | null>(currentDetail?.transcript?.appreciation ?? null);
 	let totalCount = $derived(videos.length);
 
 	// Sheet heights (vh)
@@ -175,9 +187,61 @@
 					}
 				}
 			}
+
+			// Auto-load study data in background
+			loadStudyData(videoId, detail);
 		} catch {
 			// ignore
 		}
+	}
+
+	async function loadStudyData(videoId: string, detail: VideoDetail) {
+		if (!detail.transcript?.segments) return;
+
+		const hasTranslation = detail.transcript.segments.some((s) => s.translation);
+		const hasVocab = detail.transcript.segments.some((s) => s.vocabulary?.length);
+		const hasAppreciation = !!detail.transcript.appreciation?.theme;
+
+		try {
+			if (!hasTranslation) {
+				const r = await translateVideo(videoId);
+				if (r.success) {
+					updateDetailSegments(videoId, r.segments);
+				}
+			}
+			if (!hasVocab) {
+				const r = await analyzeVocabulary(videoId);
+				if (r.success) {
+					updateDetailSegments(videoId, r.segments);
+				}
+			}
+			if (!hasAppreciation && detail.transcript.full_text) {
+				const r = await appreciateVideo(videoId);
+				if (r.success) {
+					updateDetailAppreciation(videoId, r.appreciation);
+				}
+			}
+		} catch {
+			// non-fatal
+		}
+	}
+
+	function updateDetailSegments(videoId: string, segments: any[]) {
+		const existing = videoDetails.get(videoId);
+		if (!existing?.transcript) return;
+		videoDetails = new Map([
+			...videoDetails,
+			[videoId, { ...existing, transcript: { ...existing.transcript, segments } }],
+		]);
+	}
+
+	function updateDetailAppreciation(videoId: string, appreciation: Appreciation) {
+		const existing = videoDetails.get(videoId);
+		if (!existing?.transcript) return;
+		videoDetails = new Map([
+			...videoDetails,
+			[videoId, { ...existing, transcript: { ...existing.transcript, appreciation } }],
+		]);
 	}
 
 	// --- Video time sync ---
@@ -409,6 +473,7 @@
 			style="transform: translateY({currentTranslateY}px)"
 		>
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="ig-sheet-handle"
 				ontouchstart={handleTouchStart}
@@ -418,21 +483,80 @@
 				onclick={toggleSheet}
 			>
 				<div class="ig-handle-bar"></div>
-				<span class="ig-sheet-title">
+			</div>
+
+			<div class="ig-tabs">
+				<button class="ig-tab" class:active={activeTab === 'text'} onclick={() => (activeTab = 'text')}>
 					{t('fullText')}
-				</span>
+				</button>
+				<button class="ig-tab" class:active={activeTab === 'vocab'} onclick={() => (activeTab = 'vocab')}>
+					{t('vocabularyList')}
+					{#if allVocabulary.length > 0}
+						<span class="ig-tab-badge">{allVocabulary.length}</span>
+					{/if}
+				</button>
+				<button class="ig-tab" class:active={activeTab === 'theme'} onclick={() => (activeTab = 'theme')}>
+					{t('mainIdea')}
+				</button>
 			</div>
 
 			<div class="ig-sheet-content" bind:this={transcriptEl}>
-				{#if segments.length === 0}
-					<p class="ig-no-transcript">{t('noTranscript')}</p>
-				{:else}
-					<div class="ig-article">
-						<p class="ig-article-en">{fullText}</p>
-						{#if fullTranslation}
-							<p class="ig-article-zh">{fullTranslation}</p>
-						{/if}
-					</div>
+				{#if activeTab === 'text'}
+					{#if segments.length === 0}
+						<p class="ig-no-transcript">{t('noTranscript')}</p>
+					{:else}
+						<div class="ig-article">
+							<p class="ig-article-en">{fullText}</p>
+							{#if fullTranslation}
+								<p class="ig-article-zh">{fullTranslation}</p>
+							{/if}
+						</div>
+					{/if}
+				{:else if activeTab === 'vocab'}
+					{#if allVocabulary.length === 0}
+						<p class="ig-no-transcript">{t('noVocabulary')}</p>
+					{:else}
+						<div class="ig-vocab-list">
+							{#each allVocabulary as v (v.word)}
+								<div class="ig-vocab-item">
+									<span class="ig-vocab-word">{v.word}</span>
+									<span class="ig-vocab-meaning">{v.translation}</span>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				{:else if activeTab === 'theme'}
+					{#if !appreciation?.theme}
+						<p class="ig-no-transcript">{t('appreciating')}</p>
+					{:else}
+						<div class="ig-theme">
+							<div class="ig-theme-section">
+								<h4>{t('theme')}</h4>
+								<p>{appreciation.theme}</p>
+							</div>
+							{#if appreciation.keyPoints?.length}
+								<div class="ig-theme-section">
+									<h4>{t('keyPoints')}</h4>
+									<ul>
+										{#each appreciation.keyPoints as point}
+											<li>{point}</li>
+										{/each}
+									</ul>
+								</div>
+							{/if}
+							{#if appreciation.goldenQuotes?.length}
+								<div class="ig-theme-section">
+									<h4>{t('goldenQuotes')}</h4>
+									{#each appreciation.goldenQuotes as quote}
+										<blockquote class="ig-quote">
+											<p class="ig-quote-en">{quote.en}</p>
+											<p class="ig-quote-zh">{quote.zh}</p>
+										</blockquote>
+									{/each}
+								</div>
+							{/if}
+						</div>
+					{/if}
 				{/if}
 			</div>
 		</div>
@@ -571,9 +695,9 @@
 		height: 100vh;
 		height: 100dvh;
 		z-index: 510;
-		background: rgba(18, 18, 26, 0.55);
-		backdrop-filter: blur(16px);
-		-webkit-backdrop-filter: blur(16px);
+		background: rgba(10, 10, 18, 0.35);
+		backdrop-filter: blur(20px);
+		-webkit-backdrop-filter: blur(20px);
 		border-radius: 16px 16px 0 0;
 		display: flex;
 		flex-direction: column;
@@ -604,13 +728,43 @@
 		background: rgba(255, 255, 255, 0.3);
 	}
 
-	.ig-sheet-title {
+	/* Tabs */
+	.ig-tabs {
+		display: flex;
+		gap: 0;
+		padding: 0 12px;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		flex-shrink: 0;
+	}
+
+	.ig-tab {
+		flex: 1;
+		padding: 8px 4px;
 		font-size: 12px;
-		font-weight: 600;
-		color: rgba(228, 228, 239, 0.8);
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.4);
+		background: none;
+		border: none;
+		border-bottom: 2px solid transparent;
+		cursor: pointer;
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		justify-content: center;
+		gap: 4px;
+		transition: color 0.15s, border-color 0.15s;
+	}
+
+	.ig-tab.active {
+		color: rgba(255, 255, 255, 0.9);
+		border-bottom-color: var(--accent, #6366f1);
+	}
+
+	.ig-tab-badge {
+		font-size: 10px;
+		background: rgba(99, 102, 241, 0.3);
+		color: rgba(255, 255, 255, 0.8);
+		padding: 1px 5px;
+		border-radius: 8px;
 	}
 
 	.ig-sheet-content {
@@ -659,6 +813,92 @@
 		margin: 16px 0 0;
 		padding-top: 16px;
 		border-top: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	/* Vocabulary list */
+	.ig-vocab-list {
+		padding: 4px 0 24px;
+	}
+
+	.ig-vocab-item {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		padding: 8px 0;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	}
+
+	.ig-vocab-word {
+		font-size: 13px;
+		font-weight: 600;
+		color: rgba(228, 228, 239, 0.9);
+	}
+
+	.ig-vocab-meaning {
+		font-size: 12px;
+		color: rgba(136, 136, 160, 0.85);
+		text-align: right;
+		max-width: 55%;
+	}
+
+	/* Theme / appreciation */
+	.ig-theme {
+		padding: 4px 0 24px;
+	}
+
+	.ig-theme-section {
+		margin-bottom: 16px;
+	}
+
+	.ig-theme-section h4 {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--accent, #6366f1);
+		margin: 0 0 6px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.ig-theme-section p {
+		font-size: 13px;
+		line-height: 1.6;
+		color: rgba(228, 228, 239, 0.9);
+		margin: 0;
+	}
+
+	.ig-theme-section ul {
+		margin: 0;
+		padding-left: 16px;
+	}
+
+	.ig-theme-section li {
+		font-size: 13px;
+		line-height: 1.6;
+		color: rgba(228, 228, 239, 0.85);
+		margin-bottom: 4px;
+	}
+
+	.ig-quote {
+		margin: 8px 0;
+		padding: 8px 12px;
+		border-left: 2px solid var(--accent, #6366f1);
+		background: rgba(99, 102, 241, 0.06);
+		border-radius: 0 6px 6px 0;
+	}
+
+	.ig-quote-en {
+		font-size: 13px;
+		font-style: italic;
+		color: rgba(228, 228, 239, 0.9);
+		margin: 0;
+		line-height: 1.5;
+	}
+
+	.ig-quote-zh {
+		font-size: 12px;
+		color: rgba(136, 136, 160, 0.85);
+		margin: 4px 0 0;
+		line-height: 1.5;
 	}
 
 	/* Video overlays */
