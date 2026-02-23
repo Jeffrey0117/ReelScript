@@ -24,7 +24,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	});
 	if (!res.ok) {
 		const err = await res.json().catch(() => ({ detail: res.statusText }));
-		throw new Error(err.detail || `HTTP ${res.status}`);
+		const error = new Error(err.detail || `HTTP ${res.status}`) as Error & { status: number };
+		error.status = res.status;
+		throw error;
 	}
 	return res.json();
 }
@@ -113,6 +115,20 @@ export const removeFromCollection = (collectionId: string, videoId: string) =>
 
 export const deleteCollection = (id: string) =>
 	request<{ success: boolean }>(`/api/collections/${id}`, { method: 'DELETE' });
+
+// Quota
+export const getQuota = () =>
+	request<Quota>('/api/quota');
+
+// Invite
+export const getMyInviteCode = () =>
+	request<{ code: string }>('/api/invite/my-code');
+
+export const redeemInvite = (code: string) =>
+	request<{ success: boolean; bonus: number }>('/api/invite/redeem', {
+		method: 'POST',
+		body: JSON.stringify({ code }),
+	});
 
 // Admin — Bearer token auto-injected by request(), X-Admin-Key for legacy fallback
 export const adminStats = (adminKey = '') =>
@@ -212,6 +228,15 @@ export interface VideoDetail extends Video {
 		full_text: string;
 		appreciation: Appreciation | null;
 	} | null;
+}
+
+export interface Quota {
+	plan: string;
+	period: string;
+	videos_used: number;
+	bonus_videos: number;
+	limit: number;
+	remaining: number;
 }
 
 export interface Collection {

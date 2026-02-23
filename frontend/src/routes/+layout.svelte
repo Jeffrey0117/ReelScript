@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import { t, getLocale, setLocale, initLocale, onLocaleChange } from '$lib/i18n';
 	import { initAuth, onAuthChange, login, logout, isAdmin, type AdmanUser } from '$lib/auth';
+	import { redeemInvite } from '$lib/api';
 
 	let { children } = $props();
 
@@ -26,9 +27,32 @@
 			tick++;
 		});
 
+		// Capture invite code from URL ?invite=CODE
+		const params = new URLSearchParams(window.location.search);
+		const inviteCode = params.get('invite');
+		if (inviteCode) {
+			localStorage.setItem('reelscript-invite', inviteCode);
+			// Clean URL without reload
+			const url = new URL(window.location.href);
+			url.searchParams.delete('invite');
+			window.history.replaceState({}, '', url.toString());
+		}
+
 		initAuth();
-		onAuthChange((u) => {
+		onAuthChange(async (u) => {
 			user = u;
+			// Auto-redeem pending invite code after login
+			if (u) {
+				const pending = localStorage.getItem('reelscript-invite');
+				if (pending) {
+					localStorage.removeItem('reelscript-invite');
+					try {
+						await redeemInvite(pending);
+					} catch {
+						// Ignore — code may be invalid or already used
+					}
+				}
+			}
 		});
 
 		// Close user menu on outside click

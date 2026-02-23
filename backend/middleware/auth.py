@@ -33,6 +33,17 @@ def get_current_user(request: Request) -> dict:
     return payload
 
 
+def optional_auth(request: Request) -> dict | None:
+    """FastAPI dependency — return user if authenticated, None otherwise."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    try:
+        return get_current_user(request)
+    except HTTPException:
+        return None
+
+
 def require_auth(request: Request) -> dict:
     """FastAPI dependency — require authenticated user."""
     return get_current_user(request)

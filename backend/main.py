@@ -13,6 +13,8 @@ from models import init_db
 from api.video_routes import router as video_router
 from api.collection_routes import router as collection_router
 from api.admin_routes import router as admin_router
+from api.quota_routes import router as quota_router
+from api.invite_routes import router as invite_router
 from api.websocket import manager
 
 DATA_DIR = Path("./data")
@@ -48,6 +50,8 @@ app.add_middleware(
 app.include_router(video_router)
 app.include_router(collection_router)
 app.include_router(admin_router)
+app.include_router(quota_router)
+app.include_router(invite_router)
 
 # Serve video files and thumbnails
 if VIDEOS_DIR.exists():

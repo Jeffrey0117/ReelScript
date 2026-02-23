@@ -13,11 +13,15 @@
 		createCollection,
 		addToCollection,
 		thumbnailUrl,
+		getQuota,
+		getMyInviteCode,
 		type Video,
 		type Collection,
+		type Quota,
 	} from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
+	import { getUser, login, onAuthChange } from '$lib/auth';
 
 	let url = $state('');
 	let loading = $state(false);
@@ -25,6 +29,10 @@
 	let error = $state('');
 	let videos = $state<Video[]>([]);
 	let progress = $state<Record<string, number>>({});
+	let isLoggedIn = $state(!!getUser());
+	let quota = $state<Quota | null>(null);
+	let inviteCode = $state('');
+	let inviteCopied = $state(false);
 
 	// Inline rename state
 	let editingVideoId = $state<string | null>(null);
@@ -51,8 +59,21 @@
 	);
 
 	onMount(async () => {
-		videos = await listVideos();
-		loadingVideos = false;
+		onAuthChange(async (user) => {
+			isLoggedIn = !!user;
+			if (user) {
+				videos = await listVideos().catch(() => []);
+				loadingVideos = false;
+				quota = await getQuota().catch(() => null);
+				const inv = await getMyInviteCode().catch(() => null);
+				inviteCode = inv?.code ?? '';
+			} else {
+				videos = [];
+				loadingVideos = false;
+				quota = null;
+				inviteCode = '';
+			}
+		});
 
 		connectWS((msg: Record<string, unknown>) => {
 			const data = msg.data as Record<string, unknown>;
@@ -72,6 +93,26 @@
 		});
 	});
 
+	async function handleShareInvite() {
+		if (!inviteCode) return;
+		const link = `https://reelscript.isnowfriend.com?invite=${inviteCode}`;
+		try {
+			await navigator.clipboard.writeText(link);
+			inviteCopied = true;
+			setTimeout(() => { inviteCopied = false; }, 2000);
+		} catch {
+			// Fallback for older browsers
+			const input = document.createElement('input');
+			input.value = link;
+			document.body.appendChild(input);
+			input.select();
+			document.execCommand('copy');
+			document.body.removeChild(input);
+			inviteCopied = true;
+			setTimeout(() => { inviteCopied = false; }, 2000);
+		}
+	}
+
 	async function handleSubmit() {
 		if (!url.trim()) return;
 
@@ -82,7 +123,6 @@
 			const result = await processVideo(url.trim());
 			const existingIdx = videos.findIndex((v) => v.id === result.video_id);
 			if (existingIdx >= 0) {
-				// Duplicate — update status in place (e.g. failed → downloading)
 				videos = videos.map((v) =>
 					v.id === result.video_id
 						? { ...v, status: result.status || 'downloading', error_message: null }
@@ -106,8 +146,15 @@
 				];
 			}
 			url = '';
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Something went wrong';
+			quota = await getQuota().catch(() => null);
+		} catch (e: unknown) {
+			const err = e as Error & { status?: number };
+			if (err.status === 401) {
+				error = '請先登入';
+				login();
+			} else {
+				error = err.message || 'Something went wrong';
+			}
 		} finally {
 			loading = false;
 		}
@@ -306,17 +353,31 @@
 	<h1>{t('addVideo')}</h1>
 	<p>{t('urlPlaceholder')}</p>
 
-	<form class="url-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
-		<input
-			type="url"
-			bind:value={url}
-			placeholder="https://www.instagram.com/reel/... or YouTube link"
-			disabled={loading}
-		/>
-		<button class="btn btn-primary" type="submit" disabled={loading || !url.trim()}>
-			{loading ? t('processing') : t('start')}
-		</button>
-	</form>
+	{#if isLoggedIn}
+		<form class="url-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+			<input
+				type="url"
+				bind:value={url}
+				placeholder="https://www.instagram.com/reel/... or YouTube link"
+				disabled={loading}
+			/>
+			<button class="btn btn-primary" type="submit" disabled={loading || !url.trim()}>
+				{loading ? t('processing') : t('start')}
+			</button>
+		</form>
+		<div class="hero-meta">
+			{#if quota && quota.plan === 'free'}
+				<span class="quota-info">{quota.videos_used} / {quota.limit} {t('monthlyUsed')}</span>
+			{/if}
+			{#if inviteCode}
+				<button class="invite-btn" onclick={handleShareInvite}>
+					{inviteCopied ? t('linkCopied') : t('inviteFriends')}
+				</button>
+			{/if}
+		</div>
+	{:else}
+		<button class="btn btn-primary" onclick={login}>{t('loginToStart')}</button>
+	{/if}
 
 	{#if error}
 		<p class="error-msg">{error}</p>
@@ -636,6 +697,35 @@
 
 	.url-form input {
 		flex: 1;
+	}
+
+	.hero-meta {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 16px;
+		margin-top: 10px;
+	}
+
+	.quota-info {
+		font-size: 13px;
+		color: var(--text-dim);
+	}
+
+	.invite-btn {
+		font-size: 13px;
+		color: var(--accent);
+		background: none;
+		border: 1px solid var(--accent);
+		border-radius: var(--radius-sm);
+		padding: 4px 12px;
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s;
+	}
+
+	.invite-btn:hover {
+		background: var(--accent);
+		color: #fff;
 	}
 
 	.error-msg {

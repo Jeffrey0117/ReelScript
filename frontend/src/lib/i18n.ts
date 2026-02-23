@@ -114,12 +114,22 @@ const translations = {
 		deleteFailed: '刪除',
 		errorReason: '原因',
 
+		// Quota
+		monthlyUsed: '本月已用',
+		loginToStart: '登入開始使用',
+		quotaExceeded: '本月免費額度已用完',
+
 		// Auth
 		login: '登入',
 		register: '註冊',
 		logout: '登出',
 		loginRequired: '請先登入',
 		welcome: '歡迎',
+
+		// Invite
+		inviteFriends: '邀請好友',
+		inviteBonus: '邀請成功各得 +2 額度',
+		linkCopied: '邀請連結已複製！',
 	},
 	en: {
 		// Navbar
@@ -234,12 +244,22 @@ const translations = {
 		deleteFailed: 'Delete',
 		errorReason: 'Reason',
 
+		// Quota
+		monthlyUsed: 'used this month',
+		loginToStart: 'Login to start',
+		quotaExceeded: 'Free monthly quota exceeded',
+
 		// Auth
 		login: 'Login',
 		register: 'Register',
 		logout: 'Logout',
 		loginRequired: 'Please login first',
 		welcome: 'Welcome',
+
+		// Invite
+		inviteFriends: 'Invite Friends',
+		inviteBonus: '+2 quota for each invite',
+		linkCopied: 'Invite link copied!',
 	},
 } as const;
 

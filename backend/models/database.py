@@ -1,8 +1,10 @@
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Integer, Float, Boolean, ForeignKey, JSON
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Integer, Float, Boolean, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import uuid
+import secrets
+import string
 
 DATABASE_URL = "sqlite:///./data/reelscript.db"
 
@@ -31,6 +33,7 @@ class Video(Base):
 
     transcript = relationship("Transcript", back_populates="video", uselist=False, cascade="all, delete-orphan")
     collection_items = relationship("CollectionItem", back_populates="video", cascade="all, delete-orphan")
+    user_videos = relationship("UserVideo", back_populates="video", cascade="all, delete-orphan")
 
 
 class Transcript(Base):
@@ -51,6 +54,7 @@ class Collection(Base):
     __tablename__ = "collections"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=True, index=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -71,16 +75,60 @@ class CollectionItem(Base):
     video = relationship("Video", back_populates="collection_items")
 
 
+class UserVideo(Base):
+    __tablename__ = "user_videos"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    video_id = Column(String, ForeignKey("videos.id"), nullable=False)
+    added_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("user_id", "video_id", name="uq_user_video"),)
+
+    video = relationship("Video", back_populates="user_videos")
+
+
+class UserQuota(Base):
+    __tablename__ = "user_quotas"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    period = Column(String, nullable=False)  # "2026-02"
+    videos_used = Column(Integer, default=0)
+    bonus_videos = Column(Integer, default=0)  # from invites
+    plan = Column(String, default="free")  # "free" | "pro"
+
+    __table_args__ = (UniqueConstraint("user_id", "period", name="uq_user_period"),)
+
+
+def _generate_invite_code():
+    chars = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(chars) for _ in range(8))
+
+
+class Invite(Base):
+    __tablename__ = "invites"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    inviter_id = Column(String, nullable=False, index=True)
+    code = Column(String, unique=True, nullable=False, default=_generate_invite_code)
+    used_by = Column(String, nullable=True)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
-    # Migrate: add missing columns
+    # Migrate: add missing columns for existing tables
     with engine.connect() as conn:
         from sqlalchemy import text, inspect
         inspector = inspect(engine)
+
         transcript_cols = [c["name"] for c in inspector.get_columns("transcripts")]
         if "appreciation" not in transcript_cols:
             conn.execute(text("ALTER TABLE transcripts ADD COLUMN appreciation JSON"))
             conn.commit()
+
         video_cols = [c["name"] for c in inspector.get_columns("videos")]
         if "category" not in video_cols:
             conn.execute(text("ALTER TABLE videos ADD COLUMN category VARCHAR"))
@@ -88,6 +136,13 @@ def init_db():
         if "is_featured" not in video_cols:
             conn.execute(text("ALTER TABLE videos ADD COLUMN is_featured BOOLEAN DEFAULT 0"))
             conn.commit()
+
+        # Add user_id to collections if missing
+        if "collections" in inspector.get_table_names():
+            col_cols = [c["name"] for c in inspector.get_columns("collections")]
+            if "user_id" not in col_cols:
+                conn.execute(text("ALTER TABLE collections ADD COLUMN user_id VARCHAR"))
+                conn.commit()
 
 
 def get_db():

@@ -1,5 +1,6 @@
 """
 Collection API routes — CRUD for learning collections.
+Per-user isolation via user_id column.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,6 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from models import get_db, Collection, CollectionItem, Video
+from middleware.auth import require_auth
 
 router = APIRouter(prefix="/api/collections", tags=["collections"])
 
@@ -22,22 +24,28 @@ class AddVideoRequest(BaseModel):
     notes: Optional[str] = None
 
 
+def _get_user_id(user: dict) -> str:
+    return user.get("sub", "")
+
+
 @router.post("")
-async def create_collection(req: CreateCollectionRequest, db: Session = Depends(get_db)):
-    collection = Collection(name=req.name, description=req.description)
+async def create_collection(req: CreateCollectionRequest, db: Session = Depends(get_db), user: dict = Depends(require_auth)):
+    collection = Collection(name=req.name, description=req.description, user_id=_get_user_id(user))
     db.add(collection)
     db.commit()
     db.refresh(collection)
-    return {
-        "id": collection.id,
-        "name": collection.name,
-        "description": collection.description,
-    }
+    return {"id": collection.id, "name": collection.name, "description": collection.description}
 
 
 @router.get("")
-async def list_collections(db: Session = Depends(get_db)):
-    collections = db.query(Collection).order_by(Collection.created_at.desc()).all()
+async def list_collections(db: Session = Depends(get_db), user: dict = Depends(require_auth)):
+    user_id = _get_user_id(user)
+    collections = (
+        db.query(Collection)
+        .filter(Collection.user_id == user_id)
+        .order_by(Collection.created_at.desc())
+        .all()
+    )
     return [
         {
             "id": c.id,
@@ -51,8 +59,9 @@ async def list_collections(db: Session = Depends(get_db)):
 
 
 @router.get("/{collection_id}")
-async def get_collection(collection_id: str, db: Session = Depends(get_db)):
-    collection = db.query(Collection).filter(Collection.id == collection_id).first()
+async def get_collection(collection_id: str, db: Session = Depends(get_db), user: dict = Depends(require_auth)):
+    user_id = _get_user_id(user)
+    collection = db.query(Collection).filter(Collection.id == collection_id, Collection.user_id == user_id).first()
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
@@ -60,33 +69,19 @@ async def get_collection(collection_id: str, db: Session = Depends(get_db)):
     for item in collection.items:
         v = item.video
         videos.append({
-            "item_id": item.id,
-            "video_id": v.id,
-            "title": v.title,
-            "source": v.source,
-            "duration": v.duration,
-            "thumbnail": v.thumbnail,
-            "channel": v.channel,
-            "status": v.status,
-            "notes": item.notes,
+            "item_id": item.id, "video_id": v.id, "title": v.title, "source": v.source,
+            "duration": v.duration, "thumbnail": v.thumbnail, "channel": v.channel,
+            "status": v.status, "notes": item.notes,
             "added_at": item.added_at.isoformat() if item.added_at else None,
         })
 
-    return {
-        "id": collection.id,
-        "name": collection.name,
-        "description": collection.description,
-        "videos": videos,
-    }
+    return {"id": collection.id, "name": collection.name, "description": collection.description, "videos": videos}
 
 
 @router.post("/{collection_id}/add")
-async def add_video_to_collection(
-    collection_id: str,
-    req: AddVideoRequest,
-    db: Session = Depends(get_db),
-):
-    collection = db.query(Collection).filter(Collection.id == collection_id).first()
+async def add_video_to_collection(collection_id: str, req: AddVideoRequest, db: Session = Depends(get_db), user: dict = Depends(require_auth)):
+    user_id = _get_user_id(user)
+    collection = db.query(Collection).filter(Collection.id == collection_id, Collection.user_id == user_id).first()
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
@@ -94,36 +89,28 @@ async def add_video_to_collection(
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
 
-    # Check duplicate
-    existing = (
-        db.query(CollectionItem)
-        .filter(CollectionItem.collection_id == collection_id, CollectionItem.video_id == req.video_id)
-        .first()
-    )
+    existing = db.query(CollectionItem).filter(
+        CollectionItem.collection_id == collection_id, CollectionItem.video_id == req.video_id
+    ).first()
     if existing:
         raise HTTPException(status_code=409, detail="Video already in collection")
 
-    item = CollectionItem(
-        collection_id=collection_id,
-        video_id=req.video_id,
-        notes=req.notes,
-    )
+    item = CollectionItem(collection_id=collection_id, video_id=req.video_id, notes=req.notes)
     db.add(item)
     db.commit()
     return {"success": True, "item_id": item.id}
 
 
 @router.delete("/{collection_id}/remove/{video_id}")
-async def remove_video_from_collection(
-    collection_id: str,
-    video_id: str,
-    db: Session = Depends(get_db),
-):
-    item = (
-        db.query(CollectionItem)
-        .filter(CollectionItem.collection_id == collection_id, CollectionItem.video_id == video_id)
-        .first()
-    )
+async def remove_video_from_collection(collection_id: str, video_id: str, db: Session = Depends(get_db), user: dict = Depends(require_auth)):
+    user_id = _get_user_id(user)
+    collection = db.query(Collection).filter(Collection.id == collection_id, Collection.user_id == user_id).first()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    item = db.query(CollectionItem).filter(
+        CollectionItem.collection_id == collection_id, CollectionItem.video_id == video_id
+    ).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
@@ -133,11 +120,11 @@ async def remove_video_from_collection(
 
 
 @router.delete("/{collection_id}")
-async def delete_collection(collection_id: str, db: Session = Depends(get_db)):
-    collection = db.query(Collection).filter(Collection.id == collection_id).first()
+async def delete_collection(collection_id: str, db: Session = Depends(get_db), user: dict = Depends(require_auth)):
+    user_id = _get_user_id(user)
+    collection = db.query(Collection).filter(Collection.id == collection_id, Collection.user_id == user_id).first()
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
-
     db.delete(collection)
     db.commit()
     return {"success": True}
