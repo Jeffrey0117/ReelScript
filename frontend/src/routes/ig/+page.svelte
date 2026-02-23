@@ -71,6 +71,13 @@
 	let appreciation = $derived<Appreciation | null>(currentDetail?.transcript?.appreciation ?? null);
 	let totalCount = $derived(videos.length);
 
+	// Visible content height: screen - translateY - handle(~44px) - tabs(~40px)
+	let sheetContentMaxH = $derived(
+		typeof window !== 'undefined'
+			? Math.max(0, window.innerHeight - currentTranslateY - 84)
+			: 400
+	);
+
 	// Re-check overflow when sheet/tab/content changes
 	$effect(() => {
 		// Track these to re-run
@@ -558,7 +565,7 @@
 				</button>
 			</div>
 
-			<div class="ig-sheet-content" bind:this={transcriptEl} onscroll={checkOverflow}>
+			<div class="ig-sheet-content" bind:this={transcriptEl} onscroll={checkOverflow} style="max-height: {sheetContentMaxH}px">
 				{#if activeTab === 'text'}
 					{#if segments.length === 0}
 						<p class="ig-no-transcript">{t('noTranscript')}</p>
