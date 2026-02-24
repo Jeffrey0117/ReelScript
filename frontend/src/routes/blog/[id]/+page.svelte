@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { publicArticle, publicAudio, audioFileUrl, thumbnailUrl, type ArticleData, type AudioData } from '$lib/api';
+	import { publicArticle, publicAudio, audioFileUrl, type ArticleData, type AudioData } from '$lib/api';
 	import { t } from '$lib/i18n';
 
 	let article = $state<ArticleData | null>(null);
@@ -33,24 +33,18 @@
 			}
 			return;
 		}
-
 		audioLoading = true;
 		try {
 			audio = await publicAudio(videoId);
 		} catch {
-			// Audio extraction may not be available
+			// ignore
 		} finally {
 			audioLoading = false;
 		}
 	}
 
-	function handleAudioPlay() {
-		isPlaying = true;
-	}
-
-	function handleAudioPause() {
-		isPlaying = false;
-	}
+	function handleAudioPlay() { isPlaying = true; }
+	function handleAudioPause() { isPlaying = false; }
 
 	function formatDuration(seconds: number | null): string {
 		if (!seconds) return '';
@@ -64,7 +58,7 @@
 	<title>{article?.title || t('loading')} — {t('blog')}</title>
 </svelte:head>
 
-<article class="article-page">
+<article class="post">
 	<a href="/blog" class="back-link">
 		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 			<polyline points="15 18 9 12 15 6"/>
@@ -73,388 +67,247 @@
 	</a>
 
 	{#if loading}
-		<div class="article-skeleton">
-			<div class="skeleton-line wide"></div>
-			<div class="skeleton-line narrow"></div>
-			<div class="skeleton-line wide"></div>
-			<div class="skeleton-line wide"></div>
-			<div class="skeleton-line narrow"></div>
+		<div class="post-skeleton">
+			<div class="sk wide"></div>
+			<div class="sk narrow"></div>
+			<div class="sk wide"></div>
+			<div class="sk wide"></div>
 		</div>
 	{:else if error}
 		<p class="error-msg">{error}</p>
 	{:else if article}
-		<header class="article-header">
-			<h1 class="article-title">{article.title || t('untitled')}</h1>
-			<div class="article-meta">
-				{#if article.channel}
-					<span class="meta-item">{article.channel}</span>
-				{/if}
-				{#if article.source}
-					<span class="meta-item badge {article.source === 'ig' ? 'badge-ig' : 'badge-youtube'}">
-						{article.source === 'ig' ? 'IG' : 'YT'}
-					</span>
-				{/if}
-				{#if article.duration}
-					<span class="meta-item">{formatDuration(article.duration)}</span>
-				{/if}
-			</div>
-
-			<!-- Audio player -->
-			<div class="audio-section">
-				<button
-					class="btn-audio"
-					onclick={loadAndPlayAudio}
-					disabled={audioLoading}
-				>
-					{#if audioLoading}
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
-							<path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-						</svg>
-					{:else if isPlaying}
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-							<rect x="6" y="4" width="4" height="16"/>
-							<rect x="14" y="4" width="4" height="16"/>
-						</svg>
-					{:else}
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-							<path d="M8 5v14l11-7z"/>
-						</svg>
-					{/if}
-					{t('blogListenAudio')}
-				</button>
-				{#if audio}
-					<audio
-						bind:this={audioEl}
-						src={audioFileUrl(audio.audioUrl)}
-						onplay={handleAudioPlay}
-						onpause={handleAudioPause}
-						autoplay
-						controls
-						class="audio-player"
-					></audio>
-				{/if}
+		<!-- Header -->
+		<header class="post-header">
+			<h1>{article.title || t('untitled')}</h1>
+			<div class="post-meta">
+				{#if article.channel}<span>{article.channel}</span>{/if}
+				{#if article.duration}<span>{formatDuration(article.duration)}</span>{/if}
+				<span class="badge {article.source === 'ig' ? 'badge-ig' : 'badge-youtube'}">
+					{article.source === 'ig' ? 'Instagram' : 'YouTube'}
+				</span>
 			</div>
 		</header>
 
-		<!-- Theme & Key Points -->
+		<!-- Audio -->
+		<div class="audio-bar">
+			<button class="audio-btn" onclick={loadAndPlayAudio} disabled={audioLoading}>
+				{#if audioLoading}
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+				{:else if isPlaying}
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+				{:else}
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+				{/if}
+				{t('blogListenAudio')}
+			</button>
+			{#if audio}
+				<audio
+					bind:this={audioEl}
+					src={audioFileUrl(audio.audioUrl)}
+					onplay={handleAudioPlay}
+					onpause={handleAudioPause}
+					autoplay
+					controls
+					class="audio-el"
+				></audio>
+			{/if}
+		</div>
+
+		<!-- Theme intro -->
 		{#if article.theme}
-			<section class="article-section">
-				<h2>{t('theme')}</h2>
-				<p class="theme-text">{article.theme}</p>
-			</section>
+			<p class="lead">{article.theme}</p>
 		{/if}
 
+		<!-- Key points as intro bullets -->
 		{#if article.keyPoints.length > 0}
-			<section class="article-section">
-				<h2>{t('keyPoints')}</h2>
-				<ul class="key-points">
-					{#each article.keyPoints as point}
-						<li>{point}</li>
-					{/each}
-				</ul>
-			</section>
+			<ul class="highlights">
+				{#each article.keyPoints as point}
+					<li>{point}</li>
+				{/each}
+			</ul>
 		{/if}
 
-		<!-- Golden Quotes -->
+		<hr class="divider" />
+
+		<!-- Body: full text as prose -->
+		{#if article.fullText}
+			<div class="prose">
+				{#each article.fullText.split('\n').filter(Boolean) as paragraph}
+					<p>{paragraph}</p>
+				{/each}
+			</div>
+		{/if}
+
+		<!-- Golden quotes as pull quotes -->
 		{#if article.goldenQuotes.length > 0}
-			<section class="article-section">
-				<h2>{t('goldenQuotes')}</h2>
-				<div class="quotes">
-					{#each article.goldenQuotes as quote}
-						<blockquote class="quote-card">
-							<p class="quote-en">{quote.en}</p>
-							<p class="quote-zh">{quote.zh}</p>
-						</blockquote>
-					{/each}
-				</div>
-			</section>
-		{/if}
-
-		<!-- Transcript segments -->
-		{#if article.segments.length > 0}
-			<section class="article-section">
-				<h2>{t('blogTranscript')}</h2>
-				<div class="segments">
-					{#each article.segments as seg}
-						<div class="segment">
-							<span class="seg-time">{seg.timestamp}</span>
-							<div class="seg-text">
-								<p class="seg-en">{seg.en}</p>
-								<p class="seg-zh">{seg.zh}</p>
-							</div>
-						</div>
-					{/each}
-				</div>
-			</section>
-		{/if}
-
-		<!-- Vocabulary -->
-		{#if article.vocabulary.length > 0}
-			<section class="article-section">
-				<h2>{t('blogVocabulary')}</h2>
-				<div class="vocab-grid">
-					{#each article.vocabulary as item}
-						<div class="vocab-item">
-							<span class="vocab-word">{item.word}</span>
-							<span class="vocab-meaning">{item.translation}</span>
-						</div>
-					{/each}
-				</div>
-			</section>
+			<hr class="divider" />
+			{#each article.goldenQuotes as quote}
+				<blockquote class="pullquote">
+					<p class="pq-en">"{quote.en}"</p>
+					<p class="pq-zh">{quote.zh}</p>
+				</blockquote>
+			{/each}
 		{/if}
 	{/if}
 </article>
 
 <style>
-	.article-page {
-		max-width: 720px;
+	.post {
+		max-width: 680px;
 		margin: 0 auto;
-		padding-top: 8px;
-		padding-bottom: 64px;
+		padding-bottom: 80px;
 	}
 
 	.back-link {
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		font-size: 14px;
+		font-size: 13px;
 		color: var(--text-dim);
-		margin-bottom: 24px;
-		transition: color 0.15s;
-	}
-
-	.back-link:hover {
-		color: var(--accent);
-	}
-
-	.article-header {
 		margin-bottom: 32px;
 	}
+	.back-link:hover { color: var(--accent); }
 
-	.article-title {
-		font-size: 28px;
+	/* Header */
+	.post-header {
+		margin-bottom: 24px;
+	}
+
+	.post-header h1 {
+		font-size: 32px;
 		font-weight: 700;
-		line-height: 1.3;
+		line-height: 1.25;
 		letter-spacing: -0.5px;
 		margin-bottom: 12px;
 	}
 
-	.article-meta {
+	.post-meta {
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		margin-bottom: 16px;
-	}
-
-	.meta-item {
 		font-size: 13px;
 		color: var(--text-dim);
 	}
 
 	/* Audio */
-	.audio-section {
+	.audio-bar {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
+		gap: 10px;
+		margin-bottom: 28px;
 	}
 
-	.btn-audio {
+	.audio-btn {
 		display: inline-flex;
 		align-items: center;
-		gap: 8px;
-		padding: 10px 20px;
-		background: var(--bg-hover);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		font-size: 14px;
+		gap: 6px;
+		padding: 8px 16px;
+		font-size: 13px;
 		font-weight: 500;
-		color: var(--text);
-		cursor: pointer;
-		transition: border-color 0.15s, background 0.15s;
-		width: fit-content;
-	}
-
-	.btn-audio:hover {
-		border-color: var(--accent);
+		color: var(--text-dim);
 		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: 20px;
+		cursor: pointer;
+		width: fit-content;
+		transition: border-color 0.15s, color 0.15s;
 	}
+	.audio-btn:hover { border-color: var(--accent); color: var(--text); }
+	.audio-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-	.btn-audio:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	.audio-player {
+	.audio-el {
 		width: 100%;
-		height: 40px;
-		border-radius: var(--radius-sm);
+		height: 36px;
+		border-radius: 20px;
 	}
 
-	.spin {
-		animation: spin 1s linear infinite;
-	}
+	.spin { animation: spin 1s linear infinite; }
+	@keyframes spin { to { transform: rotate(360deg); } }
 
-	@keyframes spin {
-		to { transform: rotate(360deg); }
-	}
-
-	/* Sections */
-	.article-section {
-		margin-bottom: 32px;
-	}
-
-	.article-section h2 {
+	/* Lead / theme */
+	.lead {
 		font-size: 18px;
-		font-weight: 600;
-		margin-bottom: 12px;
-		padding-bottom: 8px;
-		border-bottom: 1px solid var(--border);
-	}
-
-	.theme-text {
-		font-size: 15px;
-		line-height: 1.6;
+		line-height: 1.7;
 		color: var(--text);
+		margin-bottom: 20px;
+		font-weight: 400;
 	}
 
-	.key-points {
+	/* Key points */
+	.highlights {
 		list-style: none;
 		padding: 0;
+		margin-bottom: 24px;
 	}
 
-	.key-points li {
-		font-size: 14px;
-		line-height: 1.6;
-		padding: 6px 0 6px 20px;
+	.highlights li {
+		font-size: 15px;
+		line-height: 1.7;
+		padding: 4px 0 4px 18px;
 		position: relative;
 		color: var(--text);
 	}
 
-	.key-points li::before {
+	.highlights li::before {
 		content: '';
 		position: absolute;
 		left: 0;
-		top: 14px;
+		top: 13px;
 		width: 6px;
 		height: 6px;
 		border-radius: 50%;
 		background: var(--accent);
 	}
 
-	/* Quotes */
-	.quotes {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
+	/* Divider */
+	.divider {
+		border: none;
+		border-top: 1px solid var(--border);
+		margin: 32px 0;
 	}
 
-	.quote-card {
-		background: var(--bg-card);
+	/* Prose body */
+	.prose p {
+		font-size: 16px;
+		line-height: 1.8;
+		margin-bottom: 20px;
+		color: var(--text);
+	}
+
+	/* Pull quotes */
+	.pullquote {
+		margin: 28px 0;
+		padding: 20px 24px;
 		border-left: 3px solid var(--accent);
-		border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-		padding: 16px 20px;
-	}
-
-	.quote-en {
-		font-size: 15px;
-		font-weight: 500;
-		line-height: 1.5;
-		margin-bottom: 4px;
-		font-style: italic;
-	}
-
-	.quote-zh {
-		font-size: 13px;
-		color: var(--text-dim);
-		line-height: 1.5;
-	}
-
-	/* Segments */
-	.segments {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.segment {
-		display: flex;
-		gap: 12px;
-		padding: 10px 12px;
-		border-radius: var(--radius-sm);
-		transition: background 0.15s;
-	}
-
-	.segment:hover {
-		background: var(--bg-hover);
-	}
-
-	.seg-time {
-		font-size: 12px;
-		color: var(--text-dim);
-		font-variant-numeric: tabular-nums;
-		min-width: 42px;
-		flex-shrink: 0;
-		padding-top: 2px;
-	}
-
-	.seg-text {
-		flex: 1;
-	}
-
-	.seg-en {
-		font-size: 14px;
-		line-height: 1.5;
-		margin-bottom: 2px;
-	}
-
-	.seg-zh {
-		font-size: 13px;
-		color: var(--text-dim);
-		line-height: 1.5;
-	}
-
-	/* Vocabulary */
-	.vocab-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-		gap: 8px;
-	}
-
-	.vocab-item {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		padding: 10px 14px;
 		background: var(--bg-card);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
+		border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 	}
 
-	.vocab-word {
+	.pq-en {
+		font-size: 17px;
+		font-style: italic;
+		line-height: 1.6;
+		font-weight: 500;
+		margin-bottom: 6px;
+	}
+
+	.pq-zh {
 		font-size: 14px;
-		font-weight: 600;
-	}
-
-	.vocab-meaning {
-		font-size: 12px;
 		color: var(--text-dim);
+		line-height: 1.5;
 	}
 
 	/* Skeleton */
-	.article-skeleton {
-		padding: 24px 0;
-	}
-
-	.skeleton-line {
+	.post-skeleton { padding: 32px 0; }
+	.sk {
 		height: 16px;
 		background: var(--border);
 		border-radius: 4px;
-		margin-bottom: 16px;
+		margin-bottom: 18px;
 		animation: shimmer 1.5s infinite;
 	}
-
-	.skeleton-line.wide { width: 90%; }
-	.skeleton-line.narrow { width: 50%; }
+	.sk.wide { width: 90%; }
+	.sk.narrow { width: 45%; }
 
 	@keyframes shimmer {
 		0% { opacity: 0.5; }
@@ -469,25 +322,9 @@
 	}
 
 	@media (max-width: 640px) {
-		.article-title {
-			font-size: 22px;
-		}
-
-		.article-section h2 {
-			font-size: 16px;
-		}
-
-		.vocab-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.segment {
-			flex-direction: column;
-			gap: 4px;
-		}
-
-		.seg-time {
-			font-size: 11px;
-		}
+		.post-header h1 { font-size: 24px; }
+		.lead { font-size: 16px; }
+		.prose p { font-size: 15px; }
+		.pq-en { font-size: 15px; }
 	}
 </style>
