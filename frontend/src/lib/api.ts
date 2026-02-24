@@ -156,11 +156,24 @@ export const adminDeleteVideo = (adminKey = '', videoId: string) =>
 		headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
 	});
 
+// Public API (no auth required)
+export const publicVideos = (featured = false) =>
+	request<PublicVideoList>(`/api/public/videos?limit=100${featured ? '&featured=true' : ''}`);
+
+export const publicArticle = (id: string) =>
+	request<ArticleData>(`/api/public/videos/${id}/article`);
+
+export const publicAudio = (id: string) =>
+	request<AudioData>(`/api/public/videos/${id}/audio`);
+
 // Video file URL (cache key changes when videos are re-encoded)
 export const videoFileUrl = (filename: string) => `${API_BASE}/videos/${filename}?v=5`;
 
 // Thumbnail URL — local file served from /thumbnails/
 export const thumbnailUrl = (thumb: string) => `${API_BASE}/thumbnails/${thumb}`;
+
+// Audio file URL
+export const audioFileUrl = (path: string) => `${API_BASE}${path}`;
 
 // WebSocket
 export function connectWS(onMessage: (data: Record<string, unknown>) => void): WebSocket {
@@ -260,6 +273,56 @@ export interface AdminStats {
 export interface AdminVideo extends Video {
 	category: string | null;
 	is_featured: boolean;
+}
+
+export interface PublicVideoList {
+	total: number;
+	offset: number;
+	limit: number;
+	videos: PublicVideo[];
+}
+
+export interface PublicVideo {
+	id: string;
+	title: string | null;
+	source: string;
+	channel: string | null;
+	duration: number | null;
+	thumbnail: string | null;
+	category: string | null;
+	hasTranscript: boolean;
+	hasAppreciation: boolean;
+	createdAt: string | null;
+}
+
+export interface ArticleSegment {
+	index: number;
+	timestamp: string;
+	en: string;
+	zh: string;
+}
+
+export interface ArticleData {
+	videoId: string;
+	title: string | null;
+	source: string;
+	channel: string | null;
+	duration: number | null;
+	theme: string;
+	keyPoints: string[];
+	goldenQuotes: GoldenQuote[];
+	segments: ArticleSegment[];
+	vocabulary: VocabularyItem[];
+	fullText: string;
+}
+
+export interface AudioData {
+	videoId: string;
+	title: string | null;
+	channel: string | null;
+	duration: number | null;
+	audioUrl: string;
+	segments: { index: number; start: number; end: number; en: string; zh: string }[];
 }
 
 export interface CollectionDetail {

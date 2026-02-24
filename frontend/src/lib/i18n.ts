@@ -131,6 +131,18 @@ const translations = {
 		inviteFriends: '邀請好友',
 		inviteBonus: '邀請成功各得 +2 額度',
 		linkCopied: '邀請連結已複製！',
+
+		// Blog
+		blog: '文章',
+		blogTitle: '英文學習文章',
+		blogEmpty: '目前沒有文章',
+		blogReadMore: '閱讀全文',
+		blogBackToList: '回到文章列表',
+		blogListenAudio: '播放音檔',
+		blogVocabulary: '本篇單字',
+		blogTranscript: '逐句對照',
+		blogDuration: '時長',
+		blogSource: '來源',
 	},
 	en: {
 		// Navbar
@@ -262,6 +274,18 @@ const translations = {
 		inviteFriends: 'Invite Friends',
 		inviteBonus: '+2 quota for each invite',
 		linkCopied: 'Invite link copied!',
+
+		// Blog
+		blog: 'Blog',
+		blogTitle: 'Learning Articles',
+		blogEmpty: 'No articles yet',
+		blogReadMore: 'Read more',
+		blogBackToList: 'Back to articles',
+		blogListenAudio: 'Play audio',
+		blogVocabulary: 'Vocabulary',
+		blogTranscript: 'Transcript',
+		blogDuration: 'Duration',
+		blogSource: 'Source',
 	},
 } as const;
 

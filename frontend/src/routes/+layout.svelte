@@ -104,6 +104,7 @@
 		<div class="nav-right">
 			<div class="nav-links">
 				<a href="/">{t('home')}</a>
+				<a href="/blog">{t('blog')}</a>
 				<a href="/collections">{t('collections')}</a>
 				{#if user?.role === 'admin'}
 					<a href="/admin">{t('admin')}</a>
