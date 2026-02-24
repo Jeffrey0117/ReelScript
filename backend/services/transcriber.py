@@ -46,12 +46,12 @@ class Transcriber:
                 return json.load(f)
         return {
             "whisper": {
-                "model": "base",
+                "model": "distil-large-v3",
                 "language": "en",
                 "device": "auto",
                 "compute_type": "int8",
                 "vad_filter": True,
-                "max_words_per_segment": 12,
+                "max_words_per_segment": 30,
             }
         }
 
@@ -141,7 +141,7 @@ class Transcriber:
                 idx += 1
                 continue
 
-            # Split into shorter segments by word count and punctuation
+            # Split into segments at sentence-ending punctuation only
             current_words = []
             current_start = None
 
@@ -150,12 +150,10 @@ class Transcriber:
                     current_start = w.start
                 current_words.append(w.word.strip())
 
-                should_split = (
-                    len(current_words) >= max_words
-                    or w.word.rstrip().endswith((".", "?", "!", ","))
-                )
+                is_sentence_end = w.word.rstrip().endswith((".", "?", "!"))
+                is_too_long = len(current_words) >= max_words
 
-                if should_split and current_words:
+                if (is_sentence_end or is_too_long) and current_words:
                     text = " ".join(current_words).strip()
                     if text:
                         entries.append(Segment(
