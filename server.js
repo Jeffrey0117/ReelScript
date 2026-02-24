@@ -15,6 +15,7 @@ const BACKEND_PORT = PORT + 1000; // Internal backend port
 const BACKEND_HOST = `http://127.0.0.1:${BACKEND_PORT}`;
 const VIDEOS_DIR = join(import.meta.dirname, 'data', 'videos');
 const THUMBS_DIR = join(import.meta.dirname, 'data', 'thumbnails');
+const AUDIO_DIR = join(import.meta.dirname, 'data', 'audio');
 
 // Create reverse proxy for API calls
 const proxy = httpProxy.createProxyServer({
@@ -130,10 +131,58 @@ function serveThumbnail(req, res) {
 	createReadStream(filePath).pipe(res);
 }
 
+// Serve audio files
+function serveAudio(req, res) {
+	const urlPath = req.url.split('?')[0];
+	const filename = decodeURIComponent(urlPath.replace('/audio/', ''));
+	if (filename.includes('..') || filename.includes('/')) {
+		res.writeHead(400);
+		res.end('Bad request');
+		return;
+	}
+
+	const filePath = join(AUDIO_DIR, filename);
+	let stat;
+	try {
+		stat = statSync(filePath);
+	} catch {
+		res.writeHead(404);
+		res.end('Not found');
+		return;
+	}
+
+	const range = req.headers.range;
+	const headers = {
+		'Content-Type': 'audio/mpeg',
+		'Accept-Ranges': 'bytes',
+		'Cache-Control': 'public, max-age=3600',
+	};
+
+	if (range) {
+		const parts = range.replace(/bytes=/, '').split('-');
+		const start = parseInt(parts[0], 10);
+		const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+		res.writeHead(206, {
+			...headers,
+			'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+			'Content-Length': end - start + 1,
+		});
+		createReadStream(filePath, { start, end }).pipe(res);
+	} else {
+		res.writeHead(200, {
+			...headers,
+			'Content-Length': stat.size,
+		});
+		createReadStream(filePath).pipe(res);
+	}
+}
+
 // HTTP server: videos direct, API to backend, rest to SvelteKit
 const server = createServer((req, res) => {
 	if (req.url?.startsWith('/videos/')) {
 		serveVideo(req, res);
+	} else if (req.url?.startsWith('/audio/')) {
+		serveAudio(req, res);
 	} else if (req.url?.startsWith('/thumbnails/')) {
 		serveThumbnail(req, res);
 	} else if (req.url?.startsWith('/api/')) {

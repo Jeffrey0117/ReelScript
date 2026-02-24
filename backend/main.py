@@ -21,6 +21,7 @@ from api.websocket import manager
 DATA_DIR = Path("./data")
 VIDEOS_DIR = DATA_DIR / "videos"
 THUMBS_DIR = DATA_DIR / "thumbnails"
+AUDIO_DIR = DATA_DIR / "audio"
 
 
 @asynccontextmanager
@@ -28,6 +29,7 @@ async def lifespan(app: FastAPI):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
     THUMBS_DIR.mkdir(parents=True, exist_ok=True)
+    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
     init_db()
     yield
 
@@ -60,6 +62,8 @@ if VIDEOS_DIR.exists():
     app.mount("/videos", StaticFiles(directory=str(VIDEOS_DIR)), name="videos")
 if THUMBS_DIR.exists():
     app.mount("/thumbnails", StaticFiles(directory=str(THUMBS_DIR)), name="thumbnails")
+if AUDIO_DIR.exists():
+    app.mount("/audio", StaticFiles(directory=str(AUDIO_DIR)), name="audio")
 
 
 @app.websocket("/ws")

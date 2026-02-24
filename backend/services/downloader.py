@@ -22,6 +22,8 @@ VIDEOS_DIR = Path("./data/videos")
 VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
 THUMBS_DIR = Path("./data/thumbnails")
 THUMBS_DIR.mkdir(parents=True, exist_ok=True)
+AUDIO_DIR = Path("./data/audio")
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _detect_source(url: str) -> str:
@@ -128,6 +130,32 @@ def generate_thumbnail(video_path: Path, video_id: str) -> str | None:
         return thumb_path.name
     except Exception as e:
         logger.error(f"[Downloader] Thumbnail generation failed: {e}")
+        return None
+
+
+def extract_audio(video_path: Path, video_id: str) -> str | None:
+    """Extract MP3 audio from MP4 video file. Returns filename or None."""
+    audio_path = AUDIO_DIR / f"{video_id}.mp3"
+    if audio_path.exists():
+        return audio_path.name
+    if not video_path.exists():
+        logger.error(f"[Downloader] Video not found for audio extraction: {video_path}")
+        return None
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-i", str(video_path),
+                "-vn", "-acodec", "libmp3lame", "-b:a", "128k",
+                "-y", str(audio_path),
+            ],
+            capture_output=True, timeout=120, check=True,
+        )
+        logger.info(f"[Downloader] Audio extracted: {audio_path.name}")
+        return audio_path.name
+    except Exception as e:
+        logger.error(f"[Downloader] Audio extraction failed: {e}")
+        if audio_path.exists():
+            audio_path.unlink()
         return None
 
 

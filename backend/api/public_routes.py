@@ -5,11 +5,13 @@ No auth required. Serves learning snippets, cards, articles, vocabulary.
 
 import random
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from models import get_db, Video, Transcript
+from services.downloader import VIDEOS_DIR, extract_audio
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 
@@ -117,6 +119,47 @@ async def video_cards(video_id: str, db: Session = Depends(get_db)):
         "duration": video.duration,
         "totalCards": len(segments),
         "cards": [_segment_to_card(seg, video, len(segments)) for seg in segments],
+    }
+
+
+# ── Audio: extract and serve MP3 ──────────────────────────
+
+@router.get("/videos/{video_id}/audio")
+async def video_audio(video_id: str, db: Session = Depends(get_db)):
+    """Get audio URL + timeline for a video (extracts MP3 on first request)."""
+    video = db.query(Video).filter(Video.id == video_id, Video.status == "ready").first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if not video.filename:
+        raise HTTPException(status_code=404, detail="No video file available")
+
+    # Extract MP3 (cached after first extraction)
+    video_path = VIDEOS_DIR / video.filename
+    audio_filename = extract_audio(video_path, video_id)
+    if not audio_filename:
+        raise HTTPException(status_code=500, detail="Audio extraction failed")
+
+    # Build timeline from segments
+    segments = []
+    if _video_has_segments(video):
+        segments = [
+            {
+                "index": seg.get("index", i),
+                "start": seg.get("start", 0),
+                "end": seg.get("end", 0),
+                "en": seg.get("text", ""),
+                "zh": seg.get("translation", ""),
+            }
+            for i, seg in enumerate(video.transcript.segments)
+        ]
+
+    return {
+        "videoId": video.id,
+        "title": video.title,
+        "channel": video.channel,
+        "duration": video.duration,
+        "audioUrl": f"/audio/{audio_filename}",
+        "segments": segments,
     }
 
 
