@@ -42,6 +42,80 @@ def _video_has_segments(video: Video) -> bool:
     )
 
 
+def _merge_segments(segments: list[dict]) -> list[dict]:
+    """Merge fragmented Whisper segments into complete sentences.
+
+    Whisper often splits at commas/pauses, producing tiny fragments like
+    "okay,", "ah,", "No,".  Translation is applied per merged sentence,
+    so only the final fragment of a group has zh text.
+
+    Strategy: walk segments, accumulate EN text until we hit one that has
+    a non-empty translation — that becomes one merged sentence.
+    """
+    merged: list[dict] = []
+    buf_en: list[str] = []
+    buf_vocab: list[dict] = []
+    buf_start: float = 0
+    buf_end: float = 0
+
+    for seg in segments:
+        text = seg.get("text", "").strip()
+        zh = seg.get("translation", "").strip()
+        if not text:
+            continue
+
+        if not buf_en:
+            buf_start = seg.get("start", 0)
+        buf_en.append(text)
+        buf_end = seg.get("end", buf_start)
+        buf_vocab.extend(seg.get("vocabulary", []))
+
+        if zh:
+            merged.append({
+                "en": " ".join(buf_en),
+                "zh": zh,
+                "start": buf_start,
+                "end": buf_end,
+                "vocabulary": buf_vocab,
+            })
+            buf_en = []
+            buf_vocab = []
+
+    # Leftover fragments without translation — skip them
+    return merged
+
+
+MIN_SNIPPET_EN_LEN = 20  # minimum English characters for a usable snippet
+
+
+def _get_quality_snippets(db: Session) -> list[tuple[dict, "Video"]]:
+    """Return merged, quality-filtered (en, zh, len) snippet pool."""
+    videos = _get_all_ready_videos(db)
+    pool: list[tuple[dict, Video]] = []
+    for v in videos:
+        if not _video_has_segments(v):
+            continue
+        for m in _merge_segments(v.transcript.segments):
+            if len(m["en"]) >= MIN_SNIPPET_EN_LEN and m["zh"]:
+                pool.append((m, v))
+    return pool
+
+
+def _merged_to_card(m: dict, video: Video, total: int) -> dict:
+    card = {
+        "en": m["en"],
+        "zh": m["zh"],
+        "timestamp": _format_timestamp(m["start"]),
+        "videoTitle": video.title,
+        "videoId": video.id,
+        "source": video.source,
+        "channel": video.channel,
+    }
+    if m.get("vocabulary"):
+        card["vocabulary"] = m["vocabulary"]
+    return card
+
+
 def _segment_to_card(seg: dict, video: Video, total: int) -> dict:
     card = {
         "index": seg.get("index", 0),
@@ -64,39 +138,26 @@ def _segment_to_card(seg: dict, video: Video, total: int) -> dict:
 
 @router.get("/snippet/random")
 async def random_snippet(db: Session = Depends(get_db)):
-    """Get a random learning snippet (one sentence + translation + vocabulary)."""
-    videos = _get_all_ready_videos(db)
-    videos = [v for v in videos if _video_has_segments(v)]
-    if not videos:
+    """Get a random learning snippet (one complete sentence + translation)."""
+    pool = _get_quality_snippets(db)
+    if not pool:
         raise HTTPException(status_code=404, detail="No content available")
 
-    video = random.choice(videos)
-    segments = video.transcript.segments
-    seg = random.choice(segments)
-    return _segment_to_card(seg, video, len(segments))
+    m, video = random.choice(pool)
+    return _merged_to_card(m, video, len(pool))
 
 
 @router.get("/snippet/daily")
 async def daily_snippet(db: Session = Depends(get_db)):
     """Get today's daily snippet (deterministic per day)."""
-    videos = _get_all_ready_videos(db)
-    videos = [v for v in videos if _video_has_segments(v)]
-    if not videos:
+    pool = _get_quality_snippets(db)
+    if not pool:
         raise HTTPException(status_code=404, detail="No content available")
 
-    # Use day-of-year as seed for deterministic daily pick
     day_seed = datetime.utcnow().timetuple().tm_yday
-    all_segments = []
-    for v in videos:
-        for seg in v.transcript.segments:
-            all_segments.append((seg, v))
-
-    if not all_segments:
-        raise HTTPException(status_code=404, detail="No content available")
-
-    idx = day_seed % len(all_segments)
-    seg, video = all_segments[idx]
-    return _segment_to_card(seg, video, len(video.transcript.segments))
+    idx = day_seed % len(pool)
+    m, video = pool[idx]
+    return _merged_to_card(m, video, len(pool))
 
 
 # ── Cards: full video in order ───────────────────────────
