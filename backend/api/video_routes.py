@@ -207,10 +207,23 @@ async def _process_pipeline(video_id: str, url: str):
         loop = asyncio.get_running_loop()
         segments = await loop.run_in_executor(None, transcriber.transcribe, video_path)
 
+        # Convert to dict format
+        segment_dicts = transcriber.segments_to_dict(segments)
+
+        # Translate segments immediately after transcription
+        try:
+            print(f"[Pipeline] Translating {len(segment_dicts)} segments...")
+            translated_segments = await loop.run_in_executor(None, translate_segments, segment_dicts)
+            segment_dicts = translated_segments
+            print(f"[Pipeline] Translation completed")
+        except Exception as trans_err:
+            print(f"[Pipeline] Translation failed (non-fatal): {trans_err}")
+            # Continue with untranslated segments
+
         transcript = Transcript(
             video_id=video_id,
             language="en",
-            segments=transcriber.segments_to_dict(segments),
+            segments=segment_dicts,
             full_text=transcriber.segments_to_full_text(segments),
         )
         db.add(transcript)

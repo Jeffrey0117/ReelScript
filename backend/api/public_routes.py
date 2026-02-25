@@ -1,9 +1,12 @@
 """
 Public API routes — open endpoints for external consumption.
-No auth required. Serves learning snippets, cards, articles, vocabulary.
+No auth required. Serves learning snippets, cards, articles, vocabulary, search.
 """
 
+import json
 import random
+import re
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -12,6 +15,11 @@ from sqlalchemy.orm import Session
 
 from models import get_db, Video, Transcript
 from services.downloader import VIDEOS_DIR, extract_audio
+
+# meei SDK for semantic search
+MEEI_PATH = "C:/Users/jeffb/Desktop/code/meei/python/src"
+if MEEI_PATH not in sys.path:
+    sys.path.insert(0, MEEI_PATH)
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 
@@ -377,3 +385,216 @@ async def public_videos(
             for v in videos
         ],
     }
+
+
+# ── Search: keyword + semantic ───────────────────────────
+
+@router.get("/search")
+async def search_content(
+    q: str = Query(..., min_length=1, max_length=200),
+    mode: str = Query("keyword", pattern="^(keyword|semantic)$"),
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """Search across all video content.
+
+    Modes:
+    - keyword: exact text match across EN segments, titles, full_text
+    - semantic: AI-powered concept matching (slower, more precise)
+    """
+    if mode == "keyword":
+        return _keyword_search(db, q, limit)
+    return await _semantic_search(db, q, limit)
+
+
+def _keyword_search(db: Session, query: str, limit: int) -> dict:
+    """Case-insensitive keyword search across segments and titles."""
+    query_lower = query.lower()
+    videos = _get_all_ready_videos(db)
+    results: list[dict] = []
+
+    for video in videos:
+        # Search in title
+        title_match = query_lower in (video.title or "").lower()
+
+        if not _video_has_segments(video):
+            if title_match:
+                results.append({
+                    "videoId": video.id,
+                    "videoTitle": video.title,
+                    "channel": video.channel,
+                    "source": video.source,
+                    "matchType": "title",
+                    "matches": [],
+                })
+            continue
+
+        # Search in merged segments
+        merged = _merge_segments(video.transcript.segments)
+        segment_matches = []
+        for i, m in enumerate(merged):
+            en = m["en"]
+            if query_lower in en.lower():
+                segment_matches.append({
+                    "en": en,
+                    "zh": m["zh"],
+                    "timestamp": _format_timestamp(m["start"]),
+                    "index": i,
+                })
+
+        if segment_matches or title_match:
+            results.append({
+                "videoId": video.id,
+                "videoTitle": video.title,
+                "channel": video.channel,
+                "source": video.source,
+                "matchType": "segment" if segment_matches else "title",
+                "matches": segment_matches,
+            })
+
+    # Sort: segment matches first (more relevant), then by match count
+    results.sort(key=lambda r: len(r["matches"]), reverse=True)
+
+    return {
+        "query": query,
+        "mode": "keyword",
+        "total": len(results),
+        "results": results[:limit],
+    }
+
+
+_SEMANTIC_SYSTEM = """You are a precise content relevance scorer.
+Given a user query (a concept or topic) and a list of video summaries,
+score each video's relevance to the query on a scale of 0-100.
+
+Rules:
+- 0 = completely unrelated
+- 100 = directly discusses this exact concept
+- Be STRICT: only score >60 if the content genuinely relates to the concept
+- Consider both explicit mentions AND implicit thematic connections
+- Output ONLY a JSON array of objects: [{"id": "video_id", "score": N, "reason": "brief explanation"}]
+- Order by score descending
+- Exclude videos with score < 30"""
+
+# Provider preference
+_PROVIDERS = ["openai", "groq"]
+
+
+async def _semantic_search(db: Session, query: str, limit: int) -> dict:
+    """AI-powered concept matching across video content."""
+    from meei.chat import chat
+
+    videos = _get_all_ready_videos(db)
+
+    # Build summaries for each video
+    video_summaries = []
+    video_map = {}
+    for v in videos:
+        if not v.transcript:
+            continue
+
+        summary_parts = [f"Title: {v.title or 'Untitled'}"]
+
+        appreciation = v.transcript.appreciation or {}
+        if appreciation.get("theme"):
+            summary_parts.append(f"Theme: {appreciation['theme']}")
+        if appreciation.get("keyPoints"):
+            summary_parts.append(f"Key points: {'; '.join(appreciation['keyPoints'][:3])}")
+
+        # Use first few merged sentences for context
+        if _video_has_segments(v):
+            merged = _merge_segments(v.transcript.segments)
+            sample = [m["en"] for m in merged[:5]]
+            summary_parts.append(f"Content sample: {' '.join(sample)}")
+
+        video_summaries.append({
+            "id": v.id,
+            "summary": " | ".join(summary_parts),
+        })
+        video_map[v.id] = v
+
+    if not video_summaries:
+        return {"query": query, "mode": "semantic", "total": 0, "results": []}
+
+    # Ask LLM to score relevance
+    prompt = f"""User query: "{query}"
+
+Videos to evaluate:
+{json.dumps(video_summaries, ensure_ascii=False, indent=1)}"""
+
+    response = None
+    last_error = None
+    for pv in _PROVIDERS:
+        try:
+            response = chat.ask(prompt, pv=pv, system=_SEMANTIC_SYSTEM, temperature=0.2)
+            break
+        except Exception as e:
+            last_error = e
+            continue
+
+    if response is None:
+        raise HTTPException(status_code=503, detail=f"AI service unavailable: {last_error}")
+
+    # Parse scores
+    scored = _parse_semantic_scores(response)
+
+    # Build results
+    results = []
+    for item in scored[:limit]:
+        vid = item.get("id", "")
+        video = video_map.get(vid)
+        if not video:
+            continue
+
+        result: dict = {
+            "videoId": video.id,
+            "videoTitle": video.title,
+            "channel": video.channel,
+            "source": video.source,
+            "score": item.get("score", 0),
+            "reason": item.get("reason", ""),
+        }
+
+        # Include best matching segments if available
+        if _video_has_segments(video):
+            merged = _merge_segments(video.transcript.segments)
+            result["sampleSegments"] = [
+                {"en": m["en"], "zh": m["zh"], "timestamp": _format_timestamp(m["start"])}
+                for m in merged[:3]
+            ]
+
+        results.append(result)
+
+    return {
+        "query": query,
+        "mode": "semantic",
+        "total": len(results),
+        "results": results,
+    }
+
+
+def _parse_semantic_scores(response: str) -> list[dict]:
+    """Parse LLM response into scored results."""
+    text = response.strip()
+
+    # Strip markdown fences
+    if text.startswith("```"):
+        lines = text.split("\n")
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+
+    # Find JSON array
+    start = text.find("[")
+    end = text.rfind("]")
+    if start == -1 or end == -1:
+        return []
+
+    try:
+        result = json.loads(text[start:end + 1])
+        if isinstance(result, list):
+            # Sort by score descending
+            return sorted(result, key=lambda x: x.get("score", 0), reverse=True)
+    except json.JSONDecodeError:
+        pass
+
+    return []

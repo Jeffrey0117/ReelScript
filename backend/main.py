@@ -3,11 +3,16 @@ ReelScript Backend — FastAPI server.
 Download IG/YouTube videos, transcribe with Whisper, serve transcripts.
 """
 
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
-from pathlib import Path
+
+# Load environment variables from .env file
+load_dotenv()
 
 from models import init_db
 from api.video_routes import router as video_router
