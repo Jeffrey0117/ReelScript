@@ -171,15 +171,15 @@ async def video_cards(video_id: str, db: Session = Depends(get_db)):
     if not _video_has_segments(video):
         raise HTTPException(status_code=404, detail="No transcript available")
 
-    segments = video.transcript.segments
+    merged = _merge_segments(video.transcript.segments)
     return {
         "videoId": video.id,
         "videoTitle": video.title,
         "source": video.source,
         "channel": video.channel,
         "duration": video.duration,
-        "totalCards": len(segments),
-        "cards": [_segment_to_card(seg, video, len(segments)) for seg in segments],
+        "totalCards": len(merged),
+        "cards": [_merged_to_card(m, video, len(merged)) for m in merged],
     }
 
 
@@ -200,19 +200,17 @@ async def video_audio(video_id: str, db: Session = Depends(get_db)):
     if not audio_filename:
         raise HTTPException(status_code=500, detail="Audio extraction failed")
 
-    # Build timeline from segments
+    # Build timeline from merged segments (complete sentences only)
     segments = []
     if _video_has_segments(video):
-        segments = [
-            {
-                "index": seg.get("index", i),
-                "start": seg.get("start", 0),
-                "end": seg.get("end", 0),
-                "en": seg.get("text", ""),
-                "zh": seg.get("translation", ""),
-            }
-            for i, seg in enumerate(video.transcript.segments)
-        ]
+        for i, m in enumerate(_merge_segments(video.transcript.segments)):
+            segments.append({
+                "index": i,
+                "start": m["start"],
+                "end": m["end"],
+                "en": m["en"],
+                "zh": m["zh"],
+            })
 
     return {
         "videoId": video.id,
@@ -237,13 +235,14 @@ async def video_article(video_id: str, db: Session = Depends(get_db)):
 
     t = video.transcript
     appreciation = t.appreciation or {}
-    segments = t.segments or []
+    raw_segments = t.segments or []
+    merged = _merge_segments(raw_segments)
 
-    # Collect all vocabulary from segments
+    # Collect vocabulary from merged segments
     all_vocab = []
     seen_words = set()
-    for seg in segments:
-        for v in seg.get("vocabulary", []):
+    for m in merged:
+        for v in m.get("vocabulary", []):
             word = v.get("word", "").lower()
             if word and word not in seen_words:
                 seen_words.add(word)
@@ -260,12 +259,12 @@ async def video_article(video_id: str, db: Session = Depends(get_db)):
         "goldenQuotes": appreciation.get("goldenQuotes", []),
         "segments": [
             {
-                "index": seg.get("index", i),
-                "timestamp": _format_timestamp(seg.get("start", 0)),
-                "en": seg.get("text", ""),
-                "zh": seg.get("translation", ""),
+                "index": i,
+                "timestamp": _format_timestamp(m["start"]),
+                "en": m["en"],
+                "zh": m["zh"],
             }
-            for i, seg in enumerate(segments)
+            for i, m in enumerate(merged)
         ],
         "vocabulary": all_vocab,
         "fullText": t.full_text,
