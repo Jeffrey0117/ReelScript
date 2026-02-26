@@ -16,8 +16,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import httpx
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +56,25 @@ HELP_TEXT = (
     "/translate <編號> — 翻譯指定影片\n"
     "/vocab <編號> — 分析單字\n"
     "/study <編號> — 取得學習頁面連結\n"
+    "/retry <編號|all> — 重試失敗的影片\n"
     "/help — 顯示說明"
 )
+
+
+def _retry_keyboard(video_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔄 重試", callback_data=f"retry:{video_id}"),
+    ]])
+
+
+def _retry_url_keyboard(url: str) -> InlineKeyboardMarkup:
+    # Callback data max 64 bytes — truncate URL if needed
+    cb_data = f"retryurl:{url}"
+    if len(cb_data.encode('utf-8')) > 64:
+        cb_data = f"retryurl:{url[:50]}"
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🔄 重試", callback_data=cb_data),
+    ]])
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -233,6 +250,7 @@ async def _poll_and_notify(chat_id: int, video_id: str, title: str, bot):
                 await bot.send_message(
                     chat_id=chat_id,
                     text=f"❌ 處理失敗：{title}\n\n錯誤：{error}",
+                    reply_markup=_retry_keyboard(video_id),
                 )
                 return
         except Exception as e:
@@ -242,6 +260,7 @@ async def _poll_and_notify(chat_id: int, video_id: str, title: str, bot):
     await bot.send_message(
         chat_id=chat_id,
         text=f"⏰ 處理超時：{title}\n用 /list 查看狀態",
+        reply_markup=_retry_keyboard(video_id),
     )
 
 
@@ -283,9 +302,168 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         asyncio.create_task(_poll_and_notify(
             update.effective_chat.id, video_id, title, context.bot
         ))
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Process API error: {e.response.status_code} {e.response.text}")
+        error_detail = e.response.text[:100] if e.response.text else str(e.response.status_code)
+        # Try to get video_id from response for retry button
+        video_id = None
+        try:
+            video_id = e.response.json().get("video_id")
+        except Exception:
+            pass
+        markup = _retry_keyboard(video_id) if video_id else _retry_url_keyboard(text)
+        await msg.edit_text(f"❌ 失敗：{error_detail}", reply_markup=markup)
     except Exception as e:
         logger.error(f"Process failed: {e}")
-        await msg.edit_text(f"❌ 失敗：{e}")
+        await msg.edit_text(
+            f"❌ 失敗：{e}",
+            reply_markup=_retry_url_keyboard(text),
+        )
+
+
+async def _do_retry(video_id: str, chat_id: int, bot):
+    """Call retry API and start polling for the result."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            f"{REELSCRIPT_API}/api/videos/{video_id}/retry",
+            headers=BOT_HEADERS,
+        )
+        if resp.status_code == 400:
+            await bot.send_message(chat_id=chat_id, text="ℹ️ 這部影片不是失敗狀態，不需要重試。")
+            return
+        resp.raise_for_status()
+
+    # Fetch title for notification
+    async with httpx.AsyncClient(timeout=10) as client:
+        info = await client.get(f"{REELSCRIPT_API}/api/videos/{video_id}", headers=BOT_HEADERS)
+        title = info.json().get("title", "未命名") if info.status_code == 200 else "未命名"
+
+    short_id = video_id[:8]
+    await bot.send_message(
+        chat_id=chat_id,
+        text=f"🔄 重新處理中...\n\n📹 {title}\n🆔 {short_id}\n\n完成後會自動通知你！",
+    )
+    asyncio.create_task(_poll_and_notify(chat_id, video_id, title, bot))
+
+
+async def callback_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle inline retry button press (by video_id)."""
+    query = update.callback_query
+    await query.answer()
+
+    if not query.data or not query.data.startswith("retry:"):
+        return
+
+    video_id = query.data.split(":", 1)[1]
+
+    # Remove the retry button from the original message
+    await query.edit_message_reply_markup(reply_markup=None)
+
+    try:
+        await _do_retry(video_id, query.message.chat_id, context.bot)
+    except Exception as e:
+        logger.error(f"Callback retry failed: {e}")
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=f"❌ 重試失敗：{e}",
+            reply_markup=_retry_keyboard(video_id),
+        )
+
+
+async def callback_retry_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle inline retry button press (by URL — for initial API failures)."""
+    query = update.callback_query
+    await query.answer()
+
+    if not query.data or not query.data.startswith("retryurl:"):
+        return
+
+    url = query.data.split(":", 1)[1]
+
+    # Remove the retry button
+    await query.edit_message_reply_markup(reply_markup=None)
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{REELSCRIPT_API}/api/videos/process",
+                json={"url": url},
+                headers=BOT_HEADERS,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        title = data.get("title") or "未命名"
+        video_id = data.get("video_id", "")
+        short_id = video_id[:8]
+
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=f"🔄 重新處理中...\n\n📹 {title}\n🆔 {short_id}\n\n完成後會自動通知你！",
+        )
+        asyncio.create_task(_poll_and_notify(
+            query.message.chat_id, video_id, title, context.bot
+        ))
+    except Exception as e:
+        logger.error(f"URL retry failed: {e}")
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=f"❌ 重試失敗：{e}",
+            reply_markup=_retry_url_keyboard(url),
+        )
+
+
+async def cmd_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _check_auth(update):
+        await update.message.reply_text("⛔ 未授權。")
+        return
+
+    if not context.args:
+        await update.message.reply_text("用法：\n/retry <ID> — 重試單個影片\n/retry all — 重試所有失敗的")
+        return
+
+    arg = context.args[0].strip().lower()
+
+    if arg == "all":
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    f"{REELSCRIPT_API}/api/videos/retry-all-failed",
+                    headers=BOT_HEADERS,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+
+            count = data.get("retried", 0)
+            if count == 0:
+                await update.message.reply_text("✅ 沒有失敗的影片需要重試。")
+                return
+
+            await update.message.reply_text(f"🔄 已重新處理 {count} 部失敗影片，完成後會通知你！")
+
+            # Start polling for each retried video
+            for vid in data.get("video_ids", []):
+                asyncio.create_task(_poll_and_notify(
+                    update.effective_chat.id, vid, "重試影片", context.bot
+                ))
+        except Exception as e:
+            logger.error(f"Retry all failed: {e}")
+            await update.message.reply_text(f"❌ 重試失敗：{e}")
+        return
+
+    # Single video retry by short ID
+    video_id = await _get_video_id(context, update)
+    if not video_id:
+        return
+
+    try:
+        await _do_retry(video_id, update.effective_chat.id, context.bot)
+    except Exception as e:
+        logger.error(f"Retry failed: {e}")
+        await update.message.reply_text(
+            f"❌ 重試失敗：{e}",
+            reply_markup=_retry_keyboard(video_id),
+        )
 
 
 def create_bot() -> Application:
@@ -301,6 +479,9 @@ def create_bot() -> Application:
     app.add_handler(CommandHandler("translate", cmd_translate))
     app.add_handler(CommandHandler("vocab", cmd_vocab))
     app.add_handler(CommandHandler("study", cmd_study))
+    app.add_handler(CommandHandler("retry", cmd_retry))
+    app.add_handler(CallbackQueryHandler(callback_retry_url, pattern=r"^retryurl:"))
+    app.add_handler(CallbackQueryHandler(callback_retry, pattern=r"^retry:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_url))
 
     return app

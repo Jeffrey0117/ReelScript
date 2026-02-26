@@ -327,12 +327,18 @@ async def list_videos(db: Session = Depends(get_db), user: dict = Depends(requir
 @router.post("/retry-all-failed")
 async def retry_all_failed(db: Session = Depends(get_db), user: dict = Depends(require_auth)):
     user_id = _get_user_id(user)
-    failed = (
-        db.query(Video)
-        .join(UserVideo, UserVideo.video_id == Video.id)
-        .filter(UserVideo.user_id == user_id, Video.status == "failed")
-        .all()
-    )
+    is_admin = _is_admin(user)
+
+    # Admin/bot sees all failed videos; regular users only see their own
+    if is_admin:
+        failed = db.query(Video).filter(Video.status == "failed").all()
+    else:
+        failed = (
+            db.query(Video)
+            .join(UserVideo, UserVideo.video_id == Video.id)
+            .filter(UserVideo.user_id == user_id, Video.status == "failed")
+            .all()
+        )
     if not failed:
         return {"retried": 0, "video_ids": []}
     video_ids = []
@@ -430,13 +436,18 @@ async def delete_video(video_id: str, db: Session = Depends(get_db), user: dict 
 @router.post("/{video_id}/retry")
 async def retry_video(video_id: str, db: Session = Depends(get_db), user: dict = Depends(require_auth)):
     user_id = _get_user_id(user)
-    uv = db.query(UserVideo).filter(UserVideo.user_id == user_id, UserVideo.video_id == video_id).first()
-    if not uv:
-        raise HTTPException(status_code=404, detail="Video not found")
+    is_admin = _is_admin(user)
+
+    # Admin/bot can retry any video; regular users need ownership
+    if not is_admin:
+        uv = db.query(UserVideo).filter(UserVideo.user_id == user_id, UserVideo.video_id == video_id).first()
+        if not uv:
+            raise HTTPException(status_code=404, detail="Video not found")
+
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
-    if video.status != "failed":
+    if video.status not in ("failed", "transcribing"):
         raise HTTPException(status_code=400, detail="Only failed videos can be retried")
     video.status = "downloading"
     video.error_message = None
