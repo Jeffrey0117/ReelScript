@@ -86,6 +86,10 @@ def _get_user_id(user: dict) -> str:
     return user.get("sub", "")
 
 
+def _is_admin(user: dict) -> bool:
+    return user.get("role") == "admin"
+
+
 def _get_or_create_quota(db: Session, user_id: str) -> UserQuota:
     period = datetime.utcnow().strftime("%Y-%m")
     quota = db.query(UserQuota).filter(
@@ -121,14 +125,17 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
     if not _is_valid_url(req.url):
         raise HTTPException(status_code=400, detail="Unsupported URL. Use YouTube, Instagram, Bilibili, or TikTok links.")
 
+    is_admin = _is_admin(user)
+
     # Dedup: check if this URL already exists in global pool
     existing = db.query(Video).filter(Video.url == req.url).first()
     if existing:
         if existing.status == "failed":
-            quota = _get_or_create_quota(db, user_id)
-            if not _check_quota(quota):
-                raise HTTPException(status_code=429, detail="本月免費額度已用完")
-            quota.videos_used += 1
+            if not is_admin:
+                quota = _get_or_create_quota(db, user_id)
+                if not _check_quota(quota):
+                    raise HTTPException(status_code=429, detail="本月免費額度已用完")
+                quota.videos_used += 1
             existing.status = "downloading"
             existing.error_message = None
             db.commit()
@@ -139,10 +146,11 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
         _ensure_user_video(db, user_id, existing.id)
         return {"success": True, "video_id": existing.id, "title": existing.title, "status": existing.status, "duplicate": True}
 
-    # New video — check quota
-    quota = _get_or_create_quota(db, user_id)
-    if not _check_quota(quota):
-        raise HTTPException(status_code=429, detail="本月免費額度已用完")
+    # New video — check quota (admin/bot bypasses quota)
+    if not is_admin:
+        quota = _get_or_create_quota(db, user_id)
+        if not _check_quota(quota):
+            raise HTTPException(status_code=429, detail="本月免費額度已用完")
 
     info = await get_video_info(req.url)
 
@@ -160,7 +168,8 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
     db.refresh(video)
 
     _ensure_user_video(db, user_id, video.id)
-    quota.videos_used += 1
+    if not is_admin:
+        quota.videos_used += 1
     db.commit()
 
     asyncio.create_task(_process_pipeline(video.id, req.url))

@@ -69,6 +69,9 @@ class Transcriber:
         if self._model is not None:
             return self._model
 
+        # Suppress HuggingFace symlink warnings on Windows
+        os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
         from faster_whisper import WhisperModel
 
         whisper_cfg = self.config.get("whisper", {})
