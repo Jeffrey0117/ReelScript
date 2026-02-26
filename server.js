@@ -36,6 +36,7 @@ proxy.on('error', (err, _req, res) => {
 const backend = spawn('python', ['backend/main.py'], {
 	env: { ...process.env, REELSCRIPT_PORT: String(BACKEND_PORT) },
 	stdio: ['ignore', 'pipe', 'pipe'],
+	windowsHide: true,
 });
 
 backend.stdout.on('data', (data) => {
