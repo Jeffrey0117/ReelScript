@@ -33,9 +33,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 // Videos
 export const processVideo = (url: string) =>
-	request<{ success: boolean; video_id: string; title: string }>('/api/videos/process', {
+	request<{ success: boolean; video_id: string; title: string; status?: string }>('/api/videos/process', {
 		method: 'POST',
 		body: JSON.stringify({ url }),
+	});
+
+export const batchProcessVideos = (urls: string[]) =>
+	request<BatchProcessResult>('/api/videos/batch-process', {
+		method: 'POST',
+		body: JSON.stringify({ urls }),
 	});
 
 export const listVideos = () =>
@@ -323,6 +329,23 @@ export interface AudioData {
 	duration: number | null;
 	audioUrl: string;
 	segments: { index: number; start: number; end: number; en: string; zh: string }[];
+}
+
+export interface BatchProcessResultItem {
+	url: string;
+	success: boolean;
+	video_id?: string;
+	title?: string;
+	status?: string;
+	duplicate?: boolean;
+	error?: string;
+}
+
+export interface BatchProcessResult {
+	success: boolean;
+	results: BatchProcessResultItem[];
+	total: number;
+	started: number;
 }
 
 export interface CollectionDetail {

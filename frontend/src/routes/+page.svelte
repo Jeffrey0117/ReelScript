@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import {
 		processVideo,
+		batchProcessVideos,
 		listVideos,
 		connectWS,
 		renameVideo,
@@ -113,37 +114,72 @@
 		}
 	}
 
+	function parseUrls(input: string): string[] {
+		return input
+			.split(/[\s\n]+/)
+			.map((s) => s.trim())
+			.filter((s) => s.startsWith('http'));
+	}
+
 	async function handleSubmit() {
 		if (!url.trim()) return;
+
+		const urls = parseUrls(url);
+		if (urls.length === 0) return;
 
 		loading = true;
 		error = '';
 
 		try {
-			const result = await processVideo(url.trim());
-			const existingIdx = videos.findIndex((v) => v.id === result.video_id);
-			if (existingIdx >= 0) {
-				videos = videos.map((v) =>
-					v.id === result.video_id
-						? { ...v, status: result.status || 'downloading', error_message: null }
-						: v
-				);
+			if (urls.length === 1) {
+				const result = await processVideo(urls[0]);
+				const existingIdx = videos.findIndex((v) => v.id === result.video_id);
+				if (existingIdx >= 0) {
+					videos = videos.map((v) =>
+						v.id === result.video_id
+							? { ...v, status: result.status || 'downloading', error_message: null }
+							: v
+					);
+				} else {
+					videos = [
+						{
+							id: result.video_id,
+							url: urls[0],
+							title: result.title || 'Processing...',
+							source: 'unknown',
+							duration: null,
+							thumbnail: null,
+							channel: null,
+							status: 'downloading',
+							error_message: null,
+							created_at: new Date().toISOString(),
+						},
+						...videos,
+					];
+				}
 			} else {
-				videos = [
-					{
-						id: result.video_id,
-						url: url,
-						title: result.title || 'Processing...',
+				const result = await batchProcessVideos(urls);
+				const newVideos: Video[] = result.results
+					.filter((r) => r.success && r.video_id)
+					.map((r) => ({
+						id: r.video_id!,
+						url: r.url,
+						title: r.title || 'Processing...',
 						source: 'unknown',
 						duration: null,
 						thumbnail: null,
 						channel: null,
-						status: 'downloading',
+						status: r.status || 'downloading',
 						error_message: null,
 						created_at: new Date().toISOString(),
-					},
-					...videos,
-				];
+					}));
+				const existingIds = new Set(videos.map((v) => v.id));
+				const toAdd = newVideos.filter((v) => !existingIds.has(v.id));
+				videos = [...toAdd, ...videos];
+				const failed = result.results.filter((r) => !r.success);
+				if (failed.length > 0) {
+					error = `${result.started}/${result.total} 開始處理，${failed.length} 個失敗`;
+				}
 			}
 			url = '';
 			quota = await getQuota().catch(() => null);
@@ -355,14 +391,28 @@
 
 	{#if isLoggedIn}
 		<form class="url-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
-			<input
-				type="url"
+			<textarea
 				bind:value={url}
-				placeholder="https://www.instagram.com/reel/... or YouTube link"
+				placeholder="https://www.instagram.com/reel/... or YouTube link&#10;(可一次貼多個連結，空白或換行分隔)"
 				disabled={loading}
-			/>
+				rows={parseUrls(url).length > 1 ? 3 : 1}
+				onkeydown={(e) => {
+					if (e.key === 'Enter' && !e.shiftKey) {
+						const urls = parseUrls(url);
+						if (urls.length <= 1) {
+							e.preventDefault();
+							handleSubmit();
+						}
+					}
+				}}
+			></textarea>
 			<button class="btn btn-primary" type="submit" disabled={loading || !url.trim()}>
-				{loading ? t('processing') : t('start')}
+				{#if loading}
+					{t('processing')}
+				{:else}
+					{@const count = parseUrls(url).length}
+					{count > 1 ? `${t('start')} (${count})` : t('start')}
+				{/if}
 			</button>
 		</form>
 		<div class="hero-meta">
@@ -704,8 +754,20 @@
 		margin: 0 auto;
 	}
 
-	.url-form input {
+	.url-form textarea {
 		flex: 1;
+		resize: none;
+		font-family: inherit;
+		font-size: inherit;
+		line-height: 1.5;
+		padding: 10px 14px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--bg);
+		color: var(--text);
+		field-sizing: content;
+		min-height: 42px;
+		max-height: 120px;
 	}
 
 	.hero-meta {
@@ -1180,7 +1242,7 @@
 			flex-direction: column;
 		}
 
-		.url-form input {
+		.url-form textarea {
 			width: 100%;
 		}
 

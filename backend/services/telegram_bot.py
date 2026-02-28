@@ -8,6 +8,7 @@ Setup:
 """
 
 import os
+import re
 import asyncio
 import logging
 from pathlib import Path
@@ -40,6 +41,14 @@ def _is_video_url(text: str) -> bool:
         "instagram.com/reel", "instagram.com/p/",
     ]
     return any(p in text.lower() for p in patterns)
+
+
+_URL_RE = re.compile(r"https?://\S+")
+
+
+def _extract_video_urls(text: str) -> list[str]:
+    """Extract all video URLs from a message."""
+    return [u for u in _URL_RE.findall(text) if _is_video_url(u)]
 
 
 def _check_auth(update: Update) -> bool:
@@ -264,24 +273,15 @@ async def _poll_and_notify(chat_id: int, video_id: str, title: str, bot):
     )
 
 
-async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not _check_auth(update):
-        await update.message.reply_text("⛔ 未授權。你的 User ID: " + str(update.effective_user.id))
-        return
-
-    text = update.message.text.strip()
-
-    if not _is_video_url(text):
-        await update.message.reply_text("請傳送 YouTube 或 Instagram 的影片連結。")
-        return
-
+async def _handle_single_url(url: str, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process a single video URL."""
     msg = await update.message.reply_text("⬇️ 處理中...")
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 f"{REELSCRIPT_API}/api/videos/process",
-                json={"url": text},
+                json={"url": url},
                 headers=BOT_HEADERS,
             )
             resp.raise_for_status()
@@ -298,27 +298,86 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"完成後會自動通知你！"
         )
 
-        # Start background polling for completion
         asyncio.create_task(_poll_and_notify(
             update.effective_chat.id, video_id, title, context.bot
         ))
     except httpx.HTTPStatusError as e:
         logger.error(f"Process API error: {e.response.status_code} {e.response.text}")
         error_detail = e.response.text[:100] if e.response.text else str(e.response.status_code)
-        # Try to get video_id from response for retry button
         video_id = None
         try:
             video_id = e.response.json().get("video_id")
         except Exception:
             pass
-        markup = _retry_keyboard(video_id) if video_id else _retry_url_keyboard(text)
+        markup = _retry_keyboard(video_id) if video_id else _retry_url_keyboard(url)
         await msg.edit_text(f"❌ 失敗：{error_detail}", reply_markup=markup)
     except Exception as e:
         logger.error(f"Process failed: {e}")
         await msg.edit_text(
             f"❌ 失敗：{e}",
-            reply_markup=_retry_url_keyboard(text),
+            reply_markup=_retry_url_keyboard(url),
         )
+
+
+async def _handle_batch_urls(urls: list[str], update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process multiple video URLs via batch endpoint."""
+    msg = await update.message.reply_text(f"⬇️ 批次處理 {len(urls)} 個連結...")
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"{REELSCRIPT_API}/api/videos/batch-process",
+                json={"urls": urls},
+                headers=BOT_HEADERS,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        results = data.get("results", [])
+        started = data.get("started", 0)
+        total = data.get("total", 0)
+
+        lines = []
+        for r in results:
+            if r.get("success"):
+                title = r.get("title") or "未命名"
+                short_id = (r.get("video_id") or "")[:8]
+                lines.append(f"✅ {title[:30]} ({short_id})")
+                # Start polling for each
+                if r.get("status") in ("downloading",):
+                    asyncio.create_task(_poll_and_notify(
+                        update.effective_chat.id, r["video_id"], title, context.bot
+                    ))
+            else:
+                err = r.get("error", "未知錯誤")
+                lines.append(f"❌ {r.get('url', '?')[:30]}... — {err}")
+
+        text = f"📦 批次處理：{started}/{total} 開始\n\n" + "\n".join(lines)
+        if started > 0:
+            text += "\n\n完成後會逐一通知你！"
+        await msg.edit_text(text)
+
+    except Exception as e:
+        logger.error(f"Batch process failed: {e}")
+        await msg.edit_text(f"❌ 批次處理失敗：{e}")
+
+
+async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _check_auth(update):
+        await update.message.reply_text("⛔ 未授權。你的 User ID: " + str(update.effective_user.id))
+        return
+
+    text = update.message.text.strip()
+    urls = _extract_video_urls(text)
+
+    if not urls:
+        await update.message.reply_text("請傳送 YouTube 或 Instagram 的影片連結。")
+        return
+
+    if len(urls) == 1:
+        await _handle_single_url(urls[0], update, context)
+    else:
+        await _handle_batch_urls(urls, update, context)
 
 
 async def _do_retry(video_id: str, chat_id: int, bot):
@@ -471,7 +530,16 @@ def create_bot() -> Application:
     if not token:
         raise ValueError("TELEGRAM_BOT_TOKEN not set in environment")
 
-    app = Application.builder().token(token).build()
+    builder = Application.builder().token(token)
+
+    # Support Cloudflare Workers reverse proxy for Telegram API
+    tg_proxy = os.getenv("TELEGRAM_PROXY")
+    if tg_proxy:
+        base = tg_proxy.rstrip("/")
+        logger.info(f"Using Telegram API proxy: {base}")
+        builder = builder.base_url(f"{base}/bot").base_file_url(f"{base}/file/bot")
+
+    app = builder.build()
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))

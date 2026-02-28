@@ -24,10 +24,16 @@ from api.websocket import manager
 router = APIRouter(prefix="/api/videos", tags=["videos"])
 
 FREE_MONTHLY_LIMIT = 5
+MAX_CONCURRENT_PIPELINES = 3
+_pipeline_semaphore = asyncio.Semaphore(MAX_CONCURRENT_PIPELINES)
 
 
 class ProcessRequest(BaseModel):
     url: str
+
+
+class BatchProcessRequest(BaseModel):
+    urls: list[str]
 
 
 class RenameRequest(BaseModel):
@@ -177,7 +183,89 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
     return {"success": True, "video_id": video.id, "title": video.title, "status": "downloading"}
 
 
+@router.post("/batch-process")
+async def batch_process_videos(req: BatchProcessRequest, db: Session = Depends(get_db), user: dict = Depends(require_auth)):
+    user_id = _get_user_id(user)
+    is_admin = _is_admin(user)
+
+    # Validate all URLs first (fail-fast)
+    invalid = [u for u in req.urls if not _is_valid_url(u)]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"不支援的連結：{', '.join(invalid[:3])}")
+
+    if not is_admin:
+        quota = _get_or_create_quota(db, user_id)
+        remaining = (FREE_MONTHLY_LIMIT + quota.bonus_videos) - quota.videos_used if quota.plan != "pro" else float("inf")
+    else:
+        remaining = float("inf")
+
+    results = []
+    quota_used = 0
+
+    for url in req.urls:
+        existing = db.query(Video).filter(Video.url == url).first()
+        if existing:
+            if existing.status == "failed":
+                if not is_admin and quota_used >= remaining:
+                    results.append({"url": url, "success": False, "error": "額度不足"})
+                    continue
+                existing.status = "downloading"
+                existing.error_message = None
+                db.commit()
+                _ensure_user_video(db, user_id, existing.id)
+                if not is_admin:
+                    quota.videos_used += 1
+                    quota_used += 1
+                    db.commit()
+                asyncio.create_task(_process_pipeline(existing.id, existing.url))
+                results.append({"url": url, "success": True, "video_id": existing.id, "status": "downloading", "duplicate": True})
+            else:
+                _ensure_user_video(db, user_id, existing.id)
+                results.append({"url": url, "success": True, "video_id": existing.id, "status": existing.status, "duplicate": True})
+            continue
+
+        # New video — check quota
+        if not is_admin and quota_used >= remaining:
+            results.append({"url": url, "success": False, "error": "額度不足"})
+            continue
+
+        try:
+            info = await get_video_info(url)
+        except Exception as e:
+            results.append({"url": url, "success": False, "error": str(e)[:100]})
+            continue
+
+        video = Video(
+            url=url,
+            title=info.get("title"),
+            source=info.get("source", "unknown"),
+            duration=info.get("duration"),
+            thumbnail=info.get("thumbnail"),
+            channel=info.get("channel"),
+            status="downloading",
+        )
+        db.add(video)
+        db.commit()
+        db.refresh(video)
+
+        _ensure_user_video(db, user_id, video.id)
+        if not is_admin:
+            quota.videos_used += 1
+            quota_used += 1
+        db.commit()
+
+        asyncio.create_task(_process_pipeline(video.id, url))
+        results.append({"url": url, "success": True, "video_id": video.id, "title": video.title, "status": "downloading"})
+
+    return {"success": True, "results": results, "total": len(results), "started": sum(1 for r in results if r.get("success"))}
+
+
 async def _process_pipeline(video_id: str, url: str):
+    async with _pipeline_semaphore:
+        await _process_pipeline_inner(video_id, url)
+
+
+async def _process_pipeline_inner(video_id: str, url: str):
     from models.database import SessionLocal
 
     db = SessionLocal()
