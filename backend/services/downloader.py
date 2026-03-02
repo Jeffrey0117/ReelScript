@@ -175,13 +175,14 @@ def extract_audio(video_path: Path, video_id: str) -> str | None:
         return None
 
 
-async def download_video(url: str, video_id: str) -> Dict[str, Any]:
+async def download_video(url: str, video_id: str, content_type: str = "video") -> Dict[str, Any]:
     """
-    Download a video from IG or YouTube.
+    Download a video or audio from IG or YouTube.
 
     Args:
         url: Video URL
         video_id: Database video ID for progress tracking
+        content_type: "video" or "lyrics" — lyrics downloads audio only
 
     Returns:
         Result dict with filename or error
@@ -215,14 +216,24 @@ async def download_video(url: str, video_id: str) -> Dict[str, Any]:
                 },
             }))
 
-    ydl_opts = {
-        "outtmpl": str(VIDEOS_DIR / "%(id)s.%(ext)s"),
-        "progress_hooks": [progress_hook],
-        "quiet": True,
-        "no_warnings": True,
-        "format": "bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-        "merge_output_format": "mp4",
-    }
+    if content_type == "lyrics":
+        ydl_opts = {
+            "outtmpl": str(VIDEOS_DIR / "%(id)s.%(ext)s"),
+            "progress_hooks": [progress_hook],
+            "quiet": True,
+            "no_warnings": True,
+            "format": "bestaudio[ext=m4a]/bestaudio/best",
+            "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp4", "preferredquality": "128"}],
+        }
+    else:
+        ydl_opts = {
+            "outtmpl": str(VIDEOS_DIR / "%(id)s.%(ext)s"),
+            "progress_hooks": [progress_hook],
+            "quiet": True,
+            "no_warnings": True,
+            "format": "bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "merge_output_format": "mp4",
+        }
 
     try:
         await manager.broadcast({
@@ -234,9 +245,9 @@ async def download_video(url: str, video_id: str) -> Dict[str, Any]:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-        # Ensure H.264 codec for iOS/mobile compatibility
+        # Ensure H.264 codec for iOS/mobile compatibility (skip for audio-only lyrics)
         filepath = Path(filename)
-        if filepath.exists():
+        if content_type != "lyrics" and filepath.exists():
             await asyncio.to_thread(_ensure_h264, filepath)
 
         result = {

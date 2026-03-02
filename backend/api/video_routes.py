@@ -279,7 +279,8 @@ async def _process_pipeline_inner(video_id: str, url: str):
         if not video:
             return
 
-        result = await download_video(url, video_id)
+        ct = video.content_type or "video"
+        result = await download_video(url, video_id, content_type=ct)
 
         if not result.get("success"):
             video.status = "failed"
