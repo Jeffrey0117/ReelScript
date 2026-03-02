@@ -223,7 +223,6 @@ async def download_video(url: str, video_id: str, content_type: str = "video") -
             "quiet": True,
             "no_warnings": True,
             "format": "bestaudio[ext=m4a]/bestaudio/best",
-            "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp4", "preferredquality": "128"}],
         }
     else:
         ydl_opts = {
