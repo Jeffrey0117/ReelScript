@@ -20,6 +20,7 @@ class Video(Base):
     url = Column(Text, nullable=False)
     title = Column(String, nullable=True)
     source = Column(String, default="unknown")  # ig, youtube
+    content_type = Column(String, default="video")  # video, lyrics
     duration = Column(Float, nullable=True)
     thumbnail = Column(Text, nullable=True)
     channel = Column(String, nullable=True)
@@ -135,6 +136,9 @@ def init_db():
             conn.commit()
         if "is_featured" not in video_cols:
             conn.execute(text("ALTER TABLE videos ADD COLUMN is_featured BOOLEAN DEFAULT 0"))
+            conn.commit()
+        if "content_type" not in video_cols:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN content_type VARCHAR DEFAULT 'video'"))
             conn.commit()
 
         # Add user_id to collections if missing

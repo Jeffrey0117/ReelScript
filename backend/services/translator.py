@@ -93,10 +93,11 @@ def _parse_translations(response: str, expected_count: int) -> List[str]:
     return parsed[:expected_count]
 
 
-def _merge_into_sentences(segments: list) -> list:
+def _merge_into_sentences(segments: list, max_words: int = 0) -> list:
     """
     Merge Whisper segments into complete sentences.
     Returns list of {text, seg_indices} where seg_indices tracks which segments form each sentence.
+    max_words: if >0, force split when buffer exceeds this word count (useful for lyrics).
     """
     sentences = []
     buf = ""
@@ -107,8 +108,10 @@ def _merge_into_sentences(segments: list) -> list:
         buf += (" " if buf else "") + text
         indices.append(i)
 
-        # Split on sentence-ending punctuation
-        if re.search(r'[.!?]$', text):
+        has_punctuation = bool(re.search(r'[.!?]$', text))
+        over_limit = max_words > 0 and len(buf.split()) >= max_words
+
+        if has_punctuation or over_limit:
             sentences.append({"text": buf.strip(), "seg_indices": list(indices)})
             buf = ""
             indices = []
@@ -120,19 +123,22 @@ def _merge_into_sentences(segments: list) -> list:
     return sentences
 
 
-def translate_segments(segments: list) -> list:
+def translate_segments(segments: list, content_type: str = "video") -> list:
     """
     Translate transcript segments to Traditional Chinese.
     Merges into sentences first for accurate alignment, then maps back.
 
     Args:
         segments: List of segment dicts with 'text' field
+        content_type: "video" or "lyrics" — lyrics use shorter merge windows
 
     Returns:
         Updated segments list with 'translation' field filled in
     """
     # Step 1: Merge segments into sentences
-    sentences = _merge_into_sentences(segments)
+    # Lyrics often lack punctuation, so force split at ~15 words
+    max_words = 15 if content_type == "lyrics" else 0
+    sentences = _merge_into_sentences(segments, max_words=max_words)
     sentence_texts = [s["text"] for s in sentences]
 
     print(f"[Translator] Merged {len(segments)} segments into {len(sentences)} sentences")

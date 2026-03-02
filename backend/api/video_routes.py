@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from models import get_db, Video, Transcript, UserVideo, UserQuota
 from middleware.auth import require_auth
-from services.downloader import download_video, get_video_info, generate_thumbnail, VIDEOS_DIR, THUMBS_DIR
+from services.downloader import download_video, get_video_info, generate_thumbnail, detect_content_type, VIDEOS_DIR, THUMBS_DIR
 from services.transcriber import transcriber
 from services.translator import translate_segments
 from services.vocabulary import analyze_segments
@@ -77,7 +77,8 @@ def _localize_error(raw: str) -> str:
 
 
 URL_PATTERNS = [
-    re.compile(r"https?://(www\.)?(youtube\.com|youtu\.be)/"),
+    re.compile(r"https?://(www\.)?(music\.)?youtube\.com/"),
+    re.compile(r"https?://(www\.)?youtu\.be/"),
     re.compile(r"https?://(www\.)?instagram\.com/"),
     re.compile(r"https?://(www\.)?(bilibili\.com|b23\.tv)/"),
     re.compile(r"https?://(www\.)?tiktok\.com/"),
@@ -160,10 +161,13 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
 
     info = await get_video_info(req.url)
 
+    content_type = info.get("content_type", "video")
+
     video = Video(
         url=req.url,
         title=info.get("title"),
         source=info.get("source", "unknown"),
+        content_type=content_type,
         duration=info.get("duration"),
         thumbnail=info.get("thumbnail"),
         channel=info.get("channel"),
@@ -180,7 +184,7 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
 
     asyncio.create_task(_process_pipeline(video.id, req.url))
 
-    return {"success": True, "video_id": video.id, "title": video.title, "status": "downloading"}
+    return {"success": True, "video_id": video.id, "title": video.title, "status": "downloading", "content_type": content_type}
 
 
 @router.post("/batch-process")
@@ -239,6 +243,7 @@ async def batch_process_videos(req: BatchProcessRequest, db: Session = Depends(g
             url=url,
             title=info.get("title"),
             source=info.get("source", "unknown"),
+            content_type=info.get("content_type", "video"),
             duration=info.get("duration"),
             thumbnail=info.get("thumbnail"),
             channel=info.get("channel"),
@@ -309,8 +314,9 @@ async def _process_pipeline_inner(video_id: str, url: str):
 
         # Translate segments immediately after transcription
         try:
-            print(f"[Pipeline] Translating {len(segment_dicts)} segments...")
-            translated_segments = await loop.run_in_executor(None, translate_segments, segment_dicts)
+            ct = video.content_type or "video"
+            print(f"[Pipeline] Translating {len(segment_dicts)} segments (content_type={ct})...")
+            translated_segments = await loop.run_in_executor(None, translate_segments, segment_dicts, ct)
             segment_dicts = translated_segments
             print(f"[Pipeline] Translation completed")
         except Exception as trans_err:
@@ -330,7 +336,8 @@ async def _process_pipeline_inner(video_id: str, url: str):
 
         try:
             full_text = transcriber.segments_to_full_text(segments)
-            analysis = await loop.run_in_executor(None, generate_title_and_appreciation, full_text)
+            ct = video.content_type or "video"
+            analysis = await loop.run_in_executor(None, generate_title_and_appreciation, full_text, ct)
             if analysis.get("title"):
                 video.title = analysis["title"]
             appreciation = {k: analysis[k] for k in ("theme", "keyPoints", "goldenQuotes") if k in analysis}
@@ -404,6 +411,7 @@ async def list_videos(db: Session = Depends(get_db), user: dict = Depends(requir
     return [
         {
             "id": v.id, "url": v.url, "title": v.title, "source": v.source,
+            "content_type": v.content_type or "video",
             "duration": v.duration, "thumbnail": v.thumbnail, "channel": v.channel,
             "status": v.status, "error_message": v.error_message,
             "created_at": v.created_at.isoformat() if v.created_at else None,
@@ -494,6 +502,7 @@ async def get_video(video_id: str, db: Session = Depends(get_db)):
 
     return {
         "id": video.id, "url": video.url, "title": video.title, "source": video.source,
+        "content_type": video.content_type or "video",
         "duration": video.duration, "thumbnail": video.thumbnail, "channel": video.channel,
         "filename": video.filename, "status": video.status, "error_message": video.error_message,
         "created_at": video.created_at.isoformat() if video.created_at else None,

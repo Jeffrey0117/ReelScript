@@ -35,6 +35,21 @@ def _detect_source(url: str) -> str:
     return "unknown"
 
 
+def detect_content_type(url: str, info: dict = None) -> str:
+    """Detect if content is music/lyrics based on URL and metadata."""
+    if re.search(r"music\.youtube\.com", url):
+        return "lyrics"
+    if info:
+        title = (info.get("title") or "").lower()
+        categories = info.get("categories") or []
+        cats_lower = [c.lower() for c in categories]
+        if "music" in cats_lower:
+            return "lyrics"
+        if any(kw in title for kw in ("official lyric", "lyric video", "lyrics video")):
+            return "lyrics"
+    return "video"
+
+
 async def get_video_info(url: str) -> Dict[str, Any]:
     """Fetch video metadata without downloading."""
     try:
@@ -54,6 +69,7 @@ async def get_video_info(url: str) -> Dict[str, Any]:
                 "thumbnail": info.get("thumbnail"),
                 "channel": info.get("channel") or info.get("uploader"),
                 "source": _detect_source(url),
+                "content_type": detect_content_type(url, info),
             }
     except Exception as e:
         return {"success": False, "error": str(e)}
