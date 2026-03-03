@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from models import get_db, Video, Transcript, UserVideo, UserQuota
-from middleware.auth import require_auth
+from middleware.auth import require_auth, optional_auth
 from services.downloader import download_video, get_video_info, generate_thumbnail, detect_content_type, VIDEOS_DIR, THUMBS_DIR
 from services.transcriber import transcriber
 from services.translator import translate_segments
@@ -385,7 +385,9 @@ async def backfill_thumbnails(db: Session = Depends(get_db)):
 
 
 @router.get("")
-async def list_videos(db: Session = Depends(get_db), user: dict = Depends(require_auth)):
+async def list_videos(db: Session = Depends(get_db), user: dict | None = Depends(optional_auth)):
+    if not user:
+        return []
     user_id = _get_user_id(user)
 
     # Migration: if user has no videos yet, adopt all orphan videos (no UserVideo link)

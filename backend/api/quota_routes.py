@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from models import get_db, UserQuota
-from middleware.auth import require_auth
+from middleware.auth import optional_auth
 
 router = APIRouter(prefix="/api/quota", tags=["quota"])
 
@@ -19,7 +19,9 @@ def _get_user_id(user: dict) -> str:
 
 
 @router.get("")
-async def get_quota(db: Session = Depends(get_db), user: dict = Depends(require_auth)):
+async def get_quota(db: Session = Depends(get_db), user: dict | None = Depends(optional_auth)):
+    if not user:
+        return {"plan": "free", "period": "", "videos_used": 0, "bonus_videos": 0, "limit": 0, "remaining": 0}
     user_id = _get_user_id(user)
     period = datetime.utcnow().strftime("%Y-%m")
     quota = db.query(UserQuota).filter(
