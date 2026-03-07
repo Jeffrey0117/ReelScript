@@ -6,16 +6,19 @@
 import { spawn } from 'child_process';
 import { createServer } from 'http';
 import { createReadStream, statSync } from 'fs';
-import { join, extname } from 'path';
+import { join, extname, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { handler } from './frontend/build/handler.js';
 import httpProxy from 'http-proxy';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const PORT = parseInt(process.env.PORT || '4005', 10);
 const BACKEND_PORT = PORT + 1000; // Internal backend port
 const BACKEND_HOST = `http://127.0.0.1:${BACKEND_PORT}`;
-const VIDEOS_DIR = join(import.meta.dirname, 'data', 'videos');
-const THUMBS_DIR = join(import.meta.dirname, 'data', 'thumbnails');
-const AUDIO_DIR = join(import.meta.dirname, 'data', 'audio');
+const VIDEOS_DIR = join(__dirname, 'data', 'videos');
+const THUMBS_DIR = join(__dirname, 'data', 'thumbnails');
+const AUDIO_DIR = join(__dirname, 'data', 'audio');
 
 // Create reverse proxy for API calls
 const proxy = httpProxy.createProxyServer({
