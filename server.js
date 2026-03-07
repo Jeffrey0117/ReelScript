@@ -32,8 +32,9 @@ proxy.on('error', (err, _req, res) => {
 	}
 });
 
-// Start Python FastAPI backend
-const backend = spawn('python', ['backend/main.py'], {
+// Start Python FastAPI backend (Windows uses 'py' launcher)
+const pythonCmd = process.platform === 'win32' ? 'py' : 'python';
+const backend = spawn(pythonCmd, ['backend/main.py'], {
 	env: { ...process.env, REELSCRIPT_PORT: String(BACKEND_PORT) },
 	stdio: ['ignore', 'pipe', 'pipe'],
 	windowsHide: true,
