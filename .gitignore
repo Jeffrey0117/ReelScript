@@ -9,3 +9,5 @@ node_modules/
 frontend/build/
 PLAN.md
 ADMAN_SPEC.md
+*.log
+nul

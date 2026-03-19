@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { t, getLocale, setLocale, initLocale, onLocaleChange } from '$lib/i18n';
 	import { initAuth, onAuthChange, login, logout, isAdmin, type AuthUser } from '$lib/auth';
-	import { redeemInvite } from '$lib/api';
+	import { redeemInvite, getQuota, type Quota } from '$lib/api';
 
 	let { children } = $props();
 
@@ -12,6 +12,7 @@
 	let tick = $state(0);
 	let user = $state<AuthUser | null>(null);
 	let showUserMenu = $state(false);
+	let quota = $state<Quota | null>(null);
 
 	onMount(() => {
 		const savedTheme = localStorage.getItem('reelscript-theme');
@@ -41,17 +42,21 @@
 		initAuth();
 		onAuthChange(async (u) => {
 			user = u;
-			// Auto-redeem pending invite code after login
 			if (u) {
+				quota = await getQuota().catch(() => null);
+				// Auto-redeem pending invite code after login
 				const pending = localStorage.getItem('reelscript-invite');
 				if (pending) {
 					localStorage.removeItem('reelscript-invite');
 					try {
 						await redeemInvite(pending);
+						quota = await getQuota().catch(() => null);
 					} catch {
 						// Ignore — code may be invalid or already used
 					}
 				}
+			} else {
+				quota = null;
 			}
 		});
 
@@ -112,6 +117,14 @@
 			</div>
 
 			<div class="nav-actions">
+				{#if user && quota}
+					<a href="/pricing" class="quota-badge" title={t('creditsRemaining')}>
+						<svg class="bolt-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+							<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+						</svg>
+						<span class="quota-count">{quota.remaining >= 0 ? quota.remaining : '∞'}</span>
+					</a>
+				{/if}
 				<button class="nav-btn" onclick={toggleLocale} title="Toggle language">
 					{locale === 'zh' ? 'EN' : '中'}
 				</button>
@@ -254,6 +267,38 @@
 	.nav-btn:hover {
 		background: var(--bg-hover);
 		color: var(--text);
+	}
+
+	.quota-badge {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 4px 10px;
+		border-radius: 20px;
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		color: var(--accent) !important;
+		font-size: 13px;
+		font-weight: 700;
+		transition: background 0.15s, transform 0.15s;
+		text-decoration: none;
+		cursor: pointer;
+		position: relative;
+	}
+
+	.quota-badge:hover {
+		background: color-mix(in srgb, var(--accent) 20%, transparent);
+		color: var(--accent-hover) !important;
+		transform: scale(1.05);
+	}
+
+	.bolt-icon {
+		flex-shrink: 0;
+		filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 50%, transparent));
+	}
+
+	.quota-count {
+		font-variant-numeric: tabular-nums;
+		line-height: 1;
 	}
 
 	.login-btn {

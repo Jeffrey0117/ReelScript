@@ -12,7 +12,7 @@ from middleware.auth import require_auth
 
 router = APIRouter(prefix="/api/invite", tags=["invite"])
 
-INVITE_BONUS = 2  # bonus videos per successful invite (both parties)
+INVITE_BONUS = 5  # bonus videos per successful invite (both parties)
 
 
 class RedeemRequest(BaseModel):

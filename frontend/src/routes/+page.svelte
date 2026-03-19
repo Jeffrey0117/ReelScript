@@ -60,18 +60,19 @@
 	);
 
 	onMount(async () => {
+		// Load videos immediately (works with DEV_BYPASS_AUTH or logged-in users)
+		videos = await listVideos().catch(() => []);
+		loadingVideos = false;
+		quota = await getQuota().catch(() => null);
+
 		onAuthChange(async (user) => {
 			isLoggedIn = !!user;
 			if (user) {
 				videos = await listVideos().catch(() => []);
-				loadingVideos = false;
 				quota = await getQuota().catch(() => null);
 				const inv = await getMyInviteCode().catch(() => null);
 				inviteCode = inv?.code ?? '';
 			} else {
-				videos = [];
-				loadingVideos = false;
-				quota = null;
 				inviteCode = '';
 			}
 		});
@@ -386,11 +387,16 @@
 </svelte:head>
 
 <section class="hero">
+	<div class="hero-icon">
+		<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+			<polygon points="5 3 19 12 5 21 5 3"/>
+		</svg>
+	</div>
 	<h1>{t('addVideo')}</h1>
-	<p>{t('urlPlaceholder')}</p>
+	<p class="hero-subtitle">{t('urlPlaceholder')}</p>
 
-	{#if isLoggedIn}
-		<form class="url-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+	<form class="url-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+		<div class="input-wrapper">
 			<textarea
 				bind:value={url}
 				placeholder="https://www.instagram.com/reel/... or YouTube link&#10;(可一次貼多個連結，空白或換行分隔)"
@@ -406,28 +412,39 @@
 					}
 				}}
 			></textarea>
-			<button class="btn btn-primary" type="submit" disabled={loading || !url.trim()}>
+			<button class="submit-btn" type="submit" disabled={loading || !url.trim()}>
 				{#if loading}
-					{t('processing')}
+					<svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+						<path d="M12 2a10 10 0 0 1 10 10"/>
+					</svg>
 				{:else}
 					{@const count = parseUrls(url).length}
-					{count > 1 ? `${t('start')} (${count})` : t('start')}
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+						<line x1="5" y1="12" x2="19" y2="12"/>
+						<polyline points="12 5 19 12 12 19"/>
+					</svg>
+					{#if count > 1}
+						<span>{count}</span>
+					{/if}
 				{/if}
 			</button>
-		</form>
-		<div class="hero-meta">
-			{#if quota && quota.plan === 'free'}
-				<span class="quota-info">{quota.videos_used} / {quota.limit} {t('monthlyUsed')}</span>
-			{/if}
-			{#if inviteCode}
-				<button class="invite-btn" onclick={handleShareInvite}>
-					{inviteCopied ? t('linkCopied') : t('inviteFriends')}
-				</button>
-			{/if}
 		</div>
-	{:else}
-		<button class="btn btn-primary" onclick={login}>{t('loginToStart')}</button>
-	{/if}
+	</form>
+	<div class="hero-meta">
+		{#if quota && quota.plan === 'free'}
+			<a href="/pricing" class="quota-pill">
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+					<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+				</svg>
+				<span>{quota.remaining} {t('creditsRemaining')}</span>
+			</a>
+		{/if}
+		{#if inviteCode}
+			<button class="invite-btn" onclick={handleShareInvite}>
+				{inviteCopied ? t('linkCopied') : t('inviteFriends')}
+			</button>
+		{/if}
+	</div>
 
 	{#if error}
 		<p class="error-msg">{error}</p>
@@ -437,12 +454,14 @@
 {#if loadingVideos}
 	<section class="video-list">
 		<h2>{t('myVideos')}</h2>
-		<div class="grid">
+		<div class="video-list-items">
 			{#each Array(3) as _}
-				<div class="video-card card skeleton-card">
-					<div class="skeleton-line short"></div>
-					<div class="skeleton-line"></div>
-					<div class="skeleton-line short"></div>
+				<div class="video-row card skeleton-card">
+					<div class="skeleton-thumb"></div>
+					<div class="skeleton-body">
+						<div class="skeleton-line"></div>
+						<div class="skeleton-line short"></div>
+					</div>
 				</div>
 			{/each}
 		</div>
@@ -485,13 +504,13 @@
 			</div>
 		</div>
 
-		<div class="grid">
+		<div class="video-list-items">
 			{#each activeVideos as video (video.id)}
 				{@const isReady = video.status === 'ready'}
 				{@const isSelected = selectedIds.has(video.id)}
 				{@const isEditing = editingVideoId === video.id}
 				<div
-					class="video-card card"
+					class="video-row card"
 					class:disabled={!isReady}
 					class:selected={isSelected}
 					onclick={() => {
@@ -531,90 +550,77 @@
 							{#if video.duration}
 								<span class="thumb-duration">{formatDuration(video.duration)}</span>
 							{/if}
-							{#if !manageMode && isReady}
-								<button
-									class="ig-play-btn"
-									onclick={(e) => { e.preventDefault(); e.stopPropagation(); goto(`/ig?start=${video.id}`); }}
-									aria-label={t('igMode')}
-								>
-									<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-										<path d="M8 5v14l11-7z"/>
-									</svg>
-								</button>
+						</div>
+					{/if}
+
+					<div class="video-row-body">
+						<div class="video-row-top">
+							{#if isEditing}
+								<!-- svelte-ignore a11y_autofocus -->
+								<input
+									class="title-input"
+									type="text"
+									bind:value={editTitle}
+									onkeydown={handleTitleKeydown}
+									onblur={saveTitle}
+									onclick={(e) => e.stopPropagation()}
+									autofocus
+								/>
+							{:else}
+								<div class="title-row">
+									<!-- svelte-ignore a11y_click_events_have_key_events -->
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+									<h3
+										class="video-title"
+										class:editable={isReady}
+										onclick={(e) => {
+											if (isReady) {
+												e.preventDefault();
+												e.stopPropagation();
+												startEditing(video);
+											}
+										}}
+									>
+										{video.title || t('untitled')}
+									</h3>
+									{#if isReady}
+										<button
+											class="edit-btn"
+											onclick={(e) => {
+												e.preventDefault();
+												e.stopPropagation();
+												startEditing(video);
+											}}
+											aria-label="Rename"
+										>
+											<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+												<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+												<path d="m15 5 4 4"/>
+											</svg>
+										</button>
+									{/if}
+								</div>
 							{/if}
 						</div>
-					{/if}
 
-					<div class="video-card-body">
-					<div class="video-card-header">
-						<span class="badge {video.source === 'ig' ? 'badge-ig' : 'badge-youtube'}">
-							{video.source === 'ig' ? 'IG' : video.source === 'youtube' ? 'YT' : '?'}
-						</span>
-						<span class="badge {statusBadgeClass(video.status)}">{statusLabel(video.status)}</span>
-					</div>
-
-					{#if isEditing}
-						<!-- svelte-ignore a11y_autofocus -->
-						<input
-							class="title-input"
-							type="text"
-							bind:value={editTitle}
-							onkeydown={handleTitleKeydown}
-							onblur={saveTitle}
-							onclick={(e) => e.stopPropagation()}
-							autofocus
-						/>
-					{:else}
-						<div class="title-row">
-							<!-- svelte-ignore a11y_click_events_have_key_events -->
-							<!-- svelte-ignore a11y_no_static_element_interactions -->
-							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-							<h3
-								class="video-title"
-								class:editable={isReady}
-								onclick={(e) => {
-									if (isReady) {
-										e.preventDefault();
-										e.stopPropagation();
-										startEditing(video);
-									}
-								}}
-							>
-								{video.title || t('untitled')}
-							</h3>
-							{#if isReady}
-								<button
-									class="edit-btn"
-									onclick={(e) => {
-										e.preventDefault();
-										e.stopPropagation();
-										startEditing(video);
-									}}
-									aria-label="Rename"
-								>
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-										<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-										<path d="m15 5 4 4"/>
-									</svg>
-								</button>
-							{/if}
+						<div class="video-row-bottom">
+							<div class="video-card-header">
+								<span class="badge {video.source === 'ig' ? 'badge-ig' : 'badge-youtube'}">
+									{video.source === 'ig' ? 'IG' : video.source === 'youtube' ? 'YT' : '?'}
+								</span>
+								<span class="badge {statusBadgeClass(video.status)}">{statusLabel(video.status)}</span>
+								{#if video.duration && !video.thumbnail}
+									<span class="meta-duration">{formatDuration(video.duration)}</span>
+								{/if}
+							</div>
 						</div>
-					{/if}
 
-					<div class="video-meta">
-						{#if video.channel}
-							<span>{video.channel}</span>
+						{#if progress[video.id] !== undefined && !isReady}
+							<div class="progress-bar" style="margin-top: 8px;">
+								<div class="progress-bar-fill" style="width: {progress[video.id]}%"></div>
+							</div>
 						{/if}
-						{#if video.duration && !video.thumbnail}
-							<span>{formatDuration(video.duration)}</span>
-						{/if}
-					</div>
-
-					{#if progress[video.id] !== undefined && !isReady}
-						<div class="progress-bar" style="margin-top: 12px;">
-							<div class="progress-bar-fill" style="width: {progress[video.id]}%"></div>
-						</div>
-					{/if}
 					</div>
 				</div>
 			{/each}
@@ -731,78 +737,156 @@
 <style>
 	.hero {
 		text-align: center;
-		padding: 48px 0 40px;
+		padding: 56px 0 44px;
+	}
+
+	.hero-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 64px;
+		height: 64px;
+		border-radius: 16px;
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		color: var(--accent);
+		margin-bottom: 20px;
 	}
 
 	.hero h1 {
-		font-size: 32px;
+		font-size: 28px;
 		font-weight: 700;
 		letter-spacing: -0.5px;
-		margin-bottom: 8px;
+		margin-bottom: 6px;
 	}
 
-	.hero p {
+	.hero-subtitle {
 		color: var(--text-dim);
-		font-size: 16px;
-		margin-bottom: 28px;
+		font-size: 15px;
+		margin-bottom: 32px;
 	}
 
 	.url-form {
-		display: flex;
-		gap: 12px;
-		max-width: 640px;
+		max-width: 560px;
 		margin: 0 auto;
 	}
 
-	.url-form textarea {
+	.input-wrapper {
+		display: flex;
+		align-items: stretch;
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		overflow: hidden;
+		transition: border-color 0.2s, box-shadow 0.2s;
+	}
+
+	.input-wrapper:focus-within {
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+	}
+
+	.input-wrapper textarea {
 		flex: 1;
 		resize: none;
 		font-family: inherit;
-		font-size: inherit;
+		font-size: 15px;
 		line-height: 1.5;
-		padding: 10px 14px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--bg);
+		padding: 12px 16px;
+		border: none;
+		background: transparent;
 		color: var(--text);
+		outline: none;
 		field-sizing: content;
-		min-height: 42px;
+		min-height: 46px;
 		max-height: 120px;
+	}
+
+	.submit-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 4px;
+		padding: 0 20px;
+		background: var(--accent);
+		color: white;
+		font-weight: 600;
+		font-size: 14px;
+		border: none;
+		cursor: pointer;
+		transition: background 0.15s;
+		flex-shrink: 0;
+	}
+
+	.submit-btn:hover:not(:disabled) {
+		background: var(--accent-hover);
+	}
+
+	.submit-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	.spinner {
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 
 	.hero-meta {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 16px;
-		margin-top: 10px;
+		gap: 12px;
+		margin-top: 14px;
 	}
 
-	.quota-info {
+	.quota-pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
 		font-size: 13px;
-		color: var(--text-dim);
+		font-weight: 500;
+		color: var(--text-dim) !important;
+		text-decoration: none;
+		padding: 4px 12px;
+		border-radius: 20px;
+		background: color-mix(in srgb, var(--accent) 6%, transparent);
+		transition: background 0.15s, color 0.15s;
+	}
+
+	.quota-pill svg {
+		color: var(--accent);
+	}
+
+	.quota-pill:hover {
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		color: var(--text) !important;
 	}
 
 	.invite-btn {
 		font-size: 13px;
-		color: var(--accent);
+		font-weight: 500;
+		color: var(--text-dim);
 		background: none;
-		border: 1px solid var(--accent);
-		border-radius: var(--radius-sm);
-		padding: 4px 12px;
+		border: 1px solid var(--border);
+		border-radius: 20px;
+		padding: 4px 14px;
 		cursor: pointer;
-		transition: background 0.15s, color 0.15s;
+		transition: all 0.15s;
 	}
 
 	.invite-btn:hover {
-		background: var(--accent);
-		color: #fff;
+		border-color: var(--accent);
+		color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 6%, transparent);
 	}
 
 	.error-msg {
 		color: var(--danger);
 		font-size: 14px;
-		margin-top: 12px;
+		margin-top: 14px;
 	}
 
 	.video-list {
@@ -841,25 +925,30 @@
 		font-size: 13px;
 	}
 
-	.grid {
+	.video-list-items {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-		gap: 16px;
+		grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+		gap: 12px;
 		padding-bottom: 80px;
 	}
 
-	.video-card {
+	.video-row {
 		position: relative;
-		display: block;
-		transition: border-color 0.15s, transform 0.15s;
+		display: flex;
+		flex-direction: column;
+		gap: 0;
+		padding: 0;
+		transition: border-color 0.15s;
 		color: inherit;
 		cursor: default;
+		overflow: hidden;
 	}
 
 	.video-thumb {
 		position: relative;
-		margin: -16px -16px 12px -16px;
-		border-radius: var(--radius) var(--radius) 0 0;
+		flex-shrink: 0;
+		width: 100%;
+		border-radius: 0;
 		overflow: hidden;
 		aspect-ratio: 16 / 9;
 		background: var(--border);
@@ -874,33 +963,36 @@
 
 	.thumb-duration {
 		position: absolute;
-		bottom: 6px;
-		right: 6px;
+		bottom: 4px;
+		right: 4px;
 		background: rgba(0, 0, 0, 0.75);
 		color: #fff;
-		font-size: 12px;
+		font-size: 11px;
 		font-weight: 600;
-		padding: 2px 6px;
-		border-radius: 4px;
+		padding: 1px 5px;
+		border-radius: 3px;
 		font-variant-numeric: tabular-nums;
 	}
 
-	.video-card-body {
+	.video-row-body {
+		flex: 1;
+		min-width: 0;
 		display: flex;
 		flex-direction: column;
+		gap: 6px;
+		padding: 10px 14px 12px;
 	}
 
-	.video-card:hover:not(.disabled) {
+	.video-row:hover:not(.disabled) {
 		border-color: var(--accent);
-		transform: translateY(-2px);
 	}
 
-	.video-card.disabled {
+	.video-row.disabled {
 		opacity: 0.7;
 		cursor: default;
 	}
 
-	.video-card.selected {
+	.video-row.selected {
 		border-color: var(--accent);
 		background: color-mix(in srgb, var(--accent) 8%, transparent);
 	}
@@ -913,8 +1005,8 @@
 
 	.checkbox-overlay {
 		position: absolute;
-		top: 12px;
-		right: 12px;
+		top: 8px;
+		right: 8px;
 		z-index: 2;
 	}
 
@@ -927,15 +1019,20 @@
 
 	.video-card-header {
 		display: flex;
-		gap: 8px;
-		margin-bottom: 12px;
+		gap: 6px;
+		align-items: center;
+	}
+
+	.meta-duration {
+		font-size: 12px;
+		color: var(--text-dim);
+		margin-left: 4px;
 	}
 
 	.title-row {
 		display: flex;
 		align-items: center;
 		gap: 4px;
-		margin-bottom: 8px;
 		position: relative;
 		z-index: 2;
 	}
@@ -980,7 +1077,7 @@
 		color: var(--text);
 	}
 
-	.video-card:hover .edit-btn {
+	.video-row:hover .edit-btn {
 		opacity: 1;
 	}
 
@@ -993,7 +1090,6 @@
 	.title-input {
 		font-size: 15px;
 		font-weight: 600;
-		margin-bottom: 8px;
 		width: 100%;
 		padding: 2px 4px;
 		border: 1px solid var(--accent);
@@ -1003,13 +1099,6 @@
 		outline: none;
 		position: relative;
 		z-index: 2;
-	}
-
-	.video-meta {
-		display: flex;
-		gap: 12px;
-		font-size: 13px;
-		color: var(--text-dim);
 	}
 
 	/* Floating action bar */
@@ -1203,14 +1292,29 @@
 
 	/* Skeleton loading */
 	.skeleton-card {
-		padding: 20px;
+		padding: 12px 16px;
+	}
+
+	.skeleton-thumb {
+		flex-shrink: 0;
+		width: 160px;
+		aspect-ratio: 16 / 9;
+		background: var(--border);
+		border-radius: var(--radius-sm);
+		animation: shimmer 1.5s infinite;
+	}
+
+	.skeleton-body {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
 	}
 
 	.skeleton-line {
 		height: 14px;
 		background: var(--border);
 		border-radius: 4px;
-		margin-bottom: 12px;
 		animation: shimmer 1.5s infinite;
 	}
 
@@ -1226,27 +1330,30 @@
 
 	@media (max-width: 640px) {
 		.hero {
-			padding: 32px 0 24px;
+			padding: 36px 0 24px;
+		}
+
+		.hero-icon {
+			width: 52px;
+			height: 52px;
+			margin-bottom: 16px;
+		}
+
+		.hero-icon svg {
+			width: 28px;
+			height: 28px;
 		}
 
 		.hero h1 {
-			font-size: 24px;
+			font-size: 22px;
 		}
 
-		.hero p {
+		.hero-subtitle {
 			font-size: 14px;
-			margin-bottom: 20px;
+			margin-bottom: 24px;
 		}
 
-		.url-form {
-			flex-direction: column;
-		}
-
-		.url-form textarea {
-			width: 100%;
-		}
-
-		.grid {
+		.video-list-items {
 			grid-template-columns: 1fr;
 		}
 
@@ -1286,37 +1393,4 @@
 		flex-shrink: 0;
 	}
 
-	/* IG play button on thumbnail */
-	.ig-play-btn {
-		position: absolute;
-		bottom: 6px;
-		left: 6px;
-		z-index: 2;
-		width: 32px;
-		height: 32px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: rgba(0, 0, 0, 0.6);
-		color: #fff;
-		border-radius: 50%;
-		border: none;
-		cursor: pointer;
-		opacity: 0;
-		transition: opacity 0.15s, background 0.15s;
-	}
-
-	.ig-play-btn:hover {
-		background: var(--accent);
-	}
-
-	.video-card:hover .ig-play-btn {
-		opacity: 1;
-	}
-
-	@media (pointer: coarse) {
-		.ig-play-btn {
-			opacity: 1;
-		}
-	}
 </style>

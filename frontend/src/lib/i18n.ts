@@ -129,8 +129,34 @@ const translations = {
 
 		// Invite
 		inviteFriends: '邀請好友',
-		inviteBonus: '邀請成功各得 +2 額度',
+		inviteBonus: '邀請成功各得 +5 額度',
 		linkCopied: '邀請連結已複製！',
+
+		// Pricing
+		pricing: '方案',
+		pricingTitle: '選擇你的方案',
+		pricingSubtitle: '每部影片一個點數，輕鬆學英文',
+		planFree: '免費',
+		planPro: 'Pro',
+		planUnlimited: '無限',
+		planFreeDesc: '體驗 ReelScript 的核心功能',
+		planProDesc: '適合重度學習者',
+		planUnlimitedDesc: '不受限制，盡情學習',
+		perMonth: '/月',
+		creditsPerMonth: '點/月',
+		unlimitedCredits: '無限點數',
+		inviteBonusFeature: '邀請好友 +5 點',
+		currentPlan: '目前方案',
+		comingSoon: '即將推出',
+		freePriceLabel: '免費',
+		features: '功能',
+		featureDownload: '影片下載 + 逐字稿',
+		featureTranslate: '中文翻譯',
+		featureVocab: '單字分析',
+		featureQuotes: '金句提取',
+		featurePriority: '優先處理',
+		featureSupport: '專屬客服',
+		creditsRemaining: '剩餘點數',
 
 		// Blog
 		blog: '文章',
@@ -272,8 +298,34 @@ const translations = {
 
 		// Invite
 		inviteFriends: 'Invite Friends',
-		inviteBonus: '+2 quota for each invite',
+		inviteBonus: '+5 quota for each invite',
 		linkCopied: 'Invite link copied!',
+
+		// Pricing
+		pricing: 'Pricing',
+		pricingTitle: 'Choose Your Plan',
+		pricingSubtitle: 'One credit per video, learn English effortlessly',
+		planFree: 'Free',
+		planPro: 'Pro',
+		planUnlimited: 'Unlimited',
+		planFreeDesc: 'Experience ReelScript core features',
+		planProDesc: 'For dedicated learners',
+		planUnlimitedDesc: 'Learn without limits',
+		perMonth: '/mo',
+		creditsPerMonth: 'credits/mo',
+		unlimitedCredits: 'Unlimited credits',
+		inviteBonusFeature: 'Invite friends +5 credits',
+		currentPlan: 'Current Plan',
+		comingSoon: 'Coming Soon',
+		freePriceLabel: 'Free',
+		features: 'Features',
+		featureDownload: 'Video download + transcript',
+		featureTranslate: 'Chinese translation',
+		featureVocab: 'Vocabulary analysis',
+		featureQuotes: 'Golden quotes extraction',
+		featurePriority: 'Priority processing',
+		featureSupport: 'Dedicated support',
+		creditsRemaining: 'credits remaining',
 
 		// Blog
 		blog: 'Blog',
