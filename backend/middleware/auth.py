@@ -13,10 +13,16 @@ LMU_APP_ID = os.environ.get("LMU_APP_ID", "app_3lXIxPKb")
 LEGACY_ADMIN_KEY = os.environ.get("ADMIN_KEY", "reelscript-admin-2024")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "WcxHAMuFcPmzNwgEMTZDtSf4axNvjwaUp-w2JxojGi0")
 BOT_USER_ID = os.environ.get("BOT_USER_ID", "usr_reelscript_admin")
+DEV_BYPASS_AUTH = os.environ.get("DEV_BYPASS_AUTH", "").strip() == "1"
+
+DEV_USER = {"sub": "dev_admin", "role": "admin", "email": "dev@reelscript", "app": LMU_APP_ID}
 
 
 def get_current_user(request: Request) -> dict:
     """Extract and verify user from LetMeUse JWT, or bot service token."""
+    if DEV_BYPASS_AUTH:
+        return DEV_USER
+
     auth_header = request.headers.get("Authorization", "")
 
     # Bot service token: X-Bot-Token header

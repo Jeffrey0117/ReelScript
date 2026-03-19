@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(Path(__file__).parent / ".env")
 
 from models import init_db
 from api.video_routes import router as video_router
