@@ -5,6 +5,23 @@ const translations = {
 		// Navbar
 		home: '首頁',
 		collections: '收藏集',
+		myVideosNav: '我的影片',
+
+		// Landing page
+		heroTagline: '看影片，學英文',
+		heroSubtitle: '把 YouTube 和 Instagram 影片變成你的英文教材——逐字稿、翻譯、單字分析，一鍵完成。',
+		heroCta: '免費開始',
+		heroCtaLoggedIn: '前往我的影片',
+		featureTranscribeTitle: '自動逐字稿',
+		featureTranscribeDesc: 'AI 語音辨識，精準產生英文逐字稿並對齊時間軸。',
+		featureTranslateTitle: '即時翻譯',
+		featureTranslateDesc: '一鍵中文翻譯，逐句對照，看懂每一個細節。',
+		featureVocabTitle: '單字分析',
+		featureVocabDesc: '自動標註重點單字、詞性、例句，建立你的單字庫。',
+		featureQuotesTitle: '金句提取',
+		featureQuotesDesc: '提取影片精華語句，重點摘要一目瞭然。',
+		bottomCtaTitle: '開始你的英文學習之旅',
+		bottomCtaSubtitle: '每月 5 部免費影片，不需信用卡。',
 
 		// Home page
 		addVideo: '新增影片',
@@ -174,6 +191,23 @@ const translations = {
 		// Navbar
 		home: 'Home',
 		collections: 'Collections',
+		myVideosNav: 'My Videos',
+
+		// Landing page
+		heroTagline: 'Learn English from Real Videos',
+		heroSubtitle: 'Turn YouTube and Instagram videos into your personal English classroom — transcripts, translations, vocabulary analysis, all in one click.',
+		heroCta: 'Get Started Free',
+		heroCtaLoggedIn: 'Go to My Videos',
+		featureTranscribeTitle: 'Auto Transcription',
+		featureTranscribeDesc: 'AI-powered speech recognition generates accurate English transcripts aligned to the timeline.',
+		featureTranslateTitle: 'Instant Translation',
+		featureTranslateDesc: 'One-click Chinese translation with sentence-by-sentence comparison.',
+		featureVocabTitle: 'Vocabulary Analysis',
+		featureVocabDesc: 'Automatically highlights key words with definitions and builds your personal word bank.',
+		featureQuotesTitle: 'Golden Quotes',
+		featureQuotesDesc: 'Extracts the most impactful lines and key takeaways from every video.',
+		bottomCtaTitle: 'Start Your English Learning Journey',
+		bottomCtaSubtitle: '5 free videos per month, no credit card required.',
 
 		// Home page
 		addVideo: 'Add Video',

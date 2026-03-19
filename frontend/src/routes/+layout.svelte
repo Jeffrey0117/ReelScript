@@ -104,15 +104,20 @@
 {#key tick}
 <div class="app">
 	<nav class="navbar">
-		<a href="/" class="logo">ReelScript <span class="logo-sub">一刷一句</span></a>
+		<a href={user ? '/videos' : '/'} class="logo">ReelScript <span class="logo-sub">一刷一句</span></a>
 
 		<div class="nav-right">
 			<div class="nav-links">
-				<a href="/">{t('home')}</a>
-				<a href="/blog">{t('blog')}</a>
-				<a href="/collections">{t('collections')}</a>
-				{#if user?.role === 'admin'}
-					<a href="/admin">{t('admin')}</a>
+				{#if user}
+					<a href="/videos">{t('myVideosNav')}</a>
+					<a href="/blog">{t('blog')}</a>
+					<a href="/collections">{t('collections')}</a>
+					{#if user.role === 'admin'}
+						<a href="/admin">{t('admin')}</a>
+					{/if}
+				{:else}
+					<a href="/">{t('home')}</a>
+					<a href="/pricing">{t('pricing')}</a>
 				{/if}
 			</div>
 

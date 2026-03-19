@@ -111,7 +111,7 @@
 		if (!video) return;
 		if (!confirm(t('confirmDelete'))) return;
 		await deleteVideo(video.id);
-		goto('/');
+		goto('/videos');
 	}
 
 	async function openCollectionPicker() {
