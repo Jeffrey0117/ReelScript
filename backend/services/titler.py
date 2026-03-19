@@ -15,7 +15,7 @@ SYSTEM_PROMPT = """You are a bilingual content analyst. Given an English video t
 produce a JSON object with a concise title AND content analysis:
 
 {
-  "title": "簡短繁體中文標題 (max 20 chars)",
+  "title": "繁體中文標題",
   "theme": "一句話描述主題 (繁體中文)",
   "keyPoints": ["重點1", "重點2", "重點3"],
   "goldenQuotes": [
@@ -26,7 +26,10 @@ produce a JSON object with a concise title AND content analysis:
 }
 
 Rules:
-- title: max 20 characters, 繁體中文, specific not generic
+- title: 繁體中文, 8-18 字, 要像人寫的口語化摘要, 讓人一看就知道影片在講什麼
+  好標題範例: "馬斯克談為什麼要移民火星", "如何用三個月學好英文", "為什麼你總是拖延"
+  壞標題範例: "成功的秘訣", "學習方法論", "生活的真諦" (太籠統、沒記憶點)
+  原則: 具體 > 抽象, 口語 > 書面, 有主角/動作 > 純概念
 - theme: 1 sentence in 繁體中文, summarizing the core message
 - keyPoints: exactly 3 bullet points in 繁體中文
 - goldenQuotes: exactly 3 memorable sentences from the original English, with 繁體中文 translation

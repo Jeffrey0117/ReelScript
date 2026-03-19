@@ -399,7 +399,7 @@
 		<div class="input-wrapper">
 			<textarea
 				bind:value={url}
-				placeholder="https://www.instagram.com/reel/... or YouTube link&#10;(可一次貼多個連結，空白或換行分隔)"
+				placeholder="貼上 IG 或 YouTube 連結..."
 				disabled={loading}
 				rows={parseUrls(url).length > 1 ? 3 : 1}
 				onkeydown={(e) => {
