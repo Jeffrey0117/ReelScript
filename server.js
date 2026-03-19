@@ -32,10 +32,14 @@ proxy.on('error', (err, _req, res) => {
 	}
 });
 
-// Start Python FastAPI backend (Windows uses 'py' launcher)
-const pythonCmd = process.platform === 'win32' ? 'py' : 'python';
-const backend = spawn(pythonCmd, ['backend/main.py'], {
-	env: { ...process.env, REELSCRIPT_PORT: String(BACKEND_PORT) },
+// Start Python FastAPI backend
+const PYTHON = process.env.PYTHON_PATH || 'C:\\Users\\jeffb\\AppData\\Local\\Programs\\Python\\Python313\\python.exe';
+const backendEnv = { ...process.env, REELSCRIPT_PORT: String(BACKEND_PORT) };
+const pathKey = Object.keys(backendEnv).find(k => k.toLowerCase() === 'path') || 'PATH';
+backendEnv[pathKey] = `${backendEnv[pathKey] || ''};C:\\tools\\ffmpeg`;
+
+const backend = spawn(PYTHON, ['backend/main.py'], {
+	env: backendEnv,
 	stdio: ['ignore', 'pipe', 'pipe'],
 	windowsHide: true,
 });
