@@ -104,7 +104,10 @@
 {#key tick}
 <div class="app">
 	<nav class="navbar">
-		<a href={user ? '/videos' : '/'} class="logo">ReelScript <span class="logo-sub">一刷一句</span></a>
+		<a href={user ? '/videos' : '/'} class="logo">
+			<img src="/logo.png" alt="ReelScript" class="logo-img" />
+			<span class="logo-text">ReelScript</span>
+		</a>
 
 		<div class="nav-right">
 			<div class="nav-links">
@@ -209,20 +212,28 @@
 	}
 
 	.logo {
-		font-size: 18px;
+		font-size: 17px;
 		font-weight: 700;
 		color: var(--text) !important;
 		letter-spacing: -0.5px;
 		display: flex;
-		align-items: baseline;
-		gap: 6px;
+		align-items: center;
+		gap: 8px;
+		text-decoration: none;
 	}
 
-	.logo-sub {
-		font-size: 12px;
-		font-weight: 500;
-		color: var(--text-dim);
-		letter-spacing: 1px;
+	.logo-img {
+		height: 30px;
+		width: auto;
+		object-fit: contain;
+	}
+
+	:global([data-theme="dark"]) .logo-img {
+		filter: invert(1);
+	}
+
+	.logo-text {
+		line-height: 1;
 	}
 
 	.nav-right {
@@ -392,7 +403,11 @@
 		}
 
 		.logo {
-			font-size: 16px;
+			font-size: 15px;
+		}
+
+		.logo-img {
+			height: 26px;
 		}
 
 		.nav-right {

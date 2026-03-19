@@ -65,12 +65,7 @@
 	<section class="hero">
 		<div class="hero-glow"></div>
 		<div class="hero-content">
-			<div class="hero-badge">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-					<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-				</svg>
-				<span>ReelScript</span>
-			</div>
+			<img src="/logo.png" alt="ReelScript" class="hero-logo" />
 			<h1 class="hero-title">{t('heroTagline')}</h1>
 			<p class="hero-sub">{t('heroSubtitle')}</p>
 			<div class="hero-actions">
@@ -210,18 +205,16 @@
 		max-width: 520px;
 	}
 
-	.hero-badge {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 5px 14px;
-		border-radius: 20px;
-		background: color-mix(in srgb, var(--accent) 10%, transparent);
-		color: var(--accent);
-		font-size: 13px;
-		font-weight: 600;
+	.hero-logo {
+		height: 80px;
+		width: auto;
+		object-fit: contain;
 		margin-bottom: 24px;
-		letter-spacing: 0.3px;
+		border-radius: 16px;
+	}
+
+	:global([data-theme="dark"]) .hero-logo {
+		filter: invert(1);
 	}
 
 	.hero-title {
