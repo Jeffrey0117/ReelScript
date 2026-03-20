@@ -1,9 +1,16 @@
 """
 Video API routes — download, transcribe, list, get, delete.
 Per-user isolation via UserVideo junction table.
+
+Scalability features:
+- Pipeline semaphore: max 6 concurrent pipelines (global)
+- Per-user limit: max 2 concurrent pipelines per user
+- Transcription queue: serializes Whisper access (single model bottleneck)
+- Crash recovery: re-queues stuck videos on startup
 """
 
 import asyncio
+import logging
 import re
 from datetime import datetime
 
@@ -21,11 +28,88 @@ from services.appreciation import generate_appreciation
 from services.titler import generate_title_and_appreciation
 from api.websocket import manager
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/videos", tags=["videos"])
 
 FREE_MONTHLY_LIMIT = 5
-MAX_CONCURRENT_PIPELINES = 3
+MAX_CONCURRENT_PIPELINES = 6
+MAX_PER_USER_PIPELINES = 2
 _pipeline_semaphore = asyncio.Semaphore(MAX_CONCURRENT_PIPELINES)
+_user_semaphores: dict[str, asyncio.Semaphore] = {}  # per-user concurrency limit
+
+# Transcription queue — serializes Whisper access (single GPU/model)
+_transcription_queue: asyncio.Queue | None = None
+_transcription_worker_task: asyncio.Task | None = None
+
+
+def _get_transcription_queue() -> asyncio.Queue:
+    """Lazy-init the transcription queue (must be called within event loop)."""
+    global _transcription_queue, _transcription_worker_task
+    if _transcription_queue is None:
+        _transcription_queue = asyncio.Queue()
+        _transcription_worker_task = asyncio.create_task(_transcription_worker())
+        logger.info("[Queue] Transcription queue started")
+    return _transcription_queue
+
+
+async def _transcription_worker():
+    """Single worker that processes transcription jobs one at a time."""
+    while True:
+        video_path, future = await _transcription_queue.get()
+        try:
+            loop = asyncio.get_running_loop()
+            segments = await loop.run_in_executor(None, transcriber.transcribe, video_path)
+            future.set_result(segments)
+        except Exception as e:
+            future.set_exception(e)
+        finally:
+            _transcription_queue.task_done()
+
+
+async def enqueue_transcription(video_path: str):
+    """Submit a transcription job to the queue. Returns segments when done."""
+    queue = _get_transcription_queue()
+    future = asyncio.get_running_loop().create_future()
+    await queue.put((video_path, future))
+    qsize = queue.qsize()
+    if qsize > 0:
+        logger.info(f"[Queue] Transcription queued (position ~{qsize})")
+    return await future
+
+
+async def recover_stuck_pipelines():
+    """Re-queue videos stuck in 'downloading' or 'transcribing' status after a crash."""
+    from models.database import SessionLocal
+    db = SessionLocal()
+    try:
+        stuck = db.query(Video).filter(Video.status.in_(["downloading", "transcribing"])).all()
+        if not stuck:
+            return
+        logger.info(f"[Recovery] Found {len(stuck)} stuck pipelines, re-queuing...")
+        for video in stuck:
+            # Look up the owner for per-user rate limiting
+            user_video = db.query(UserVideo).filter(UserVideo.video_id == video.id).first()
+            owner_id = user_video.user_id if user_video else ""
+
+            # If stuck at transcribing and file exists, don't re-download
+            if video.status == "transcribing" and video.filename:
+                video_path = VIDEOS_DIR / video.filename
+                if video_path.exists():
+                    logger.info(f"[Recovery] {video.id} has file, keeping transcribing status")
+                    db.commit()
+                    asyncio.create_task(_process_pipeline(video.id, video.url, owner_id))
+                    continue
+
+            video.status = "downloading"
+            video.error_message = None
+            db.commit()
+            asyncio.create_task(_process_pipeline(video.id, video.url, owner_id))
+        logger.info(f"[Recovery] Re-queued {len(stuck)} videos")
+    except Exception as e:
+        logger.error(f"[Recovery] Failed: {e}")
+    finally:
+        db.close()
 
 
 class ProcessRequest(BaseModel):
@@ -147,7 +231,7 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
             existing.error_message = None
             db.commit()
             _ensure_user_video(db, user_id, existing.id)
-            asyncio.create_task(_process_pipeline(existing.id, existing.url))
+            asyncio.create_task(_process_pipeline(existing.id, existing.url, user_id))
             return {"success": True, "video_id": existing.id, "title": existing.title, "status": "downloading", "duplicate": True}
         # Already processed — just link to user (no quota cost)
         _ensure_user_video(db, user_id, existing.id)
@@ -182,7 +266,7 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
         quota.videos_used += 1
     db.commit()
 
-    asyncio.create_task(_process_pipeline(video.id, req.url))
+    asyncio.create_task(_process_pipeline(video.id, req.url, user_id))
 
     return {"success": True, "video_id": video.id, "title": video.title, "status": "downloading", "content_type": content_type}
 
@@ -221,7 +305,7 @@ async def batch_process_videos(req: BatchProcessRequest, db: Session = Depends(g
                     quota.videos_used += 1
                     quota_used += 1
                     db.commit()
-                asyncio.create_task(_process_pipeline(existing.id, existing.url))
+                asyncio.create_task(_process_pipeline(existing.id, existing.url, user_id))
                 results.append({"url": url, "success": True, "video_id": existing.id, "status": "downloading", "duplicate": True})
             else:
                 _ensure_user_video(db, user_id, existing.id)
@@ -259,15 +343,24 @@ async def batch_process_videos(req: BatchProcessRequest, db: Session = Depends(g
             quota_used += 1
         db.commit()
 
-        asyncio.create_task(_process_pipeline(video.id, url))
+        asyncio.create_task(_process_pipeline(video.id, url, user_id))
         results.append({"url": url, "success": True, "video_id": video.id, "title": video.title, "status": "downloading"})
 
     return {"success": True, "results": results, "total": len(results), "started": sum(1 for r in results if r.get("success"))}
 
 
-async def _process_pipeline(video_id: str, url: str):
-    async with _pipeline_semaphore:
-        await _process_pipeline_inner(video_id, url)
+async def _process_pipeline(video_id: str, url: str, user_id: str = ""):
+    # Per-user concurrency via Semaphore (no race conditions)
+    if user_id:
+        if user_id not in _user_semaphores:
+            _user_semaphores[user_id] = asyncio.Semaphore(MAX_PER_USER_PIPELINES)
+        user_sem = _user_semaphores[user_id]
+        async with user_sem:
+            async with _pipeline_semaphore:
+                await _process_pipeline_inner(video_id, url)
+    else:
+        async with _pipeline_semaphore:
+            await _process_pipeline_inner(video_id, url)
 
 
 async def _process_pipeline_inner(video_id: str, url: str):
@@ -308,7 +401,7 @@ async def _process_pipeline_inner(video_id: str, url: str):
 
         video_path = str(VIDEOS_DIR / video.filename)
         loop = asyncio.get_running_loop()
-        segments = await loop.run_in_executor(None, transcriber.transcribe, video_path)
+        segments = await enqueue_transcription(video_path)
 
         # Convert to dict format
         segment_dicts = transcriber.segments_to_dict(segments)
@@ -447,7 +540,7 @@ async def retry_all_failed(db: Session = Depends(get_db), user: dict = Depends(r
         video_ids.append(video.id)
     db.commit()
     for video in failed:
-        asyncio.create_task(_process_pipeline(video.id, video.url))
+        asyncio.create_task(_process_pipeline(video.id, video.url, user_id))
     return {"retried": len(video_ids), "video_ids": video_ids}
 
 
@@ -552,7 +645,7 @@ async def retry_video(video_id: str, db: Session = Depends(get_db), user: dict =
     video.status = "downloading"
     video.error_message = None
     db.commit()
-    asyncio.create_task(_process_pipeline(video.id, video.url))
+    asyncio.create_task(_process_pipeline(video.id, video.url, user_id))
     return {"success": True, "video_id": video.id, "status": "downloading"}
 
 

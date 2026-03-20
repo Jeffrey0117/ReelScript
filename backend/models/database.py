@@ -8,7 +8,13 @@ import string
 
 DATABASE_URL = "sqlite:///./data/reelscript.db"
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -120,9 +126,12 @@ class Invite(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
-    # Migrate: add missing columns for existing tables
+    # Enable WAL mode for concurrent read/write access
     with engine.connect() as conn:
         from sqlalchemy import text, inspect
+        conn.execute(text("PRAGMA journal_mode=WAL"))
+        conn.execute(text("PRAGMA busy_timeout=5000"))
+        conn.commit()
         inspector = inspect(engine)
 
         transcript_cols = [c["name"] for c in inspector.get_columns("transcripts")]

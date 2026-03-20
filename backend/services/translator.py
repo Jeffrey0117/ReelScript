@@ -123,10 +123,19 @@ def _merge_into_sentences(segments: list, max_words: int = 0) -> list:
     return sentences
 
 
+def _translate_batch(batch_index: int, batch: list) -> list:
+    """Translate a single batch of sentences. Returns list of translated strings."""
+    prompt = json.dumps(batch, ensure_ascii=False)
+    print(f"[Translator] Translating batch {batch_index + 1} ({len(batch)} sentences)...")
+    response = _call_llm(prompt)
+    return _parse_translations(response, len(batch))
+
+
 def translate_segments(segments: list, content_type: str = "video") -> list:
     """
     Translate transcript segments to Traditional Chinese.
     Merges into sentences first for accurate alignment, then maps back.
+    Uses concurrent batch processing (up to 3 parallel API calls).
 
     Args:
         segments: List of segment dicts with 'text' field
@@ -135,6 +144,8 @@ def translate_segments(segments: list, content_type: str = "video") -> list:
     Returns:
         Updated segments list with 'translation' field filled in
     """
+    import concurrent.futures
+
     # Step 1: Merge segments into sentences
     # Lyrics often lack punctuation, so force split at ~15 words
     max_words = 15 if content_type == "lyrics" else 0
@@ -143,22 +154,44 @@ def translate_segments(segments: list, content_type: str = "video") -> list:
 
     print(f"[Translator] Merged {len(segments)} segments into {len(sentences)} sentences")
 
-    # Step 2: Translate sentences in batches
-    all_translations = []
+    # Step 2: Translate sentences in parallel batches (max 3 concurrent)
+    batches = []
     for i in range(0, len(sentence_texts), BATCH_SIZE):
-        batch = sentence_texts[i:i + BATCH_SIZE]
-        prompt = json.dumps(batch, ensure_ascii=False)
+        batches.append(sentence_texts[i:i + BATCH_SIZE])
 
-        print(f"[Translator] Translating batch {i // BATCH_SIZE + 1} ({len(batch)} sentences)...")
-        response = _call_llm(prompt)
-        translations = _parse_translations(response, len(batch))
-        all_translations.extend(translations)
+    all_translations = [None] * len(batches)
+
+    if len(batches) <= 1:
+        # Single batch — no need for threading
+        if batches:
+            all_translations[0] = _translate_batch(0, batches[0])
+    else:
+        max_workers = min(3, len(batches))
+        print(f"[Translator] Processing {len(batches)} batches with {max_workers} parallel workers")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {
+                pool.submit(_translate_batch, idx, batch): idx
+                for idx, batch in enumerate(batches)
+            }
+            for future in concurrent.futures.as_completed(futures):
+                idx = futures[future]
+                try:
+                    all_translations[idx] = future.result()
+                except Exception as e:
+                    print(f"[Translator] Batch {idx} failed: {e}")
+                    all_translations[idx] = [""] * len(batches[idx])
+
+    # Flatten ordered results
+    flat_translations = []
+    for batch_result in all_translations:
+        if batch_result:
+            flat_translations.extend(batch_result)
 
     # Step 3: Map sentence translations back to segments
     # Store full sentence translation on the LAST segment of each sentence
     seg_translations = [""] * len(segments)
     for si, sent in enumerate(sentences):
-        translation = all_translations[si] if si < len(all_translations) else ""
+        translation = flat_translations[si] if si < len(flat_translations) else ""
         last_seg_idx = sent["seg_indices"][-1]
         seg_translations[last_seg_idx] = translation
 

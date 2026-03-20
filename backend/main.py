@@ -36,6 +36,9 @@ async def lifespan(app: FastAPI):
     THUMBS_DIR.mkdir(parents=True, exist_ok=True)
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
     init_db()
+    # Recover pipelines stuck from previous crash
+    from api.video_routes import recover_stuck_pipelines
+    await recover_stuck_pipelines()
     yield
 
 
