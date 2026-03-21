@@ -2,26 +2,48 @@
 	import { t } from '$lib/i18n';
 	import { onMount } from 'svelte';
 	import { getQuota, type Quota } from '$lib/api';
-	import { onAuthChange } from '$lib/auth';
+	import { onAuthChange, login, type AuthUser } from '$lib/auth';
 
 	let quota = $state<Quota | null>(null);
+	let user = $state<AuthUser | null>(null);
+
+	const CHECKOUT_URLS = {
+		pro: 'https://api.payuni.com.tw/api/period/U02465736/TWPeOannjn',
+		unlimited: 'https://api.payuni.com.tw/api/period/U02465736/TEVebTyQUW',
+	};
 
 	onMount(() => {
 		getQuota().then((q) => (quota = q)).catch(() => {});
-		onAuthChange(async (user) => {
-			if (user) {
+		onAuthChange(async (u) => {
+			user = u;
+			if (u) {
 				quota = await getQuota().catch(() => null);
 			}
 		});
 	});
+
+	function handleSubscribe(planKey: string) {
+		if (!user) {
+			login();
+			return;
+		}
+		const url = CHECKOUT_URLS[planKey as keyof typeof CHECKOUT_URLS];
+		if (url) {
+			window.open(url, '_blank');
+		}
+	}
+
+	function isCurrentPlan(planKey: string): boolean {
+		if (!quota) return false;
+		return quota.plan === planKey;
+	}
 
 	const plans = $derived([
 		{
 			key: 'free' as const,
 			name: t('planFree'),
 			desc: t('planFreeDesc'),
-			price: '$0',
-			priceLabel: t('freePriceLabel'),
+			price: 'NT$0',
 			credits: `5 ${t('creditsPerMonth')}`,
 			features: [
 				t('featureDownload'),
@@ -36,8 +58,7 @@
 			key: 'pro' as const,
 			name: t('planPro'),
 			desc: t('planProDesc'),
-			price: '$5',
-			priceLabel: `$5 ${t('perMonth')}`,
+			price: 'NT$150',
 			credits: `80 ${t('creditsPerMonth')}`,
 			features: [
 				t('featureDownload'),
@@ -53,8 +74,7 @@
 			key: 'unlimited' as const,
 			name: t('planUnlimited'),
 			desc: t('planUnlimitedDesc'),
-			price: '$12',
-			priceLabel: `$12 ${t('perMonth')}`,
+			price: 'NT$360',
 			credits: t('unlimitedCredits'),
 			features: [
 				t('featureDownload'),
@@ -111,22 +131,34 @@
 						</li>
 					{/each}
 				</ul>
-				<button
-					class="plan-btn"
-					class:plan-btn-highlight={plan.highlight}
-					disabled={plan.key === 'free' && quota?.plan === 'free'}
-				>
-					{#if plan.key === 'free' && quota?.plan === 'free'}
-						{t('currentPlan')}
-					{:else if plan.key === 'free'}
-						{t('planFree')}
-					{:else}
-						{t('comingSoon')}
-					{/if}
-				</button>
+				{#if plan.key === 'free'}
+					<button
+						class="plan-btn"
+						disabled={isCurrentPlan('free')}
+					>
+						{isCurrentPlan('free') ? t('currentPlan') : t('planFree')}
+					</button>
+				{:else}
+					<button
+						class="plan-btn"
+						class:plan-btn-highlight={plan.highlight}
+						disabled={isCurrentPlan(plan.key)}
+						onclick={() => handleSubscribe(plan.key)}
+					>
+						{#if isCurrentPlan(plan.key)}
+							{t('currentPlan')}
+						{:else if !user}
+							{t('loginToSubscribe')}
+						{:else}
+							{t('subscribe')}
+						{/if}
+					</button>
+				{/if}
 			</div>
 		{/each}
 	</div>
+
+	<p class="subscription-note">{t('subscriptionNote')}</p>
 </section>
 
 <style>
@@ -301,6 +333,13 @@
 	.plan-btn-highlight:hover:not(:disabled) {
 		background: var(--accent-hover);
 		color: white;
+	}
+
+	.subscription-note {
+		text-align: center;
+		margin-top: 24px;
+		font-size: 13px;
+		color: var(--text-dim);
 	}
 
 	@media (max-width: 768px) {

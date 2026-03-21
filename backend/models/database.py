@@ -113,6 +113,22 @@ def _generate_invite_code():
     return "".join(secrets.choice(chars) for _ in range(8))
 
 
+class Subscription(Base):
+    """Cached subscription state from PayGate webhooks."""
+    __tablename__ = "subscriptions"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String, nullable=False, unique=True, index=True)
+    plan = Column(String, default="free")  # "free" | "pro" | "unlimited"
+    tier = Column(String, default="free")
+    status = Column(String, default="active")  # "active" | "expired" | "cancelled"
+    paygate_sub_id = Column(String, nullable=True)
+    credits_per_month = Column(Integer, default=5)
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Invite(Base):
     __tablename__ = "invites"
 
