@@ -43,4 +43,14 @@
 		margin-bottom: 32px;
 		max-width: 400px;
 	}
+
+	@media (max-width: 640px) {
+		.error-code {
+			font-size: 48px;
+		}
+
+		.error-message {
+			font-size: 15px;
+		}
+	}
 </style>

@@ -396,24 +396,7 @@
 		padding: 32px;
 	}
 
-	@media (max-width: 640px) {
-		.navbar {
-			padding: 0 16px;
-			height: 48px;
-		}
-
-		.logo {
-			font-size: 15px;
-		}
-
-		.logo-img {
-			height: 26px;
-		}
-
-		.nav-right {
-			gap: 12px;
-		}
-
+	@media (max-width: 768px) {
 		.nav-links {
 			gap: 12px;
 		}
@@ -422,9 +405,50 @@
 			font-size: 13px;
 		}
 
+		.nav-right {
+			gap: 10px;
+		}
+
+		.nav-actions {
+			padding-left: 10px;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.navbar {
+			padding: 0 12px;
+			height: 48px;
+		}
+
+		.logo {
+			font-size: 15px;
+			gap: 6px;
+		}
+
+		.logo-img {
+			height: 24px;
+		}
+
+		.logo-text {
+			display: none;
+		}
+
+		.nav-right {
+			gap: 8px;
+		}
+
+		.nav-links {
+			gap: 8px;
+		}
+
+		.nav-links a {
+			font-size: 12px;
+		}
+
 		.nav-actions {
 			gap: 2px;
-			padding-left: 10px;
+			padding-left: 8px;
+			border-left: none;
 		}
 
 		.nav-btn {
@@ -432,8 +456,13 @@
 			height: 32px;
 		}
 
+		.quota-badge {
+			padding: 3px 8px;
+			font-size: 12px;
+		}
+
 		.main {
-			padding: 16px;
+			padding: 12px;
 		}
 	}
 </style>

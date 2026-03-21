@@ -317,5 +317,14 @@
 		.pricing-page {
 			padding: 32px 0 48px;
 		}
+
+		.price-amount {
+			font-size: 32px;
+		}
+
+		.plan-card {
+			padding: 24px 20px;
+			gap: 20px;
+		}
 	}
 </style>

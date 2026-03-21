@@ -535,13 +535,31 @@
 			padding: 32px 0 40px;
 		}
 
+		.hero-logo {
+			height: 56px;
+			margin-bottom: 16px;
+		}
+
 		.hero-title {
-			font-size: 32px;
+			font-size: 28px;
 			letter-spacing: -1px;
 		}
 
 		.hero-sub {
-			font-size: 15px;
+			font-size: 14px;
+			margin-bottom: 24px;
+		}
+
+		.hero-actions {
+			flex-direction: column;
+			gap: 12px;
+		}
+
+		.cta-btn {
+			padding: 12px 24px;
+			font-size: 14px;
+			width: 100%;
+			justify-content: center;
 		}
 
 		.hero-visual {
@@ -562,6 +580,10 @@
 
 		.bottom-cta h2 {
 			font-size: 22px;
+		}
+
+		.bottom-cta .cta-btn {
+			width: auto;
 		}
 	}
 </style>
