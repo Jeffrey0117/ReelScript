@@ -185,7 +185,11 @@ export const audioFileUrl = (path: string) => `${API_BASE}${path}`;
 export function connectWS(onMessage: (data: Record<string, unknown>) => void): WebSocket {
 	const wsProtocol = DEV ? 'ws' : (location.protocol === 'https:' ? 'wss' : 'ws');
 	const wsHost = DEV ? 'localhost:4005' : location.host;
-	const ws = new WebSocket(`${wsProtocol}://${wsHost}/ws`);
+	const token = getToken();
+	const wsUrl = token
+		? `${wsProtocol}://${wsHost}/ws?token=${encodeURIComponent(token)}`
+		: `${wsProtocol}://${wsHost}/ws`;
+	const ws = new WebSocket(wsUrl);
 	ws.onmessage = (event) => {
 		try {
 			onMessage(JSON.parse(event.data));

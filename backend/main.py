@@ -4,12 +4,18 @@ Download IG/YouTube videos, transcribe with Whisper, serve transcripts.
 """
 
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
 from contextlib import asynccontextmanager
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv(Path(__file__).parent / ".env")
@@ -50,13 +56,30 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+ALLOWED_ORIGINS = os.environ.get("CORS_ORIGINS", "https://reelscript.isnowfriend.com").split(",")
+IS_DEV = os.environ.get("DEV_BYPASS_AUTH", "").strip() == "1"
+if IS_DEV:
+    ALLOWED_ORIGINS = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response: StarletteResponse = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # API routes
 app.include_router(video_router)
@@ -78,7 +101,19 @@ if AUDIO_DIR.exists():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    from api.websocket import DEV_BYPASS_AUTH, _authenticate_ws
+
+    token = websocket.query_params.get("token", "")
+    if DEV_BYPASS_AUTH:
+        user_id = "dev_admin"
+    else:
+        user = _authenticate_ws(token)
+        if not user:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
+        user_id = user.get("sub", "anonymous")
+
+    await manager.connect(websocket, user_id)
     try:
         while True:
             data = await websocket.receive_text()

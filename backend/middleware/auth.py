@@ -4,18 +4,32 @@ Supports dual auth: JWT Bearer token OR legacy X-Admin-Key header.
 """
 
 import os
+import logging
 import jwt
 from fastapi import HTTPException, Request, Depends
 
+logger = logging.getLogger(__name__)
 
-LMU_APP_SECRET = os.environ.get("LMU_APP_SECRET", "Rs7kW2mNpQ4xYvB9cD1fH3jL5tA8uE6g")
+
+def _require_env(key: str) -> str:
+    """Get required env var, raise on missing in production."""
+    val = os.environ.get(key, "")
+    if not val:
+        logger.warning("Missing required env var: %s", key)
+    return val
+
+
+LMU_APP_SECRET = _require_env("LMU_APP_SECRET")
 LMU_APP_ID = os.environ.get("LMU_APP_ID", "app_3lXIxPKb")
-LEGACY_ADMIN_KEY = os.environ.get("ADMIN_KEY", "reelscript-admin-2024")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "WcxHAMuFcPmzNwgEMTZDtSf4axNvjwaUp-w2JxojGi0")
+LEGACY_ADMIN_KEY = _require_env("ADMIN_KEY")
+BOT_TOKEN = _require_env("BOT_TOKEN")
 BOT_USER_ID = os.environ.get("BOT_USER_ID", "usr_reelscript_admin")
 DEV_BYPASS_AUTH = os.environ.get("DEV_BYPASS_AUTH", "").strip() == "1"
 
 DEV_USER = {"sub": "dev_admin", "role": "admin", "email": "dev@reelscript", "app": LMU_APP_ID}
+
+if DEV_BYPASS_AUTH:
+    logger.warning("⚠ DEV_BYPASS_AUTH is ON — all requests treated as admin. Do NOT use in production!")
 
 
 def get_current_user(request: Request) -> dict:

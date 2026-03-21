@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from models import get_db, Video, Transcript, UserVideo, UserQuota
-from middleware.auth import require_auth, optional_auth
+from middleware.auth import require_auth, require_admin, optional_auth
 from services.downloader import download_video, get_video_info, generate_thumbnail, detect_content_type, VIDEOS_DIR, THUMBS_DIR
 from services.transcriber import transcriber
 from services.translator import translate_segments
@@ -459,7 +459,7 @@ async def _process_pipeline_inner(video_id: str, url: str):
         db.close()
 
 
-@router.post("/backfill-thumbnails")
+@router.post("/backfill-thumbnails", dependencies=[Depends(require_admin)])
 async def backfill_thumbnails(db: Session = Depends(get_db)):
     videos = db.query(Video).filter(Video.filename.isnot(None), Video.status == "ready").all()
     generated = 0
