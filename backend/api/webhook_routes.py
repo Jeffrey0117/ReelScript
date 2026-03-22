@@ -21,7 +21,7 @@ PAYGATE_WEBHOOK_SECRET = os.environ.get(
     "a109fab9c19dcfc97669cb0c787d9ece77b9c79f52aa8550f5d4b0ad3f7103a7",
 )
 
-FREE_CREDITS = 5
+FREE_CREDITS = 30
 
 
 def _verify_signature(body: bytes, signature: str) -> bool:

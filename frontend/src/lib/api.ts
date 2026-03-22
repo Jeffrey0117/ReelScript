@@ -256,8 +256,8 @@ export interface VideoDetail extends Video {
 export interface Quota {
 	plan: string;
 	period: string;
-	videos_used: number;
-	bonus_videos: number;
+	credits_used: number;
+	bonus_credits: number;
 	limit: number;
 	remaining: number;
 }

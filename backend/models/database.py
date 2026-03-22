@@ -101,8 +101,8 @@ class UserQuota(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, nullable=False, index=True)
     period = Column(String, nullable=False)  # "2026-02"
-    videos_used = Column(Integer, default=0)
-    bonus_videos = Column(Integer, default=0)  # from invites
+    credits_used = Column(Integer, default=0)
+    bonus_credits = Column(Integer, default=0)  # from invites
     plan = Column(String, default="free")  # "free" | "pro"
 
     __table_args__ = (UniqueConstraint("user_id", "period", name="uq_user_period"),)
@@ -123,7 +123,7 @@ class Subscription(Base):
     tier = Column(String, default="free")
     status = Column(String, default="active")  # "active" | "expired" | "cancelled"
     paygate_sub_id = Column(String, nullable=True)
-    credits_per_month = Column(Integer, default=5)
+    credits_per_month = Column(Integer, default=30)
     expires_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
@@ -171,6 +171,18 @@ def init_db():
             col_cols = [c["name"] for c in inspector.get_columns("collections")]
             if "user_id" not in col_cols:
                 conn.execute(text("ALTER TABLE collections ADD COLUMN user_id VARCHAR"))
+                conn.commit()
+
+        # Migrate videos_used → credits_used (universal credit system)
+        if "user_quotas" in inspector.get_table_names():
+            quota_cols = [c["name"] for c in inspector.get_columns("user_quotas")]
+            if "videos_used" in quota_cols and "credits_used" not in quota_cols:
+                conn.execute(text("ALTER TABLE user_quotas ADD COLUMN credits_used INTEGER DEFAULT 0"))
+                conn.execute(text("UPDATE user_quotas SET credits_used = videos_used * 10"))
+                conn.commit()
+            if "bonus_videos" in quota_cols and "bonus_credits" not in quota_cols:
+                conn.execute(text("ALTER TABLE user_quotas ADD COLUMN bonus_credits INTEGER DEFAULT 0"))
+                conn.execute(text("UPDATE user_quotas SET bonus_credits = bonus_videos * 6"))
                 conn.commit()
 
 

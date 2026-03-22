@@ -21,7 +21,7 @@ const translations = {
 		featureQuotesTitle: '金句提取',
 		featureQuotesDesc: '提取影片精華語句，重點摘要一目瞭然。',
 		bottomCtaTitle: '開始你的英文學習之旅',
-		bottomCtaSubtitle: '每月 5 部免費影片，不需信用卡。',
+		bottomCtaSubtitle: '每月 30 點免費額度，不需信用卡。',
 
 		// Home page
 		addVideo: '新增影片',
@@ -134,7 +134,7 @@ const translations = {
 		// Quota
 		monthlyUsed: '本月已用',
 		loginToStart: '登入開始使用',
-		quotaExceeded: '本月免費額度已用完',
+		quotaExceeded: '本月點數已用完',
 
 		// Auth
 		login: '登入',
@@ -146,13 +146,13 @@ const translations = {
 
 		// Invite
 		inviteFriends: '邀請好友',
-		inviteBonus: '邀請成功各得 +5 額度',
+		inviteBonus: '邀請成功各得 +30 點',
 		linkCopied: '邀請連結已複製！',
 
 		// Pricing
 		pricing: '方案',
 		pricingTitle: '選擇你的方案',
-		pricingSubtitle: '每部影片一個點數，輕鬆學英文',
+		pricingSubtitle: '通用點數制，影片處理和學習功能彈性使用',
 		planFree: '免費',
 		planPro: 'Pro',
 		planUnlimited: '無限',
@@ -162,7 +162,7 @@ const translations = {
 		perMonth: '/月',
 		creditsPerMonth: '點/月',
 		unlimitedCredits: '無限點數',
-		inviteBonusFeature: '邀請好友 +5 點',
+		inviteBonusFeature: '邀請好友 +30 點',
 		currentPlan: '目前方案',
 		comingSoon: '即將推出',
 		subscribe: '訂閱',
@@ -211,7 +211,7 @@ const translations = {
 		featureQuotesTitle: 'Golden Quotes',
 		featureQuotesDesc: 'Extracts the most impactful lines and key takeaways from every video.',
 		bottomCtaTitle: 'Start Your English Learning Journey',
-		bottomCtaSubtitle: '5 free videos per month, no credit card required.',
+		bottomCtaSubtitle: '30 free credits per month, no credit card required.',
 
 		// Home page
 		addVideo: 'Add Video',
@@ -324,7 +324,7 @@ const translations = {
 		// Quota
 		monthlyUsed: 'used this month',
 		loginToStart: 'Login to start',
-		quotaExceeded: 'Free monthly quota exceeded',
+		quotaExceeded: 'Monthly credits exceeded',
 
 		// Auth
 		login: 'Login',
@@ -336,13 +336,13 @@ const translations = {
 
 		// Invite
 		inviteFriends: 'Invite Friends',
-		inviteBonus: '+5 quota for each invite',
+		inviteBonus: '+30 credits for each invite',
 		linkCopied: 'Invite link copied!',
 
 		// Pricing
 		pricing: 'Pricing',
 		pricingTitle: 'Choose Your Plan',
-		pricingSubtitle: 'One credit per video, learn English effortlessly',
+		pricingSubtitle: 'Universal credits for video processing and learning features',
 		planFree: 'Free',
 		planPro: 'Pro',
 		planUnlimited: 'Unlimited',
@@ -352,7 +352,7 @@ const translations = {
 		perMonth: '/mo',
 		creditsPerMonth: 'credits/mo',
 		unlimitedCredits: 'Unlimited credits',
-		inviteBonusFeature: 'Invite friends +5 credits',
+		inviteBonusFeature: 'Invite friends +30 credits',
 		currentPlan: 'Current Plan',
 		comingSoon: 'Coming Soon',
 		subscribe: 'Subscribe',

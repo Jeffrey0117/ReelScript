@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from models import get_db, Video, Transcript, UserVideo, UserQuota
+from models import get_db, Video, Transcript, UserVideo, UserQuota, Subscription
 from middleware.auth import require_auth, require_admin, optional_auth
 from services.downloader import download_video, get_video_info, generate_thumbnail, detect_content_type, VIDEOS_DIR, THUMBS_DIR
 from services.transcriber import transcriber
@@ -32,7 +32,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
 
-FREE_MONTHLY_LIMIT = 5
+FREE_MONTHLY_LIMIT = 30
+PRO_MONTHLY_LIMIT = 200
+COST_PROCESS = 10
+COST_TRANSLATE = 3
+COST_VOCABULARY = 3
+COST_APPRECIATE = 3
 MAX_CONCURRENT_PIPELINES = 6
 MAX_PER_USER_PIPELINES = 2
 _pipeline_semaphore = asyncio.Semaphore(MAX_CONCURRENT_PIPELINES)
@@ -194,10 +199,25 @@ def _get_or_create_quota(db: Session, user_id: str) -> UserQuota:
     return quota
 
 
-def _check_quota(quota: UserQuota) -> bool:
-    if quota.plan == "pro":
+def _get_credit_limit(db: Session, user: dict) -> int:
+    """Returns monthly credit limit. -1 = unlimited."""
+    email = user.get("email", "")
+    if email:
+        sub = db.query(Subscription).filter(
+            Subscription.email == email, Subscription.status == "active"
+        ).first()
+        if sub:
+            if sub.tier == "unlimited":
+                return -1
+            if sub.tier == "pro":
+                return PRO_MONTHLY_LIMIT
+    return FREE_MONTHLY_LIMIT
+
+
+def _check_quota(quota: UserQuota, limit: int, cost: int = COST_PROCESS) -> bool:
+    if limit == -1:
         return True
-    return quota.videos_used < FREE_MONTHLY_LIMIT + quota.bonus_videos
+    return quota.credits_used + cost <= limit + quota.bonus_credits
 
 
 def _ensure_user_video(db: Session, user_id: str, video_id: str):
@@ -224,9 +244,10 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
         if existing.status == "failed":
             if not is_admin:
                 quota = _get_or_create_quota(db, user_id)
-                if not _check_quota(quota):
-                    raise HTTPException(status_code=429, detail="本月免費額度已用完")
-                quota.videos_used += 1
+                limit = _get_credit_limit(db, user)
+                if not _check_quota(quota, limit, COST_PROCESS):
+                    raise HTTPException(status_code=429, detail="本月點數已用完")
+                quota.credits_used += COST_PROCESS
             existing.status = "downloading"
             existing.error_message = None
             db.commit()
@@ -240,8 +261,9 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
     # New video — check quota (admin/bot bypasses quota)
     if not is_admin:
         quota = _get_or_create_quota(db, user_id)
-        if not _check_quota(quota):
-            raise HTTPException(status_code=429, detail="本月免費額度已用完")
+        limit = _get_credit_limit(db, user)
+        if not _check_quota(quota, limit, COST_PROCESS):
+            raise HTTPException(status_code=429, detail="本月點數已用完")
 
     info = await get_video_info(req.url)
 
@@ -263,7 +285,7 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
 
     _ensure_user_video(db, user_id, video.id)
     if not is_admin:
-        quota.videos_used += 1
+        quota.credits_used += COST_PROCESS
     db.commit()
 
     asyncio.create_task(_process_pipeline(video.id, req.url, user_id))
@@ -283,27 +305,28 @@ async def batch_process_videos(req: BatchProcessRequest, db: Session = Depends(g
 
     if not is_admin:
         quota = _get_or_create_quota(db, user_id)
-        remaining = (FREE_MONTHLY_LIMIT + quota.bonus_videos) - quota.videos_used if quota.plan != "pro" else float("inf")
+        limit = _get_credit_limit(db, user)
+        remaining = (limit + quota.bonus_credits) - quota.credits_used if limit != -1 else float("inf")
     else:
         remaining = float("inf")
 
     results = []
-    quota_used = 0
+    credits_spent = 0
 
     for url in req.urls:
         existing = db.query(Video).filter(Video.url == url).first()
         if existing:
             if existing.status == "failed":
-                if not is_admin and quota_used >= remaining:
-                    results.append({"url": url, "success": False, "error": "額度不足"})
+                if not is_admin and credits_spent + COST_PROCESS > remaining:
+                    results.append({"url": url, "success": False, "error": "點數不足"})
                     continue
                 existing.status = "downloading"
                 existing.error_message = None
                 db.commit()
                 _ensure_user_video(db, user_id, existing.id)
                 if not is_admin:
-                    quota.videos_used += 1
-                    quota_used += 1
+                    quota.credits_used += COST_PROCESS
+                    credits_spent += COST_PROCESS
                     db.commit()
                 asyncio.create_task(_process_pipeline(existing.id, existing.url, user_id))
                 results.append({"url": url, "success": True, "video_id": existing.id, "status": "downloading", "duplicate": True})
@@ -312,9 +335,9 @@ async def batch_process_videos(req: BatchProcessRequest, db: Session = Depends(g
                 results.append({"url": url, "success": True, "video_id": existing.id, "status": existing.status, "duplicate": True})
             continue
 
-        # New video — check quota
-        if not is_admin and quota_used >= remaining:
-            results.append({"url": url, "success": False, "error": "額度不足"})
+        # New video — check credits
+        if not is_admin and credits_spent + COST_PROCESS > remaining:
+            results.append({"url": url, "success": False, "error": "點數不足"})
             continue
 
         try:
@@ -339,8 +362,8 @@ async def batch_process_videos(req: BatchProcessRequest, db: Session = Depends(g
 
         _ensure_user_video(db, user_id, video.id)
         if not is_admin:
-            quota.videos_used += 1
-            quota_used += 1
+            quota.credits_used += COST_PROCESS
+            credits_spent += COST_PROCESS
         db.commit()
 
         asyncio.create_task(_process_pipeline(video.id, url, user_id))
@@ -652,7 +675,7 @@ async def retry_video(video_id: str, db: Session = Depends(get_db), user: dict =
 # --- Content endpoints (public, shared) ---
 
 @router.post("/{video_id}/translate")
-async def translate_video(video_id: str, db: Session = Depends(get_db)):
+async def translate_video(video_id: str, db: Session = Depends(get_db), user: dict | None = Depends(optional_auth)):
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -661,6 +684,15 @@ async def translate_video(video_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="No transcript available")
     if any(seg.get("translation") for seg in transcript.segments):
         return {"success": True, "message": "Already translated", "segments": transcript.segments}
+    # Deduct credits for LLM translation
+    if user and not _is_admin(user):
+        user_id = _get_user_id(user)
+        quota = _get_or_create_quota(db, user_id)
+        limit = _get_credit_limit(db, user)
+        if not _check_quota(quota, limit, COST_TRANSLATE):
+            raise HTTPException(status_code=429, detail="本月點數已用完")
+        quota.credits_used += COST_TRANSLATE
+        db.commit()
     await manager.broadcast({"type": "translate_started", "data": {"video_id": video_id}})
     try:
         loop = asyncio.get_running_loop()
@@ -675,7 +707,7 @@ async def translate_video(video_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{video_id}/analyze-vocabulary")
-async def analyze_video_vocabulary(video_id: str, db: Session = Depends(get_db)):
+async def analyze_video_vocabulary(video_id: str, db: Session = Depends(get_db), user: dict | None = Depends(optional_auth)):
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -684,6 +716,15 @@ async def analyze_video_vocabulary(video_id: str, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="No transcript available")
     if any(seg.get("vocabulary") for seg in transcript.segments):
         return {"success": True, "message": "Already analyzed", "segments": transcript.segments}
+    # Deduct credits for LLM vocabulary analysis
+    if user and not _is_admin(user):
+        user_id = _get_user_id(user)
+        quota = _get_or_create_quota(db, user_id)
+        limit = _get_credit_limit(db, user)
+        if not _check_quota(quota, limit, COST_VOCABULARY):
+            raise HTTPException(status_code=429, detail="本月點數已用完")
+        quota.credits_used += COST_VOCABULARY
+        db.commit()
     try:
         loop = asyncio.get_running_loop()
         analyzed = await loop.run_in_executor(None, analyze_segments, transcript.segments)
@@ -695,7 +736,7 @@ async def analyze_video_vocabulary(video_id: str, db: Session = Depends(get_db))
 
 
 @router.post("/{video_id}/appreciate")
-async def appreciate_video(video_id: str, db: Session = Depends(get_db)):
+async def appreciate_video(video_id: str, db: Session = Depends(get_db), user: dict | None = Depends(optional_auth)):
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -704,6 +745,15 @@ async def appreciate_video(video_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="No transcript available")
     if transcript.appreciation and transcript.appreciation.get("theme"):
         return {"success": True, "appreciation": transcript.appreciation}
+    # Deduct credits for LLM appreciation
+    if user and not _is_admin(user):
+        user_id = _get_user_id(user)
+        quota = _get_or_create_quota(db, user_id)
+        limit = _get_credit_limit(db, user)
+        if not _check_quota(quota, limit, COST_APPRECIATE):
+            raise HTTPException(status_code=429, detail="本月點數已用完")
+        quota.credits_used += COST_APPRECIATE
+        db.commit()
     try:
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, generate_appreciation, transcript.full_text)

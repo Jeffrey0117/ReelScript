@@ -12,7 +12,7 @@ from middleware.auth import require_auth
 
 router = APIRouter(prefix="/api/invite", tags=["invite"])
 
-INVITE_BONUS = 5  # bonus videos per successful invite (both parties)
+INVITE_BONUS = 30  # bonus credits per successful invite (both parties)
 
 
 class RedeemRequest(BaseModel):
@@ -29,10 +29,10 @@ def _add_bonus(db: Session, user_id: str, bonus: int):
         UserQuota.user_id == user_id, UserQuota.period == period
     ).first()
     if not quota:
-        quota = UserQuota(user_id=user_id, period=period, bonus_videos=bonus)
+        quota = UserQuota(user_id=user_id, period=period, bonus_credits=bonus)
         db.add(quota)
     else:
-        quota.bonus_videos += bonus
+        quota.bonus_credits += bonus
 
 
 @router.get("/my-code")

@@ -44,7 +44,7 @@
 			name: t('planFree'),
 			desc: t('planFreeDesc'),
 			price: 'NT$0',
-			credits: `5 ${t('creditsPerMonth')}`,
+			credits: `30 ${t('creditsPerMonth')}`,
 			features: [
 				t('featureDownload'),
 				t('featureTranslate'),
@@ -59,7 +59,7 @@
 			name: t('planPro'),
 			desc: t('planProDesc'),
 			price: 'NT$150',
-			credits: `80 ${t('creditsPerMonth')}`,
+			credits: `200 ${t('creditsPerMonth')}`,
 			features: [
 				t('featureDownload'),
 				t('featureTranslate'),

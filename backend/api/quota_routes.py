@@ -12,8 +12,8 @@ from middleware.auth import optional_auth
 
 router = APIRouter(prefix="/api/quota", tags=["quota"])
 
-FREE_MONTHLY_LIMIT = 5
-PRO_MONTHLY_LIMIT = 80
+FREE_MONTHLY_LIMIT = 30
+PRO_MONTHLY_LIMIT = 200
 
 
 def _get_user_id(user: dict) -> str:
@@ -23,7 +23,7 @@ def _get_user_id(user: dict) -> str:
 @router.get("")
 async def get_quota(db: Session = Depends(get_db), user: dict | None = Depends(optional_auth)):
     if not user:
-        return {"plan": "free", "period": "", "videos_used": 0, "bonus_videos": 0, "limit": 0, "remaining": 0}
+        return {"plan": "free", "period": "", "credits_used": 0, "bonus_credits": 0, "limit": 0, "remaining": 0}
 
     user_id = _get_user_id(user)
     email = user.get("email", "")
@@ -43,24 +43,24 @@ async def get_quota(db: Session = Depends(get_db), user: dict | None = Depends(o
         UserQuota.user_id == user_id, UserQuota.period == period
     ).first()
 
-    videos_used = quota.videos_used if quota else 0
-    bonus_videos = quota.bonus_videos if quota else 0
+    credits_used = quota.credits_used if quota else 0
+    bonus_credits = quota.bonus_credits if quota else 0
 
     if plan == "unlimited":
         limit = -1
         remaining = -1
     elif plan == "pro":
-        limit = PRO_MONTHLY_LIMIT + bonus_videos
-        remaining = max(0, limit - videos_used)
+        limit = PRO_MONTHLY_LIMIT + bonus_credits
+        remaining = max(0, limit - credits_used)
     else:
-        limit = FREE_MONTHLY_LIMIT + bonus_videos
-        remaining = max(0, limit - videos_used)
+        limit = FREE_MONTHLY_LIMIT + bonus_credits
+        remaining = max(0, limit - credits_used)
 
     return {
         "plan": plan,
         "period": period,
-        "videos_used": videos_used,
-        "bonus_videos": bonus_videos,
+        "credits_used": credits_used,
+        "bonus_credits": bonus_credits,
         "limit": limit,
         "remaining": remaining,
     }
