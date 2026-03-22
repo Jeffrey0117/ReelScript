@@ -137,6 +137,8 @@
 		learning: '#22c55e',
 	};
 
+	const STORAGE_KEY = 'icebreaker_state';
+
 	let deck = $state<IcebreakerCard[]>([]);
 	let currentIndex = $state(-1);
 	let isFlipping = $state(false);
@@ -154,6 +156,45 @@
 	let vocabIdx = $state(0);
 	let quoteIdx = $state(0);
 
+	// Track drawn card IDs across sessions
+	let drawnIds = $state<Set<number>>(new Set());
+
+	function saveState() {
+		try {
+			const state = {
+				deckOrder: deck.map(c => c.id),
+				currentIndex,
+				drawnCount,
+				drawnIds: [...drawnIds],
+			};
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+		} catch { /* localStorage unavailable */ }
+	}
+
+	function loadState(): boolean {
+		try {
+			const raw = localStorage.getItem(STORAGE_KEY);
+			if (!raw) return false;
+			const state = JSON.parse(raw);
+			if (!state.deckOrder?.length) return false;
+
+			// Rebuild deck from saved order
+			const idMap = new Map(allCards.map(c => [c.id, c]));
+			const restored = state.deckOrder
+				.map((id: number) => idMap.get(id))
+				.filter(Boolean) as IcebreakerCard[];
+
+			if (restored.length !== allCards.length) return false;
+
+			deck = restored;
+			currentIndex = state.currentIndex ?? -1;
+			drawnCount = state.drawnCount ?? 0;
+			drawnIds = new Set(state.drawnIds ?? []);
+			isRevealed = currentIndex >= 0;
+			return true;
+		} catch { return false; }
+	}
+
 	function shuffle(arr: IcebreakerCard[]): IcebreakerCard[] {
 		const shuffled = [...arr];
 		for (let i = shuffled.length - 1; i > 0; i--) {
@@ -164,10 +205,22 @@
 	}
 
 	function initDeck() {
-		deck = shuffle(allCards);
+		// Prioritize undrawn cards first, then already-drawn
+		const undrawn = allCards.filter(c => !drawnIds.has(c.id));
+		const drawn = allCards.filter(c => drawnIds.has(c.id));
+
+		// If all cards drawn, reset history
+		if (undrawn.length === 0) {
+			drawnIds = new Set();
+			deck = shuffle(allCards);
+		} else {
+			deck = [...shuffle(undrawn), ...shuffle(drawn)];
+		}
+
 		currentIndex = -1;
 		isRevealed = false;
-		drawnCount = 0;
+		drawnCount = drawnIds.size;
+		saveState();
 	}
 
 	function drawCard() {
@@ -183,15 +236,19 @@
 
 		setTimeout(() => {
 			currentIndex += 1;
-			drawnCount += 1;
+			drawnCount = drawnIds.size + 1;
 			isRevealed = true;
 			isFlipping = false;
 
-			// Cycle through examples for planted cards
 			const card = deck[currentIndex];
+			drawnIds = new Set([...drawnIds, card.id]);
+
+			// Cycle through examples for planted cards
 			if (card.planted === 'snippet') snippetIdx = (snippetIdx + 1) % Math.max(snippets.length, 1);
 			if (card.planted === 'vocab') vocabIdx = (vocabIdx + 1) % Math.max(vocabWords.length, 1);
 			if (card.planted === 'quote') quoteIdx = (quoteIdx + 1) % Math.max(quotes.length, 1);
+
+			saveState();
 		}, 300);
 	}
 
@@ -227,7 +284,8 @@
 	}
 
 	onMount(() => {
-		initDeck();
+		const restored = loadState();
+		if (!restored) initDeck();
 		fetchExamples();
 		onAuthChange((u) => {
 			isLoggedIn = !!u;
@@ -253,12 +311,7 @@
 	<section class="hero">
 		<div class="hero-glow"></div>
 		<h1 class="hero-title">
-			<span class="title-icon">
-				<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-					<rect x="2" y="2" width="20" height="20" rx="3"/>
-					<path d="M8 8h.01M12 12h.01M16 8h.01M8 16h.01M16 16h.01"/>
-				</svg>
-			</span>
+			<img src="/logo.png" alt="ReelScript" class="title-logo" />
 			English Icebreaker Cards
 		</h1>
 		<p class="hero-sub">52 張英文破冰話題卡——隨機抽一張，開口說英文！</p>
@@ -293,7 +346,7 @@
 							<p class="snippet-en">"{currentSnippet.en}"</p>
 							<p class="snippet-zh">{currentSnippet.zh}</p>
 						</div>
-						<a href="/watch/{currentSnippet.videoId}" class="example-cta">
+						<a href="/watch/{currentSnippet.videoId}" class="example-cta" target="_blank" rel="noopener">
 							{locale === 'zh' ? '在 ReelScript 上觀看這部影片' : 'Watch this video on ReelScript'}
 							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
 						</a>
@@ -315,7 +368,7 @@
 								</div>
 							{/each}
 						</div>
-						<a href="/watch/{currentVocab[0].videoId}" class="example-cta">
+						<a href="/watch/{currentVocab[0].videoId}" class="example-cta" target="_blank" rel="noopener">
 							{locale === 'zh' ? '在 ReelScript 上觀看這部影片' : 'Watch this video on ReelScript'}
 							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
 						</a>
@@ -335,7 +388,7 @@
 								<p class="quote-source">— {currentQuote.channel}</p>
 							{/if}
 						</div>
-						<a href="/watch/{currentQuote.videoId}" class="example-cta">
+						<a href="/watch/{currentQuote.videoId}" class="example-cta" target="_blank" rel="noopener">
 							{locale === 'zh' ? '在 ReelScript 上觀看這部影片' : 'Watch this video on ReelScript'}
 							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
 						</a>
@@ -563,10 +616,14 @@
 		background-clip: text;
 	}
 
-	.title-icon {
-		display: flex;
-		color: var(--accent);
-		-webkit-text-fill-color: var(--accent);
+	.title-logo {
+		height: 36px;
+		width: auto;
+		object-fit: contain;
+	}
+
+	:global([data-theme="dark"]) .title-logo {
+		filter: invert(1);
 	}
 
 	.hero-sub {
