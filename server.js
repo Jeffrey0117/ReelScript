@@ -183,8 +183,18 @@ function serveAudio(req, res) {
 	}
 }
 
+// Track backend readiness — Node starts immediately, Python may still be booting
+let backendReady = false;
+
 // HTTP server: videos direct, API to backend, rest to SvelteKit
 const server = createServer((req, res) => {
+	// Health check responds from Node directly (enables CloudPipe Blue-Green deploy)
+	if (req.url === '/api/health') {
+		res.writeHead(200, { 'Content-Type': 'application/json' });
+		res.end(JSON.stringify({ status: 'ok', service: 'reelscript', backend: backendReady }));
+		return;
+	}
+
 	if (req.url?.startsWith('/videos/')) {
 		serveVideo(req, res);
 	} else if (req.url?.startsWith('/audio/')) {
@@ -192,6 +202,11 @@ const server = createServer((req, res) => {
 	} else if (req.url?.startsWith('/thumbnails/')) {
 		serveThumbnail(req, res);
 	} else if (req.url?.startsWith('/api/')) {
+		if (!backendReady) {
+			res.writeHead(503, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ error: 'Backend starting up, please retry shortly' }));
+			return;
+		}
 		proxy.web(req, res);
 	} else {
 		handler(req, res);
@@ -207,7 +222,7 @@ server.on('upgrade', (req, socket, head) => {
 	}
 });
 
-// Wait for backend to be ready, then start
+// Wait for Python backend to be ready (non-blocking — server already listening)
 async function waitForBackend(maxRetries = 30) {
 	for (let i = 0; i < maxRetries; i++) {
 		try {
@@ -221,17 +236,20 @@ async function waitForBackend(maxRetries = 30) {
 	return false;
 }
 
-console.log(`[server] Starting backend on port ${BACKEND_PORT}...`);
+// Start listening IMMEDIATELY (enables fast Blue-Green health check)
+server.listen(PORT, () => {
+	console.log(`[server] ReelScript listening on http://localhost:${PORT}`);
+	console.log(`[server] Waiting for Python backend on port ${BACKEND_PORT}...`);
+});
 
+// Boot Python backend in background
 waitForBackend().then((ready) => {
 	if (!ready) {
-		console.error('[server] Backend failed to start');
+		console.error('[server] Backend failed to start after 30s');
 		process.exit(1);
 	}
-
-	server.listen(PORT, () => {
-		console.log(`[server] ReelScript running at http://localhost:${PORT}`);
-	});
+	backendReady = true;
+	console.log(`[server] Backend ready — full service active`);
 });
 
 // Graceful shutdown
