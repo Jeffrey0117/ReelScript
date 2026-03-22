@@ -25,12 +25,14 @@
 	interface VocabWord {
 		word: string;
 		translation: string;
+		videoId: string;
 		videoTitle: string | null;
 	}
 
 	interface Quote {
 		en: string;
 		zh: string;
+		videoId: string;
 		videoTitle: string | null;
 		channel: string | null;
 	}
@@ -291,8 +293,8 @@
 							<p class="snippet-en">"{currentSnippet.en}"</p>
 							<p class="snippet-zh">{currentSnippet.zh}</p>
 						</div>
-						<a href="/blog" class="example-cta">
-							{locale === 'zh' ? '在 ReelScript 上探索更多影片學習' : 'Explore more on ReelScript'}
+						<a href="/watch/{currentSnippet.videoId}" class="example-cta">
+							{locale === 'zh' ? '在 ReelScript 上觀看這部影片' : 'Watch this video on ReelScript'}
 							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
 						</a>
 					</div>
@@ -313,8 +315,8 @@
 								</div>
 							{/each}
 						</div>
-						<a href="/blog" class="example-cta">
-							{locale === 'zh' ? '在 ReelScript 上建立你的單字庫' : 'Build your word bank on ReelScript'}
+						<a href="/watch/{currentVocab[0].videoId}" class="example-cta">
+							{locale === 'zh' ? '在 ReelScript 上觀看這部影片' : 'Watch this video on ReelScript'}
 							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
 						</a>
 					</div>
@@ -333,8 +335,8 @@
 								<p class="quote-source">— {currentQuote.channel}</p>
 							{/if}
 						</div>
-						<a href="/blog" class="example-cta">
-							{locale === 'zh' ? '在 ReelScript 上發現更多金句' : 'Discover more quotes on ReelScript'}
+						<a href="/watch/{currentQuote.videoId}" class="example-cta">
+							{locale === 'zh' ? '在 ReelScript 上觀看這部影片' : 'Watch this video on ReelScript'}
 							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
 						</a>
 					</div>
@@ -501,6 +503,19 @@
 			</div>
 		</div>
 	</section>
+</div>
+
+<!-- Mobile Sticky Banner -->
+<div class="mobile-sticky-banner" class:visible>
+	<div class="msb-inner">
+		<div class="msb-text">
+			<span class="msb-brand">ReelScript</span>
+			<span class="msb-tagline">{locale === 'zh' ? '用影片學英文' : 'Learn English from Videos'}</span>
+		</div>
+		<button class="msb-cta" onclick={handleCta}>
+			{locale === 'zh' ? '免費開始' : 'Start Free'}
+		</button>
+	</div>
 </div>
 
 <style>
@@ -1281,5 +1296,89 @@
 		.banner-cta { width: 100%; justify-content: center; }
 
 		.mockup-window { transform: scale(0.92); transform-origin: top center; }
+
+		/* Add bottom padding so sticky banner doesn't cover content */
+		.page { padding-bottom: 64px; }
+	}
+
+	/* ── Mobile Sticky Banner ── */
+	.mobile-sticky-banner {
+		display: none;
+	}
+
+	@media (max-width: 640px) {
+		.mobile-sticky-banner {
+			display: block;
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			z-index: 100;
+			background: linear-gradient(135deg, #1e1b4b, #312e81);
+			border-top: 1px solid rgba(255, 255, 255, 0.1);
+			box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+			transform: translateY(100%);
+			transition: transform 0.4s ease;
+		}
+
+		.mobile-sticky-banner.visible {
+			transform: translateY(0);
+		}
+
+		:global([data-theme="light"]) .mobile-sticky-banner {
+			background: linear-gradient(135deg, #eef2ff, #c7d2fe);
+			border-top-color: #c7d2fe;
+			box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+		}
+
+		.msb-inner {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 12px 16px;
+			max-width: 600px;
+			margin: 0 auto;
+		}
+
+		.msb-text {
+			display: flex;
+			flex-direction: column;
+			gap: 2px;
+		}
+
+		.msb-brand {
+			font-size: 13px;
+			font-weight: 700;
+			color: white;
+			letter-spacing: -0.3px;
+		}
+
+		:global([data-theme="light"]) .msb-brand { color: #1e1b4b; }
+
+		.msb-tagline {
+			font-size: 11px;
+			color: rgba(255, 255, 255, 0.6);
+		}
+
+		:global([data-theme="light"]) .msb-tagline { color: #4338ca; }
+
+		.msb-cta {
+			padding: 8px 20px;
+			background: white;
+			color: #312e81;
+			font-size: 13px;
+			font-weight: 700;
+			border-radius: 8px;
+			border: none;
+			cursor: pointer;
+			white-space: nowrap;
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+		}
+
+		:global([data-theme="light"]) .msb-cta {
+			background: #4338ca;
+			color: white;
+			box-shadow: 0 2px 8px rgba(67, 56, 202, 0.3);
+		}
 	}
 </style>
