@@ -365,20 +365,26 @@ async def public_videos(
     total = q.count()
     videos = q.offset(offset).limit(limit).all()
 
-    return [
-        {
-            "id": v.id,
-            "title": v.title,
-            "source": v.source,
-            "duration": v.duration,
-            "thumbnail": v.thumbnail,
-            "category": v.category,
-            "hasTranscript": v.transcript is not None,
-            "hasAppreciation": v.transcript is not None and v.transcript.appreciation is not None,
-            "createdAt": v.created_at.isoformat() if v.created_at else None,
-        }
-        for v in videos
-    ]
+    return {
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "videos": [
+            {
+                "id": v.id,
+                "title": v.title,
+                "source": v.source,
+                "channel": v.channel,
+                "duration": v.duration,
+                "thumbnail": v.thumbnail,
+                "category": v.category,
+                "hasTranscript": v.transcript is not None,
+                "hasAppreciation": v.transcript is not None and v.transcript.appreciation is not None,
+                "createdAt": v.created_at.isoformat() if v.created_at else None,
+            }
+            for v in videos
+        ],
+    }
 
 
 # ── Search: keyword + semantic ───────────────────────────
