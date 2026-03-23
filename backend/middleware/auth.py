@@ -5,6 +5,7 @@ Supports dual auth: JWT Bearer token OR legacy X-Admin-Key header.
 
 import os
 import logging
+from datetime import datetime
 import jwt
 from fastapi import HTTPException, Request, Depends
 
@@ -28,8 +29,45 @@ DEV_BYPASS_AUTH = os.environ.get("DEV_BYPASS_AUTH", "").strip() == "1"
 
 DEV_USER = {"sub": "dev_admin", "role": "admin", "email": "dev@reelscript", "app": LMU_APP_ID}
 
+# IDs to skip when caching users (bots, dev, legacy admin)
+_SKIP_CACHE_IDS = {"dev_admin", BOT_USER_ID, "legacy-admin"}
+
 if DEV_BYPASS_AUTH:
     logger.warning("⚠ DEV_BYPASS_AUTH is ON — all requests treated as admin. Do NOT use in production!")
+
+
+def _cache_user(payload: dict) -> None:
+    """Upsert authenticated user into local cache (fire-and-forget)."""
+    user_id = payload.get("sub", "")
+    if not user_id or user_id in _SKIP_CACHE_IDS:
+        return
+    try:
+        from models.database import SessionLocal, User
+        db = SessionLocal()
+        try:
+            existing = db.query(User).filter(User.id == user_id).first()
+            now = datetime.utcnow()
+            if existing:
+                existing.email = payload.get("email") or existing.email
+                existing.name = payload.get("displayName") or payload.get("name") or existing.name
+                existing.role = payload.get("role") or existing.role
+                existing.avatar = payload.get("avatar") or existing.avatar
+                existing.last_seen_at = now
+            else:
+                db.add(User(
+                    id=user_id,
+                    email=payload.get("email"),
+                    name=payload.get("displayName") or payload.get("name"),
+                    role=payload.get("role", "user"),
+                    avatar=payload.get("avatar"),
+                    first_seen_at=now,
+                    last_seen_at=now,
+                ))
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        logger.debug("User cache upsert failed for %s", user_id, exc_info=True)
 
 
 def get_current_user(request: Request) -> dict:
@@ -58,6 +96,7 @@ def get_current_user(request: Request) -> dict:
     if payload.get("app") != LMU_APP_ID:
         raise HTTPException(status_code=401, detail="Invalid app")
 
+    _cache_user(payload)
     return payload
 
 

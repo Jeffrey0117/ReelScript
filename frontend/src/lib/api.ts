@@ -162,6 +162,18 @@ export const adminDeleteVideo = (adminKey = '', videoId: string) =>
 		headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
 	});
 
+export const adminListUsers = (adminKey = '', params?: Record<string, string>) => {
+	const query = params ? '?' + new URLSearchParams(params).toString() : '';
+	return request<AdminUser[]>(`/api/admin/users${query}`, {
+		headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+	});
+};
+
+export const adminGetUser = (adminKey = '', userId: string) =>
+	request<AdminUserDetail>(`/api/admin/users/${userId}`, {
+		headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+	});
+
 // Public API (no auth required)
 export const publicVideos = (featured = false) =>
 	request<PublicVideoList>(`/api/public/videos?limit=100${featured ? '&featured=true' : ''}`);
@@ -278,11 +290,60 @@ export interface AdminStats {
 	total_collections: number;
 	sources: Record<string, number>;
 	categories: Record<string, number>;
+	total_users: number;
+	active_users_30d: number;
+	plan_breakdown: Record<string, number>;
+}
+
+export interface AdminVideoUploader {
+	id: string;
+	email: string | null;
+	name: string | null;
 }
 
 export interface AdminVideo extends Video {
 	category: string | null;
 	is_featured: boolean;
+	uploader: AdminVideoUploader | null;
+}
+
+export interface AdminUser {
+	id: string;
+	email: string | null;
+	name: string | null;
+	role: string;
+	avatar: string | null;
+	plan: string;
+	video_count: number;
+	credits_used: number;
+	credits_limit: number;
+	first_seen_at: string | null;
+	last_seen_at: string | null;
+}
+
+export interface AdminUserVideo {
+	id: string;
+	title: string | null;
+	source: string;
+	status: string;
+	thumbnail: string | null;
+	created_at: string | null;
+}
+
+export interface AdminUserDetail {
+	user: {
+		id: string;
+		email: string | null;
+		name: string | null;
+		role: string;
+		avatar: string | null;
+		first_seen_at: string | null;
+		last_seen_at: string | null;
+	};
+	plan: string;
+	videos: AdminUserVideo[];
+	quota_history: { period: string; credits_used: number; bonus_credits: number }[];
+	invite: { code: string; redeemed_count: number } | null;
 }
 
 export interface PublicVideoList {

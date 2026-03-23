@@ -19,6 +19,19 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+class User(Base):
+    """Local cache of authenticated users (from LetMeUse JWT)."""
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True)  # JWT sub
+    email = Column(String, nullable=True, index=True)
+    name = Column(String, nullable=True)
+    role = Column(String, default="user")
+    avatar = Column(Text, nullable=True)
+    first_seen_at = Column(DateTime, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Video(Base):
     __tablename__ = "videos"
 
