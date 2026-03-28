@@ -22,6 +22,7 @@
 	let showCollectionPicker = $state(false);
 	let collections = $state<Collection[]>([]);
 	let copySuccess = $state(false);
+	let urlCopied = $state(false);
 
 	// Playback modes: 'off' | 'loop' | 'repeat-one'
 	let playbackMode = $state<'off' | 'loop' | 'repeat-one'>('off');
@@ -105,6 +106,13 @@
 		await navigator.clipboard.writeText(video.transcript.full_text);
 		copySuccess = true;
 		setTimeout(() => (copySuccess = false), 2000);
+	}
+
+	async function copySourceUrl() {
+		if (!video?.url) return;
+		await navigator.clipboard.writeText(video.url);
+		urlCopied = true;
+		setTimeout(() => (urlCopied = false), 2000);
 	}
 
 	async function handleDelete() {
@@ -199,6 +207,17 @@
 					<span class="badge {video.source === 'ig' ? 'badge-ig' : 'badge-youtube'}">
 						{video.source === 'ig' ? 'Instagram' : 'YouTube'}
 					</span>
+					{#if video.url}
+						<button class="copy-url-btn" onclick={copySourceUrl} title={video.url}>
+							{#if urlCopied}
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+								<span>{t('copied')}</span>
+							{:else}
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+								<span>{t('source')}</span>
+							{/if}
+						</button>
+					{/if}
 				</div>
 			</div>
 
@@ -391,6 +410,25 @@
 	.channel {
 		color: var(--text-dim);
 		font-size: 14px;
+	}
+
+	.copy-url-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 8px;
+		font-size: 12px;
+		color: var(--text-dim);
+		background: var(--bg-hover);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition: color 0.15s, border-color 0.15s;
+	}
+
+	.copy-url-btn:hover {
+		color: var(--accent);
+		border-color: var(--accent);
 	}
 
 	.actions {
