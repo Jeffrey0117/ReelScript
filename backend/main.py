@@ -3,6 +3,14 @@ ReelScript Backend — FastAPI server.
 Download IG/YouTube videos, transcribe with Whisper, serve transcripts.
 """
 
+import sys
+import io
+
+# Force UTF-8 stdout/stderr on Windows to prevent cp950 encoding crash in PM2
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 import os
 import logging
 from pathlib import Path

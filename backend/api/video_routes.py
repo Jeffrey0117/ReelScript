@@ -25,7 +25,7 @@ from services.transcriber import transcriber
 from services.translator import translate_segments
 from services.vocabulary import analyze_segments
 from services.appreciation import generate_appreciation
-from services.titler import generate_title_and_appreciation
+from services.titler import generate_title_and_appreciation, generate_title_from_chinese
 from api.websocket import manager
 
 logger = logging.getLogger(__name__)
@@ -452,9 +452,18 @@ async def _process_pipeline_inner(video_id: str, url: str):
         db.commit()
 
         try:
-            full_text = transcriber.segments_to_full_text(segments)
             ct = video.content_type or "video"
-            analysis = await loop.run_in_executor(None, generate_title_and_appreciation, full_text, ct)
+            # Use translated Chinese text for title generation (more accurate)
+            chinese_parts = [seg.get("translation", "") for seg in segment_dicts if seg.get("translation")]
+            if chinese_parts:
+                chinese_text = " ".join(chinese_parts)
+                print(f"[Pipeline] Generating title from Chinese text ({len(chinese_text)} chars)...")
+                analysis = await loop.run_in_executor(None, generate_title_from_chinese, chinese_text, ct)
+            else:
+                # Fallback to English if no translations available
+                full_text = transcriber.segments_to_full_text(segments)
+                print(f"[Pipeline] No translations, generating title from English text...")
+                analysis = await loop.run_in_executor(None, generate_title_and_appreciation, full_text, ct)
             if analysis.get("title"):
                 video.title = analysis["title"]
             appreciation = {k: analysis[k] for k in ("theme", "keyPoints", "goldenQuotes") if k in analysis}
