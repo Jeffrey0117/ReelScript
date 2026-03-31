@@ -1,9 +1,14 @@
 """
 Auto-title + appreciation service — one AI call for title, theme, key points, golden quotes.
+Uses OpenCC post-processing to guarantee Traditional Chinese output.
 """
 
 import sys
 import json
+from opencc import OpenCC
+
+# s2twp = Simplified → Traditional (Taiwan phrases, e.g. 軟件→軟體, 信息→資訊)
+_s2tw = OpenCC('s2twp')
 
 MEEI_PATH = "C:/Users/jeffb/Desktop/code/meei/python/src"
 if MEEI_PATH not in sys.path:
@@ -89,6 +94,17 @@ CHINESE_SYSTEM_PROMPT = """你是一位內容分析專家。根據以下的繁�
 PROVIDERS = ["openai", "deepseek", "groq"]
 
 
+def _to_traditional(obj):
+    """Recursively convert all Chinese strings in a dict/list to Traditional Chinese (Taiwan)."""
+    if isinstance(obj, str):
+        return _s2tw.convert(obj)
+    if isinstance(obj, list):
+        return [_to_traditional(item) for item in obj]
+    if isinstance(obj, dict):
+        return {k: _to_traditional(v) for k, v in obj.items()}
+    return obj
+
+
 def generate_title_and_appreciation(full_text: str, content_type: str = "video") -> dict:
     """Generate title + appreciation in one AI call. Returns {title, theme, keyPoints, goldenQuotes}."""
     system = LYRICS_SYSTEM_PROMPT if content_type == "lyrics" else SYSTEM_PROMPT
@@ -101,6 +117,7 @@ def generate_title_and_appreciation(full_text: str, content_type: str = "video")
             response = chat.ask(full_text, pv=pv, system=system, temperature=0.3)
             result = _parse_json(response)
             if result and result.get("title"):
+                result = _to_traditional(result)
                 print(f"[Titler] Generated: {result['title']}")
                 return result
         except Exception as e:
@@ -153,6 +170,7 @@ def generate_title_from_chinese(chinese_text: str, content_type: str = "video") 
             response = chat.ask(chinese_text, pv=pv, system=system, temperature=0.3)
             result = _parse_json(response)
             if result and result.get("title"):
+                result = _to_traditional(result)
                 print(f"[Titler] Generated from Chinese: {result['title']}")
                 return result
         except Exception as e:
