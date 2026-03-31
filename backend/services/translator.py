@@ -16,17 +16,18 @@ if MEEI_PATH not in sys.path:
 from meei.chat import chat  # noqa: E402
 
 SYSTEM_PROMPT = """You are a professional English-to-Traditional-Chinese translator.
-Translate the following English sentences into natural, fluent 繁體中文.
+Translate the following numbered English sentences into natural, fluent 繁體中文.
 
-Rules:
-- Output ONLY a JSON array of translated strings, one per input sentence
-- Keep translations concise and natural
-- Use 繁體中文 (Traditional Chinese), NOT 簡體
-- Do NOT add explanations, notes, or formatting — just the JSON array
-- Preserve the exact number of items
-- Each translation should be a complete sentence ending with 。
+CRITICAL RULES:
+- Each numbered input sentence MUST produce exactly one translation
+- NEVER merge, combine, or skip sentences — maintain strict 1:1 mapping
+- Output ONLY a JSON array of translated strings
+- The array length MUST equal the number of input sentences
+- Use 繁體中文 (Traditional Chinese, Taiwan), NOT 簡體中文
+- Each translation should be natural and complete, ending with 。
+- Do NOT include the [N] numbers in translations
 
-Example input: ["Hello everyone.", "Today we talk about lighting."]
+Example input: ["[1] Hello everyone.", "[2] Today we talk about lighting."]
 Example output: ["大家好。", "今天我們來聊聊打光。"]"""
 
 # Max sentences per batch
@@ -125,10 +126,14 @@ def _merge_into_sentences(segments: list, max_words: int = 0) -> list:
 
 def _translate_batch(batch_index: int, batch: list) -> list:
     """Translate a single batch of sentences. Returns list of translated strings."""
-    prompt = json.dumps(batch, ensure_ascii=False)
+    # Add [N] prefixes to prevent LLM from merging adjacent sentences
+    numbered = [f"[{i + 1}] {s}" for i, s in enumerate(batch)]
+    prompt = json.dumps(numbered, ensure_ascii=False)
     print(f"[Translator] Translating batch {batch_index + 1} ({len(batch)} sentences)...")
     response = _call_llm(prompt)
-    return _parse_translations(response, len(batch))
+    translations = _parse_translations(response, len(batch))
+    # Strip [N] prefixes if LLM included them in output
+    return [re.sub(r'^\[\d+\]\s*', '', t) for t in translations]
 
 
 def translate_segments(segments: list, content_type: str = "video") -> list:
@@ -186,6 +191,21 @@ def translate_segments(segments: list, content_type: str = "video") -> list:
     for batch_result in all_translations:
         if batch_result:
             flat_translations.extend(batch_result)
+
+    # Step 2.5: Retry empty translations individually
+    empty_indices = [i for i, t in enumerate(flat_translations) if not t.strip()]
+    if empty_indices and len(empty_indices) <= 5:
+        print(f"[Translator] Retrying {len(empty_indices)} empty translations individually...")
+        for idx in empty_indices:
+            try:
+                retry_result = _translate_batch(-1, [sentence_texts[idx]])
+                if retry_result and retry_result[0].strip():
+                    flat_translations[idx] = retry_result[0]
+                    print(f"[Translator] Retry success for sentence {idx + 1}")
+            except Exception as e:
+                print(f"[Translator] Retry failed for sentence {idx + 1}: {e}")
+    elif empty_indices:
+        print(f"[Translator] {len(empty_indices)} empty translations (too many to retry individually)")
 
     # Step 3: Map sentence translations back to segments
     # Store full sentence translation on the LAST segment of each sentence
