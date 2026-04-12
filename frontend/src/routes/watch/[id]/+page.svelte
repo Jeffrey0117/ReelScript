@@ -80,6 +80,11 @@
 	function lockSegment(index: number) {
 		playbackMode = 'repeat-one';
 		repeatSegmentIndex = index;
+		const seg = video?.transcript?.segments?.[index];
+		if (seg && videoEl) {
+			videoEl.currentTime = seg.start;
+			videoEl.play();
+		}
 	}
 
 	function handleVideoEnded() {
