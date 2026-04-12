@@ -214,7 +214,7 @@
 </script>
 
 <svelte:head>
-	<title>{t('admin')} — ReelScript</title>
+	<title>{t('admin')} - ReelScript</title>
 </svelte:head>
 
 {#if authMode === 'checking'}

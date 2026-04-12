@@ -32,7 +32,7 @@
 </script>
 
 <svelte:head>
-	<title>{t('blog')} — ReelScript</title>
+	<title>{t('blog')} - ReelScript</title>
 </svelte:head>
 
 <section class="blog-page">

@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-	<title>Error {status} — ReelScript</title>
+	<title>Error {status} - ReelScript</title>
 </svelte:head>
 
 <div class="error-page">

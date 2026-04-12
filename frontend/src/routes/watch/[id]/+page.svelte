@@ -171,7 +171,7 @@
 </script>
 
 <svelte:head>
-	<title>{video?.title || 'Loading...'} — ReelScript</title>
+	<title>{video?.title || 'Loading...'} - ReelScript</title>
 </svelte:head>
 
 {#if !video}

@@ -249,7 +249,7 @@
 </script>
 
 <svelte:head>
-	<title>{video?.title || t('loading')} — {t('studyMode')} — ReelScript</title>
+	<title>{video?.title || t('loading')} - {t('studyMode')} - ReelScript</title>
 </svelte:head>
 
 {#if loading}

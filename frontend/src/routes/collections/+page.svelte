@@ -56,7 +56,7 @@
 </script>
 
 <svelte:head>
-	<title>{t('collections')} — ReelScript</title>
+	<title>{t('collections')} - ReelScript</title>
 </svelte:head>
 
 <div class="collections-layout">
