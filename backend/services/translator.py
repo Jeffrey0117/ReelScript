@@ -3,13 +3,17 @@ Translation service — translate transcript segments to Traditional Chinese via
 Merges Whisper fragments into sentences before translating for better accuracy.
 """
 
+import os
 import re
 import sys
 import json
 from typing import List
 
-# Add meei SDK to path
-MEEI_PATH = "C:/Users/jeffb/Desktop/code/meei/python/src"
+# MEEI_PATH is auto-injected by CloudPipe (deploy.js / ecosystem.config.js).
+# For standalone runs, set MEEI_PATH=/path/to/meei/python/src manually.
+MEEI_PATH = os.environ.get("MEEI_PATH")
+if not MEEI_PATH:
+    raise RuntimeError("MEEI_PATH environment variable not set")
 if MEEI_PATH not in sys.path:
     sys.path.insert(0, MEEI_PATH)
 
@@ -208,12 +212,12 @@ def translate_segments(segments: list, content_type: str = "video") -> list:
         print(f"[Translator] {len(empty_indices)} empty translations (too many to retry individually)")
 
     # Step 3: Map sentence translations back to segments
-    # Store full sentence translation on the LAST segment of each sentence
+    # Store full sentence translation on the FIRST segment of each sentence
     seg_translations = [""] * len(segments)
     for si, sent in enumerate(sentences):
         translation = flat_translations[si] if si < len(flat_translations) else ""
-        last_seg_idx = sent["seg_indices"][-1]
-        seg_translations[last_seg_idx] = translation
+        first_seg_idx = sent["seg_indices"][0]
+        seg_translations[first_seg_idx] = translation
 
     # Return new list with translations merged (immutable pattern)
     return [

@@ -16,8 +16,12 @@ from sqlalchemy.orm import Session
 from models import get_db, Video, Transcript
 from services.downloader import VIDEOS_DIR, extract_audio
 
-# meei SDK for semantic search
-MEEI_PATH = "C:/Users/jeffb/Desktop/code/meei/python/src"
+# meei SDK for semantic search — auto-injected by CloudPipe.
+# For standalone runs, set MEEI_PATH=/path/to/meei/python/src manually.
+import os
+MEEI_PATH = os.environ.get("MEEI_PATH")
+if not MEEI_PATH:
+    raise RuntimeError("MEEI_PATH environment variable not set")
 if MEEI_PATH not in sys.path:
     sys.path.insert(0, MEEI_PATH)
 

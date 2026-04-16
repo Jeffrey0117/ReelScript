@@ -3,6 +3,7 @@ Auto-title + appreciation service — one AI call for title, theme, key points, 
 Uses OpenCC post-processing to guarantee Traditional Chinese output.
 """
 
+import os
 import sys
 import json
 from opencc import OpenCC
@@ -10,7 +11,11 @@ from opencc import OpenCC
 # s2twp = Simplified → Traditional (Taiwan phrases, e.g. 軟件→軟體, 信息→資訊)
 _s2tw = OpenCC('s2twp')
 
-MEEI_PATH = "C:/Users/jeffb/Desktop/code/meei/python/src"
+# MEEI_PATH is auto-injected by CloudPipe (deploy.js / ecosystem.config.js).
+# For standalone runs, set MEEI_PATH=/path/to/meei/python/src manually.
+MEEI_PATH = os.environ.get("MEEI_PATH")
+if not MEEI_PATH:
+    raise RuntimeError("MEEI_PATH environment variable not set")
 if MEEI_PATH not in sys.path:
     sys.path.insert(0, MEEI_PATH)
 

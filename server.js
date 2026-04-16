@@ -6,7 +6,7 @@
 import { spawn } from 'child_process';
 import { createServer } from 'http';
 import { createReadStream, statSync } from 'fs';
-import { join, extname } from 'path';
+import { join, extname, delimiter as pathDelimiter } from 'path';
 import { handler } from './frontend/build/handler.js';
 import httpProxy from 'http-proxy';
 
@@ -33,10 +33,16 @@ proxy.on('error', (err, _req, res) => {
 });
 
 // Start Python FastAPI backend
-const PYTHON = process.env.PYTHON_PATH || 'C:\\Users\\jeffb\\AppData\\Local\\Programs\\Python\\Python313\\python.exe';
+// PYTHON_PATH is auto-injected by CloudPipe (deploy.js / ecosystem.config.js).
+// Falls back to bare `python` so PATH-based resolution works on dev machines.
+const PYTHON = process.env.PYTHON_PATH || 'python';
 const backendEnv = { ...process.env, REELSCRIPT_PORT: String(BACKEND_PORT) };
-const pathKey = Object.keys(backendEnv).find(k => k.toLowerCase() === 'path') || 'PATH';
-backendEnv[pathKey] = `${backendEnv[pathKey] || ''};C:\\tools\\ffmpeg`;
+// Optional ffmpeg PATH augmentation — only on Windows where ffmpeg is commonly at C:\tools\ffmpeg.
+// On Linux/Mac, ffmpeg is expected to be in PATH already (apt install ffmpeg).
+if (process.platform === 'win32') {
+  const pathKey = Object.keys(backendEnv).find(k => k.toLowerCase() === 'path') || 'PATH';
+  backendEnv[pathKey] = `${backendEnv[pathKey] || ''}${pathDelimiter}C:\\tools\\ffmpeg`;
+}
 
 const backend = spawn(PYTHON, ['backend/main.py'], {
 	env: backendEnv,

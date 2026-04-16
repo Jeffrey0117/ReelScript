@@ -3,11 +3,16 @@ Vocabulary analysis service — extract difficult English words with Chinese tra
 Uses meei SDK (Groq by default) for AI analysis.
 """
 
+import os
 import sys
 import json
 from typing import List
 
-MEEI_PATH = "C:/Users/jeffb/Desktop/code/meei/python/src"
+# MEEI_PATH is auto-injected by CloudPipe (deploy.js / ecosystem.config.js).
+# For standalone runs, set MEEI_PATH=/path/to/meei/python/src manually.
+MEEI_PATH = os.environ.get("MEEI_PATH")
+if not MEEI_PATH:
+    raise RuntimeError("MEEI_PATH environment variable not set")
 if MEEI_PATH not in sys.path:
     sys.path.insert(0, MEEI_PATH)
 
