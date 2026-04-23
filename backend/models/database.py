@@ -153,6 +153,21 @@ class Invite(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class SpeakingSession(Base):
+    __tablename__ = "speaking_sessions"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    title = Column(String, nullable=True)
+    filename = Column(String, nullable=True)
+    duration = Column(Float, nullable=True)
+    status = Column(String, default="uploading")  # uploading, transcribing, analyzing, ready, failed
+    error_message = Column(Text, nullable=True)
+    segments = Column(JSON, nullable=True)  # [{index, start, end, text}]
+    coaching = Column(JSON, nullable=True)  # LLM analysis result
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     # Enable WAL mode for concurrent read/write access

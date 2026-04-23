@@ -193,6 +193,38 @@ export const thumbnailUrl = (thumb: string) => `${API_BASE}/thumbnails/${thumb}`
 // Audio file URL
 export const audioFileUrl = (path: string) => `${API_BASE}${path}`;
 
+// Speaking Coach
+export const uploadSpeaking = async (file: File): Promise<{ success: boolean; session_id: string; status: string }> => {
+	const token = getToken();
+	const formData = new FormData();
+	formData.append('file', file);
+	const headers: Record<string, string> = {};
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
+	const res = await fetch(`${API_BASE}/api/speaking/upload`, {
+		method: 'POST',
+		headers,
+		body: formData,
+	});
+	if (!res.ok) {
+		const err = await res.json().catch(() => ({ detail: res.statusText }));
+		const error = new Error(err.detail || `HTTP ${res.status}`) as Error & { status: number };
+		error.status = res.status;
+		throw error;
+	}
+	return res.json();
+};
+
+export const listSpeaking = () =>
+	request<SpeakingSession[]>('/api/speaking');
+
+export const getSpeaking = (id: string) =>
+	request<SpeakingSessionDetail>(`/api/speaking/${id}`);
+
+export const deleteSpeaking = (id: string) =>
+	request<{ success: boolean }>(`/api/speaking/${id}`, { method: 'DELETE' });
+
 // WebSocket
 export function connectWS(onMessage: (data: Record<string, unknown>) => void): WebSocket {
 	const wsProtocol = DEV ? 'ws' : (location.protocol === 'https:' ? 'wss' : 'ws');
@@ -429,4 +461,56 @@ export interface CollectionDetail {
 		notes: string | null;
 		added_at: string | null;
 	}[];
+}
+
+// Speaking Coach
+export interface SpeakingIssue {
+	type: 'grammar' | 'word_choice' | 'naturalness' | 'pronunciation_hint';
+	highlight: string;
+	explanation: string;
+}
+
+export interface CoachingSentence {
+	index: number;
+	original: string;
+	corrected: string;
+	issues: SpeakingIssue[];
+	native_alt: string;
+	score: number;
+}
+
+export interface CoachingResult {
+	sentences: CoachingSentence[];
+	overall: {
+		fluency: number;
+		grammar: number;
+		vocabulary: number;
+		naturalness: number;
+		summary: string;
+		strengths: string[];
+		improvements: string[];
+	};
+}
+
+export interface SpeakingSession {
+	id: string;
+	title: string | null;
+	duration: number | null;
+	status: string;
+	error_message: string | null;
+	created_at: string | null;
+	overall_score: number | null;
+}
+
+export interface SpeakingSegment {
+	index: number;
+	start: number;
+	end: number;
+	text: string;
+}
+
+export interface SpeakingSessionDetail extends Omit<SpeakingSession, 'overall_score'> {
+	filename: string;
+	segments: SpeakingSegment[];
+	coaching: CoachingResult | null;
 }

@@ -113,6 +113,7 @@
 			<div class="nav-links">
 				{#if user}
 					<a href="/videos">{t('myVideosNav')}</a>
+					<a href="/speaking">{t('speakingCoach')}</a>
 					<a href="/blog">{t('blog')}</a>
 					<a href="/collections">{t('collections')}</a>
 					{#if user.role === 'admin'}

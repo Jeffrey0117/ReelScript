@@ -36,12 +36,14 @@ from api.quota_routes import router as quota_router
 from api.invite_routes import router as invite_router
 from api.public_routes import router as public_router
 from api.webhook_routes import router as webhook_router
+from api.speaking_routes import router as speaking_router
 from api.websocket import manager
 
 DATA_DIR = Path("./data")
 VIDEOS_DIR = DATA_DIR / "videos"
 THUMBS_DIR = DATA_DIR / "thumbnails"
 AUDIO_DIR = DATA_DIR / "audio"
+SPEAKING_DIR = DATA_DIR / "speaking"
 
 
 @asynccontextmanager
@@ -50,6 +52,7 @@ async def lifespan(app: FastAPI):
     VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
     THUMBS_DIR.mkdir(parents=True, exist_ok=True)
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    SPEAKING_DIR.mkdir(parents=True, exist_ok=True)
     init_db()
     # Recover pipelines stuck from previous crash
     from api.video_routes import recover_stuck_pipelines
@@ -97,6 +100,7 @@ app.include_router(quota_router)
 app.include_router(invite_router)
 app.include_router(public_router)
 app.include_router(webhook_router)
+app.include_router(speaking_router)
 
 # Serve video files and thumbnails
 if VIDEOS_DIR.exists():
