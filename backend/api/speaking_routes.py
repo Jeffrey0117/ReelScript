@@ -238,6 +238,8 @@ async def _speaking_pipeline(session_id: str, user_id: str):
         session.segments = segment_dicts
         session.duration = segments[-1].end if segments else None
         session.status = "analyzing"
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(session, "segments")
         db.commit()
 
         # Step 2: LLM coaching analysis
@@ -251,9 +253,7 @@ async def _speaking_pipeline(session_id: str, user_id: str):
 
         session.coaching = coaching
         session.status = "ready"
-        from sqlalchemy.orm.attributes import flag_modified
         flag_modified(session, "coaching")
-        flag_modified(session, "segments")
         db.commit()
 
         await manager.broadcast(
