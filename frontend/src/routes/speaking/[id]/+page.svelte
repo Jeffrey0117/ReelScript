@@ -306,6 +306,16 @@
 						{t('loopOne')}
 					{/if}
 				</button>
+				<button
+					class="btn {session.discourse?.topic ? 'btn-ghost' : 'btn-primary'}"
+					onclick={() => goto(`/speaking/${session.id}/discourse`)}
+				>
+					{#if session.discourse?.topic}
+						{t('discourseAnalysis')} ✓
+					{:else}
+						{t('discourseAnalysis')}
+					{/if}
+				</button>
 				<button class="btn btn-danger" onclick={handleDelete}>
 					{t('delete')}
 				</button>
@@ -361,6 +371,7 @@
 					</div>
 				</section>
 			{/if}
+
 		</div>
 
 		<!-- Right: Transcript Panel -->
@@ -920,6 +931,15 @@
 		color: var(--text-dim);
 		font-style: italic;
 		line-height: 1.5;
+	}
+
+	.btn-primary {
+		background: var(--accent);
+		color: white;
+	}
+
+	.btn-primary:hover {
+		background: var(--accent-hover);
 	}
 
 	/* Mobile */

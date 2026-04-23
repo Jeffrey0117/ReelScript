@@ -227,6 +227,11 @@ export const getSpeaking = (id: string) =>
 export const deleteSpeaking = (id: string) =>
 	request<{ success: boolean }>(`/api/speaking/${id}`, { method: 'DELETE' });
 
+export const analyzeSpeakingDiscourse = (id: string) =>
+	request<{ success: boolean; discourse: DiscourseResult }>(`/api/speaking/${id}/analyze-discourse`, {
+		method: 'POST',
+	});
+
 // WebSocket
 export function connectWS(onMessage: (data: Record<string, unknown>) => void): WebSocket {
 	const wsProtocol = DEV ? 'ws' : (location.protocol === 'https:' ? 'wss' : 'ws');
@@ -511,8 +516,33 @@ export interface SpeakingSegment {
 	text: string;
 }
 
+export interface DiscourseTip {
+	category: string;
+	tip: string;
+	example: string;
+}
+
+export interface DiscourseResult {
+	topic: string;
+	structure_analysis: {
+		current: string;
+		problems: string[];
+		suggestion: string;
+	};
+	rewritten: string;
+	rewritten_segments: { index: number; text: string }[];
+	tips: DiscourseTip[];
+	scores: {
+		clarity: number;
+		organization: number;
+		persuasiveness: number;
+		engagement: number;
+	};
+}
+
 export interface SpeakingSessionDetail extends Omit<SpeakingSession, 'overall_score'> {
 	filename: string;
 	segments: SpeakingSegment[];
 	coaching: CoachingResult | null;
+	discourse: DiscourseResult | null;
 }

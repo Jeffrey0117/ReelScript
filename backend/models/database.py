@@ -165,6 +165,7 @@ class SpeakingSession(Base):
     error_message = Column(Text, nullable=True)
     segments = Column(JSON, nullable=True)  # [{index, start, end, text}]
     coaching = Column(JSON, nullable=True)  # LLM analysis result
+    discourse = Column(JSON, nullable=True)  # Discourse analysis result
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -199,6 +200,13 @@ def init_db():
             col_cols = [c["name"] for c in inspector.get_columns("collections")]
             if "user_id" not in col_cols:
                 conn.execute(text("ALTER TABLE collections ADD COLUMN user_id VARCHAR"))
+                conn.commit()
+
+        # Add discourse column to speaking_sessions if missing
+        if "speaking_sessions" in inspector.get_table_names():
+            speaking_cols = [c["name"] for c in inspector.get_columns("speaking_sessions")]
+            if "discourse" not in speaking_cols:
+                conn.execute(text("ALTER TABLE speaking_sessions ADD COLUMN discourse JSON"))
                 conn.commit()
 
         # Migrate videos_used → credits_used (universal credit system)

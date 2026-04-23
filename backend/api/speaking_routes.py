@@ -29,6 +29,7 @@ ALLOWED_MIME_PREFIXES = ("audio/", "video/")
 FREE_MONTHLY_LIMIT = 30
 PRO_MONTHLY_LIMIT = 200
 COST_SPEAKING = 5
+COST_DISCOURSE = 3
 
 
 def _get_user_id(user: dict) -> str:
@@ -181,6 +182,7 @@ async def get_speaking(
         "error_message": session.error_message,
         "segments": session.segments,
         "coaching": session.coaching,
+        "discourse": session.discourse,
         "created_at": session.created_at.isoformat() if session.created_at else None,
     }
 
@@ -208,6 +210,73 @@ async def delete_speaking(
     db.delete(session)
     db.commit()
     return {"success": True}
+
+
+@router.post("/{session_id}/analyze-discourse")
+async def analyze_discourse_endpoint(
+    session_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_auth),
+):
+    user_id = _get_user_id(user)
+    is_admin = _is_admin(user)
+    session = db.query(SpeakingSession).filter(
+        SpeakingSession.id == session_id,
+        SpeakingSession.user_id == user_id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.status != "ready":
+        raise HTTPException(status_code=400, detail="Session not ready")
+
+    if not session.segments:
+        raise HTTPException(status_code=400, detail="No segments available")
+
+    # Return cached result if already analyzed
+    if session.discourse and isinstance(session.discourse, dict) and session.discourse.get("topic"):
+        return {"success": True, "discourse": session.discourse}
+
+    # Check quota
+    if not is_admin:
+        quota = _get_or_create_quota(db, user_id)
+        limit = _get_credit_limit(db, user)
+        if not _check_quota(quota, limit, COST_DISCOURSE):
+            raise HTTPException(status_code=429, detail="本月點數已用完")
+
+    # Build full text from segments
+    full_text = " ".join(seg["text"] for seg in session.segments if seg.get("text", "").strip())
+    if not full_text.strip():
+        raise HTTPException(status_code=400, detail="No text to analyze")
+
+    # Deduct credits before LLM call to prevent race condition
+    if not is_admin:
+        quota.credits_used += COST_DISCOURSE
+        db.commit()
+
+    # Run LLM analysis
+    from services.discourse_coach import analyze_discourse
+
+    try:
+        loop = asyncio.get_running_loop()
+        result = await asyncio.wait_for(
+            loop.run_in_executor(None, analyze_discourse, full_text),
+            timeout=60.0,
+        )
+    except Exception:
+        # Refund credits on failure
+        if not is_admin:
+            quota.credits_used -= COST_DISCOURSE
+            db.commit()
+        raise HTTPException(status_code=500, detail="Analysis failed")
+
+    # Save result
+    from sqlalchemy.orm.attributes import flag_modified
+    session.discourse = result
+    flag_modified(session, "discourse")
+    db.commit()
+
+    return {"success": True, "discourse": result}
 
 
 # --- Pipeline ---
