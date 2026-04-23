@@ -47,8 +47,8 @@ Output ONLY valid JSON:
   },
   "rewritten": "Full polished version in English — close to original, grammar fixed, core message strengthened.",
   "rewritten_segments": [
-    {"index": 1, "en": "Polished English sentence 1", "zh": "對應的繁體中文翻譯 1"},
-    {"index": 2, "en": "Polished English sentence 2", "zh": "對應的繁體中文翻譯 2"}
+    {"index": 1, "en": "Polished English sentence 1", "zh": "對應的繁體中文翻譯 1", "note": "改動說明（繁體中文）：改了什麼、為什麼改"},
+    {"index": 2, "en": "Polished English sentence 2", "zh": "對應的繁體中文翻譯 2", "note": "改動說明（繁體中文）"}
   ],
   "tips": [
     {
@@ -69,7 +69,7 @@ Rules:
 - topic: 1 sentence in Traditional Chinese
 - structure_analysis: all in Traditional Chinese
 - rewritten: polished English, CLOSE to original, not a rewrite from scratch
-- rewritten_segments: each has "en" (polished English) and "zh" (Traditional Chinese translation)
+- rewritten_segments: each has "en" (polished English), "zh" (Traditional Chinese translation), and "note" (Traditional Chinese explanation of what was changed and why — e.g. grammar fix, word upgrade, reordering for clarity. If unchanged, note = "無修改")
 - tips: 3-5 tips, category: hook/structure/transition/closing/vocabulary/delivery
 - scores: 1-10 each (clarity, organization, persuasiveness, engagement)
 - Output ONLY valid JSON, no markdown fences or extra text"""

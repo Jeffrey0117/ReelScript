@@ -204,6 +204,9 @@
 									{#if seg.zh}
 										<p class="line-zh">{seg.zh}</p>
 									{/if}
+									{#if seg.note}
+										<p class="line-note">{seg.note}</p>
+									{/if}
 								</div>
 							</div>
 						{/each}
@@ -498,6 +501,16 @@
 		font-size: 14px;
 		line-height: 1.5;
 		color: var(--text-dim);
+	}
+
+	.line-note {
+		font-size: 13px;
+		line-height: 1.5;
+		color: var(--accent);
+		margin-top: 4px;
+		padding: 6px 10px;
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
+		border-radius: 6px;
 	}
 
 	.btn-primary {

@@ -530,7 +530,7 @@ export interface DiscourseResult {
 		suggestion: string;
 	};
 	rewritten: string;
-	rewritten_segments: { index: number; en: string; zh: string }[];
+	rewritten_segments: { index: number; en: string; zh: string; note?: string }[];
 	tips: DiscourseTip[];
 	scores: {
 		clarity: number;
