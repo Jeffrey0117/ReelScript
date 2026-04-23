@@ -57,8 +57,11 @@
 	}
 
 	function copyScript() {
-		if (!discourse?.rewritten) return;
-		navigator.clipboard.writeText(discourse.rewritten).then(() => {
+		if (!discourse?.rewritten_segments?.length) return;
+		const text = discourse.rewritten_segments
+			.map((seg) => `${seg.en || seg.text || ''}\n${seg.zh || ''}`)
+			.join('\n\n');
+		navigator.clipboard.writeText(text).then(() => {
 			copied = true;
 			setTimeout(() => (copied = false), 2000);
 		});
@@ -196,7 +199,12 @@
 						{#each discourse.rewritten_segments as seg}
 							<div class="script-line">
 								<span class="line-num">{seg.index}</span>
-								<p>{seg.text}</p>
+								<div class="line-bilingual">
+									<p class="line-en">{seg.en || seg.text || ''}</p>
+									{#if seg.zh}
+										<p class="line-zh">{seg.zh}</p>
+									{/if}
+								</div>
 							</div>
 						{/each}
 					</div>
@@ -473,10 +481,23 @@
 		padding-top: 2px;
 	}
 
-	.script-line p {
+	.line-bilingual {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+	}
+
+	.line-en {
 		font-size: 16px;
 		line-height: 1.7;
 		color: var(--text);
+	}
+
+	.line-zh {
+		font-size: 14px;
+		line-height: 1.5;
+		color: var(--text-dim);
 	}
 
 	.btn-primary {
@@ -498,7 +519,7 @@
 			font-size: 16px;
 		}
 
-		.script-line p {
+		.line-en {
 			font-size: 15px;
 		}
 	}
