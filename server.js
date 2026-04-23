@@ -16,6 +16,7 @@ const BACKEND_HOST = `http://127.0.0.1:${BACKEND_PORT}`;
 const VIDEOS_DIR = join(import.meta.dirname, 'data', 'videos');
 const THUMBS_DIR = join(import.meta.dirname, 'data', 'thumbnails');
 const AUDIO_DIR = join(import.meta.dirname, 'data', 'audio');
+const SPEAKING_DIR = join(import.meta.dirname, 'data', 'speaking');
 
 // Create reverse proxy for API calls
 const proxy = httpProxy.createProxyServer({
@@ -189,6 +190,63 @@ function serveAudio(req, res) {
 	}
 }
 
+// Serve speaking coach uploaded files with Range support
+function serveSpeaking(req, res) {
+	const urlPath = req.url.split('?')[0];
+	const filename = decodeURIComponent(urlPath.replace('/speaking/files/', ''));
+	if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+		res.writeHead(400);
+		res.end('Bad request');
+		return;
+	}
+
+	const filePath = join(SPEAKING_DIR, filename);
+	let stat;
+	try {
+		stat = statSync(filePath);
+	} catch {
+		res.writeHead(404);
+		res.end('Not found');
+		return;
+	}
+
+	const mimeTypes = {
+		'.mp4': 'video/mp4',
+		'.webm': 'video/webm',
+		'.mp3': 'audio/mpeg',
+		'.wav': 'audio/wav',
+		'.m4a': 'audio/mp4',
+	};
+	const contentType = mimeTypes[extname(filename)] || 'application/octet-stream';
+	const range = req.headers.range;
+
+	const etag = `"${stat.mtimeMs.toString(36)}-${stat.size.toString(36)}"`;
+	const headers = {
+		'Content-Type': contentType,
+		'Accept-Ranges': 'bytes',
+		'ETag': etag,
+		'Cache-Control': 'public, max-age=3600',
+	};
+
+	if (range) {
+		const parts = range.replace(/bytes=/, '').split('-');
+		const start = parseInt(parts[0], 10);
+		const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+		res.writeHead(206, {
+			...headers,
+			'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+			'Content-Length': end - start + 1,
+		});
+		createReadStream(filePath, { start, end }).pipe(res);
+	} else {
+		res.writeHead(200, {
+			...headers,
+			'Content-Length': stat.size,
+		});
+		createReadStream(filePath).pipe(res);
+	}
+}
+
 // Track backend readiness — Node starts immediately, Python may still be booting
 let backendReady = false;
 
@@ -201,7 +259,9 @@ const server = createServer((req, res) => {
 		return;
 	}
 
-	if (req.url?.startsWith('/videos/')) {
+	if (req.url?.startsWith('/speaking/files/')) {
+		serveSpeaking(req, res);
+	} else if (req.url?.startsWith('/videos/')) {
 		serveVideo(req, res);
 	} else if (req.url?.startsWith('/audio/')) {
 		serveAudio(req, res);

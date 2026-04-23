@@ -244,6 +244,10 @@ const translations = {
 		dragDropHint: '拖放或點擊選擇音訊/影片檔案',
 		speakingQuotaCost: '每次分析消耗 5 點',
 		statusAnalyzing: '分析中',
+		displayOriginal: '原文',
+		displayCorrected: '改寫',
+		displayBoth: '對照',
+		issueCount: '{n} 個問題',
 	},
 	en: {
 		// Navbar
@@ -488,6 +492,10 @@ const translations = {
 		dragDropHint: 'Drag & drop or click to select audio/video file',
 		speakingQuotaCost: '5 credits per analysis',
 		statusAnalyzing: 'Analyzing',
+		displayOriginal: 'Original',
+		displayCorrected: 'Corrected',
+		displayBoth: 'Both',
+		issueCount: '{n} issues',
 	},
 } as const;
 

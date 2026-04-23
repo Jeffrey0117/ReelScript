@@ -193,7 +193,9 @@ export const thumbnailUrl = (thumb: string) => `${API_BASE}/thumbnails/${thumb}`
 // Audio file URL
 export const audioFileUrl = (path: string) => `${API_BASE}${path}`;
 
-// Speaking Coach
+// Speaking Coach file URL (uploaded recordings)
+export const speakingFileUrl = (filename: string) => `${API_BASE}/speaking/files/${filename}`;
+
 export const uploadSpeaking = async (file: File): Promise<{ success: boolean; session_id: string; status: string }> => {
 	const token = getToken();
 	const formData = new FormData();
