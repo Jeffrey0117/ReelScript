@@ -47,8 +47,8 @@ Output ONLY valid JSON:
   },
   "rewritten": "Full polished version in English — close to original, grammar fixed, core message strengthened.",
   "rewritten_segments": [
-    {"index": 1, "en": "Polished English sentence 1", "zh": "對應的繁體中文翻譯 1", "note": "改動說明（繁體中文）：改了什麼、為什麼改"},
-    {"index": 2, "en": "Polished English sentence 2", "zh": "對應的繁體中文翻譯 2", "note": "改動說明（繁體中文）"}
+    {"index": 1, "en": "Polished English sentence 1", "zh": "繁體中文翻譯 1", "note": "將 XXX 改為 YYY，因為...（具體說明改動）"},
+    {"index": 2, "en": "Polished English sentence 2", "zh": "繁體中文翻譯 2", "note": "調整語序，讓主旨更突出"}
   ],
   "tips": [
     {
@@ -69,7 +69,7 @@ Rules:
 - topic: 1 sentence in Traditional Chinese
 - structure_analysis: all in Traditional Chinese
 - rewritten: polished English, CLOSE to original, not a rewrite from scratch
-- rewritten_segments: each has "en" (polished English), "zh" (Traditional Chinese translation), and "note" (Traditional Chinese explanation of what was changed and why — e.g. grammar fix, word upgrade, reordering for clarity. If unchanged, note = "無修改")
+- rewritten_segments: each has "en" (polished English), "zh" (Traditional Chinese translation), and "note" (Traditional Chinese, MUST describe the specific change: what was changed, what it was changed to, and why. Example: "將 'very important' 改為 'crucial'，語氣更強". NEVER write "無修改" — if the sentence is kept as-is, explain what makes it effective, e.g. "這句開場直接有力，保留原句")
 - tips: 3-5 tips, category: hook/structure/transition/closing/vocabulary/delivery
 - scores: 1-10 each (clarity, organization, persuasiveness, engagement)
 - Output ONLY valid JSON, no markdown fences or extra text"""
