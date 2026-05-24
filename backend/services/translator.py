@@ -13,7 +13,7 @@ from typing import List
 # For standalone runs, set MEEI_PATH=/path/to/meei/python/src manually.
 MEEI_PATH = os.environ.get("MEEI_PATH")
 if not MEEI_PATH:
-    raise RuntimeError("MEEI_PATH environment variable not set")
+    print("WARNING: MEEI_PATH not set, translation features disabled"); MEEI_PATH = None
 if MEEI_PATH not in sys.path:
     sys.path.insert(0, MEEI_PATH)
 
