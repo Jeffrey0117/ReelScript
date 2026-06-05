@@ -36,6 +36,31 @@ if DEV_BYPASS_AUTH:
     logger.warning("⚠ DEV_BYPASS_AUTH is ON — all requests treated as admin. Do NOT use in production!")
 
 
+# 🔑 JWKS client for ES256 verification (LetMeUse Phase 2). Lazy + cached, so the
+# import never blocks on the network and keys are fetched on first use.
+from jwt import PyJWKClient
+
+LMU_JWKS_URL = os.environ.get("LETMEUSE_JWKS_URL", "http://localhost:4006/api/jwks")
+_jwk_client = PyJWKClient(LMU_JWKS_URL, cache_keys=True, lifespan=3600)
+
+
+def _decode_letmeuse(token: str) -> dict:
+    """Verify a LetMeUse JWT, accepting BOTH algorithms during the HS256→ES256
+    migration. Verification is pinned to the header alg so an attacker can't
+    downgrade (e.g. alg=none): HS256 → shared app secret; ES256 → JWKS public key.
+    """
+    alg = jwt.get_unverified_header(token).get("alg")
+    if alg == "ES256":
+        try:
+            signing_key = _jwk_client.get_signing_key_from_jwt(token)
+        except Exception as exc:  # JWKS fetch / unknown kid → treat as invalid
+            raise jwt.InvalidTokenError(f"JWKS lookup failed: {exc}")
+        return jwt.decode(token, signing_key.key, algorithms=["ES256"])
+    if alg == "HS256":
+        return jwt.decode(token, LMU_APP_SECRET, algorithms=["HS256"])
+    raise jwt.InvalidTokenError(f"unsupported alg: {alg}")
+
+
 def _cache_user(payload: dict) -> None:
     """Upsert authenticated user into local cache (fire-and-forget)."""
     user_id = payload.get("sub", "")
@@ -87,7 +112,7 @@ def get_current_user(request: Request) -> dict:
 
     token = auth_header[7:]
     try:
-        payload = jwt.decode(token, LMU_APP_SECRET, algorithms=["HS256"])
+        payload = _decode_letmeuse(token)
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
