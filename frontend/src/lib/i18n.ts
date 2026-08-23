@@ -36,6 +36,9 @@ const translations = {
 		statusTranscribing: '轉錄中',
 		statusFailed: '失敗',
 		statusPending: '等待中',
+		processingQueued: '已收到！轉錄＋翻譯約需 1–3 分鐘，完成後卡片會變成「完成」',
+		alreadyProcessing: '這支影片正在處理中，請稍候',
+		alreadyProcessed: '這支影片已經處理過了，直接點開看吧',
 
 		// Watch page
 		loading: '載入中...',
@@ -299,6 +302,9 @@ const translations = {
 		statusTranscribing: 'Transcribing',
 		statusFailed: 'Failed',
 		statusPending: 'Pending',
+		processingQueued: 'Got it! Transcription + translation takes about 1–3 minutes — the card will switch to "Ready" when done.',
+		alreadyProcessing: 'This video is already being processed, hang on.',
+		alreadyProcessed: 'This video was already processed — tap it to watch.',
 
 		// Watch page
 		loading: 'Loading...',

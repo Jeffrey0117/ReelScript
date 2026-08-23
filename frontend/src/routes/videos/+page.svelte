@@ -49,9 +49,14 @@
 	let newCollectionName = $state('');
 	let creatingCollection = $state(false);
 
+	const PROCESSING_STATUSES = new Set(['pending', 'downloading', 'transcribing']);
+	const PROCESSING_POLL_MS = 15_000;
+	let notice = $state('');
+
 	let readyVideos = $derived(videos.filter((v) => v.status === 'ready'));
 	let failedVideos = $derived(videos.filter((v) => v.status === 'failed'));
 	let activeVideos = $derived(videos.filter((v) => v.status !== 'failed'));
+	let hasProcessing = $derived(videos.some((v) => PROCESSING_STATUSES.has(v.status)));
 	let retryingIds = $state<Set<string>>(new Set());
 	let retryingAll = $state(false);
 	let selectedCount = $derived(selectedIds.size);
@@ -59,11 +64,16 @@
 		readyVideos.length > 0 && readyVideos.every((v) => selectedIds.has(v.id))
 	);
 
-	onMount(async () => {
+	async function loadInitial() {
 		// Load videos immediately (works with DEV_BYPASS_AUTH or logged-in users)
 		videos = await listVideos().catch(() => []);
 		loadingVideos = false;
 		quota = await getQuota().catch(() => null);
+	}
+
+	// Sync callback so the returned cleanup actually runs (async onMount can't return one).
+	onMount(() => {
+		void loadInitial();
 
 		onAuthChange(async (user) => {
 			isLoggedIn = !!user;
@@ -80,9 +90,16 @@
 		connectWS((msg: Record<string, unknown>) => {
 			const data = msg.data as Record<string, unknown>;
 			const type = msg.type as string;
+			const videoId = data?.video_id as string | undefined;
 
-			if (type === 'download_progress' && data?.video_id) {
-				progress = { ...progress, [data.video_id as string]: data.progress as number };
+			if (type === 'download_progress' && videoId) {
+				progress = { ...progress, [videoId]: data.progress as number };
+			}
+
+			// Download done → Whisper is running. Without this the card sat on
+			// "下載中 100%" for the whole transcription and looked frozen.
+			if ((type === 'download_completed' || type === 'transcribe_started') && videoId) {
+				setVideoStatus(videoId, 'transcribing');
 			}
 
 			if (
@@ -90,10 +107,40 @@
 				type === 'download_error' ||
 				type === 'process_error'
 			) {
-				listVideos().then((v) => (videos = v));
+				refreshVideos();
 			}
 		});
+
+		// WS events are lost while the tab is in the background (mobile kills the
+		// socket), so re-sync when the user comes back and poll while anything
+		// is still processing.
+		const onVisible = () => {
+			if (document.visibilityState === 'visible') refreshVideos();
+		};
+		document.addEventListener('visibilitychange', onVisible);
+		const poll = setInterval(() => {
+			if (hasProcessing && document.visibilityState === 'visible') refreshVideos();
+		}, PROCESSING_POLL_MS);
+
+		return () => {
+			document.removeEventListener('visibilitychange', onVisible);
+			clearInterval(poll);
+		};
 	});
+
+	async function refreshVideos() {
+		const fresh = await listVideos().catch(() => null);
+		if (fresh) videos = fresh;
+	}
+
+	function setVideoStatus(videoId: string, status: string) {
+		videos = videos.map((v) => (v.id === videoId ? { ...v, status } : v));
+	}
+
+	function submitNotice(duplicate: boolean | undefined, status: string): string {
+		if (!duplicate) return t('processingQueued');
+		return status === 'ready' ? t('alreadyProcessed') : t('alreadyProcessing');
+	}
 
 	async function handleShareInvite() {
 		if (!inviteCode) return;
@@ -130,16 +177,16 @@
 
 		loading = true;
 		error = '';
+		notice = '';
 
 		try {
 			if (urls.length === 1) {
 				const result = await processVideo(urls[0]);
+				const status = result.status || 'downloading';
 				const existingIdx = videos.findIndex((v) => v.id === result.video_id);
 				if (existingIdx >= 0) {
 					videos = videos.map((v) =>
-						v.id === result.video_id
-							? { ...v, status: result.status || 'downloading', error_message: null }
-							: v
+						v.id === result.video_id ? { ...v, status, error_message: null } : v
 					);
 				} else {
 					videos = [
@@ -151,13 +198,16 @@
 							duration: null,
 							thumbnail: null,
 							channel: null,
-							status: 'downloading',
+							status,
 							error_message: null,
 							created_at: new Date().toISOString(),
 						},
 						...videos,
 					];
 				}
+				notice = submitNotice(result.duplicate, status);
+				// The optimistic card lacks thumbnail/source/title — sync with the server copy.
+				refreshVideos();
 			} else {
 				const result = await batchProcessVideos(urls);
 				const newVideos: Video[] = result.results
@@ -180,7 +230,10 @@
 				const failed = result.results.filter((r) => !r.success);
 				if (failed.length > 0) {
 					error = `${result.started}/${result.total} 開始處理，${failed.length} 個失敗`;
+				} else if (toAdd.length > 0) {
+					notice = t('processingQueued');
 				}
+				refreshVideos();
 			}
 			url = '';
 			quota = await getQuota().catch(() => null);
@@ -448,6 +501,8 @@
 
 	{#if error}
 		<p class="error-msg">{error}</p>
+	{:else if notice}
+		<p class="notice-msg" role="status">{notice}</p>
 	{/if}
 </section>
 
@@ -616,7 +671,11 @@
 							</div>
 						</div>
 
-						{#if progress[video.id] !== undefined && !isReady}
+						{#if video.status === 'transcribing'}
+							<div class="progress-bar progress-indeterminate" style="margin-top: 8px;" aria-label={t('statusTranscribing')}>
+								<div class="progress-bar-fill"></div>
+							</div>
+						{:else if progress[video.id] !== undefined && !isReady}
 							<div class="progress-bar" style="margin-top: 8px;">
 								<div class="progress-bar-fill" style="width: {progress[video.id]}%"></div>
 							</div>
@@ -887,6 +946,32 @@
 		color: var(--danger);
 		font-size: 14px;
 		margin-top: 14px;
+	}
+
+	.notice-msg {
+		color: var(--accent);
+		font-size: 14px;
+		margin-top: 14px;
+	}
+
+	/* Transcription has no measurable progress — sweep instead of a frozen 100% bar. */
+	.progress-indeterminate {
+		position: relative;
+	}
+
+	.progress-indeterminate .progress-bar-fill {
+		position: absolute;
+		width: 35%;
+		animation: progress-sweep 1.4s ease-in-out infinite;
+	}
+
+	@keyframes progress-sweep {
+		0% {
+			left: -35%;
+		}
+		100% {
+			left: 100%;
+		}
 	}
 
 	.video-list {

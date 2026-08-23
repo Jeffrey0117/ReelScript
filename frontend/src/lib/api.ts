@@ -33,7 +33,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 // Videos
 export const processVideo = (url: string) =>
-	request<{ success: boolean; video_id: string; title: string; status?: string }>('/api/videos/process', {
+	request<{ success: boolean; video_id: string; title: string; status?: string; duplicate?: boolean }>('/api/videos/process', {
 		method: 'POST',
 		body: JSON.stringify({ url }),
 	});
