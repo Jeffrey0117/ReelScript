@@ -86,3 +86,11 @@ YouTube, Instagram, Bilibili, TikTok (via yt-dlp)
 - Manifest: `data/manifests/reelscript.json` (15 tools)
 - Auth: bearer (env: REELSCRIPT_TOKEN)
 - Entry: `server.js`
+
+## AutoReel Import Bridge
+
+`POST /api/import/autoreel` (backend/api/import_routes.py) — AutoReel 發完 IG 後把成品
+(標題/IG 文案/雙語字幕/縮圖)推過來,直接落地成 status=ready 的 Video + Transcript,
+跳過整條 download/whisper/translate 管線。IG 文案存在 appreciation.theme/igCaption。
+Auth: Bearer = env `AUTOREEL_IMPORT_TOKEN`(backend/.env;與 AutoReel 端 REELSCRIPT_TOKEN 同值)。
+以 source_url 去重,重送 = 更新(冪等)。進來的內容立即出現在 /blog、article、search。
