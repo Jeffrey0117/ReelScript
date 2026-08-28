@@ -368,6 +368,20 @@
 		.watch-layout {
 			grid-template-columns: 1fr;
 		}
+
+		/* Stacked layout: size the player to the video itself (no letterbox bars),
+		   keep it compact so the transcript stays reachable. */
+		.player-panel {
+			position: static;
+		}
+
+		.video-player,
+		.video-placeholder {
+			display: block;
+			max-height: 60vh;
+			max-width: calc(60vh * 9 / 16);
+			margin: 0 auto;
+		}
 	}
 
 	/* Player Panel */
