@@ -48,6 +48,7 @@ class Transcriber:
     def __init__(self, config_path: str = "config.json"):
         self.config = self._load_config(config_path)
         self._model = None
+        self._detect_model = None
 
     def _load_config(self, config_path: str) -> dict:
         if os.path.exists(config_path):
@@ -123,7 +124,7 @@ class Transcriber:
         # Guard: pinning language=en on non-English audio makes Whisper hallucinate
         # fake English. Detect the real language first and reject confident non-English.
         if lang == "en" and whisper_cfg.get("reject_non_english", True):
-            self._assert_english(model, video_path, whisper_cfg)
+            self._assert_english(video_path, whisper_cfg)
 
         transcribe_opts = {
             "language": lang,
@@ -141,12 +142,24 @@ class Transcriber:
         print(f"[Whisper] Done — {len(segments)} segments")
         return segments
 
-    def _assert_english(self, model, video_path: str, whisper_cfg: dict) -> None:
+    def _load_detect_model(self):
+        """Multilingual 'tiny' model used ONLY for language detection — the main
+        model (distil-large-v3) is an English-only distillation whose detection
+        always reports en, so it can't be trusted for this."""
+        if self._detect_model is None:
+            from faster_whisper import WhisperModel
+            device = self._get_device()
+            print("[Whisper] Loading detection model: tiny")
+            self._detect_model = WhisperModel("tiny", device=device, compute_type="int8")
+        return self._detect_model
+
+    def _assert_english(self, video_path: str, whisper_cfg: dict) -> None:
         """Cheap detection pass (first 30s, no decode) — raises NonEnglishAudioError
         when the audio is confidently not English. Low-confidence detections pass
         through so accented English isn't rejected."""
         threshold = whisper_cfg.get("language_detect_threshold", 0.5)
         try:
+            model = self._load_detect_model()
             gen, info = model.transcribe(
                 video_path,
                 language=None,
