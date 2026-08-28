@@ -9,7 +9,7 @@ const translations = {
 
 		// Landing page
 		heroTagline: '看影片，學英文',
-		heroSubtitle: '把 YouTube 和 Instagram 影片變成你的英文教材——逐字稿、翻譯、單字分析，一鍵完成。',
+		heroSubtitle: '把 YouTube 和 Instagram 影片變成你的英文教材，逐字稿、翻譯、單字分析，一鍵完成。',
 		heroCta: '免費開始',
 		heroCtaLoggedIn: '前往我的影片',
 		featureTranscribeTitle: '自動逐字稿',
@@ -36,7 +36,7 @@ const translations = {
 		statusTranscribing: '轉錄中',
 		statusFailed: '失敗',
 		statusPending: '等待中',
-		processingQueued: '已收到！轉錄＋翻譯約需 1–3 分鐘，完成後卡片會變成「完成」',
+		processingQueued: '已收到！轉錄＋翻譯約需 1 到 3 分鐘，完成後卡片會變成「完成」',
 		alreadyProcessing: '這支影片正在處理中，請稍候',
 		alreadyProcessed: '這支影片已經處理過了，直接點開看吧',
 
@@ -275,7 +275,7 @@ const translations = {
 
 		// Landing page
 		heroTagline: 'Learn English from Real Videos',
-		heroSubtitle: 'Turn YouTube and Instagram videos into your personal English classroom — transcripts, translations, vocabulary analysis, all in one click.',
+		heroSubtitle: 'Turn YouTube and Instagram videos into your personal English classroom: transcripts, translations, vocabulary analysis, all in one click.',
 		heroCta: 'Get Started Free',
 		heroCtaLoggedIn: 'Go to My Videos',
 		featureTranscribeTitle: 'Auto Transcription',
@@ -302,9 +302,9 @@ const translations = {
 		statusTranscribing: 'Transcribing',
 		statusFailed: 'Failed',
 		statusPending: 'Pending',
-		processingQueued: 'Got it! Transcription + translation takes about 1–3 minutes — the card will switch to "Ready" when done.',
+		processingQueued: 'Got it! Transcription + translation takes about 1 to 3 minutes. The card will switch to "Ready" when done.',
 		alreadyProcessing: 'This video is already being processed, hang on.',
-		alreadyProcessed: 'This video was already processed — tap it to watch.',
+		alreadyProcessed: 'This video was already processed. Tap it to watch.',
 
 		// Watch page
 		loading: 'Loading...',

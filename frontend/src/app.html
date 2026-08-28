@@ -3,9 +3,21 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<meta name="theme-color" content="#0f0f14" />
+		<meta name="theme-color" content="#faf7f1" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+		<script>
+			// Apply saved theme before first paint (default: light)
+			try {
+				var t = localStorage.getItem('reelscript-theme');
+				document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+			} catch (e) {
+				document.documentElement.setAttribute('data-theme', 'light');
+			}
+		</script>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" />
 		<link rel="manifest" href="/manifest.json" />
 		<link rel="icon" href="/favicon.ico" sizes="any" />
 		<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />

@@ -55,7 +55,7 @@
 </script>
 
 <svelte:head>
-	<title>{article?.title || t('loading')} — {t('blog')}</title>
+	<title>{article?.title || t('loading')} · {t('blog')}</title>
 </svelte:head>
 
 <article class="post">

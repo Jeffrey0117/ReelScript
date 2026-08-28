@@ -314,7 +314,7 @@
 			<img src="/logo.png" alt="ReelScript" class="title-logo" />
 			English Icebreaker Cards
 		</h1>
-		<p class="hero-sub">52 張英文破冰話題卡——隨機抽一張，開口說英文！</p>
+		<p class="hero-sub">52 張英文破冰話題卡，隨機抽一張，開口說英文！</p>
 		<p class="hero-sub-en">Draw a card, start a conversation. Perfect for English speaking practice.</p>
 	</section>
 
@@ -385,7 +385,7 @@
 							<p class="quote-en">"{currentQuote.en}"</p>
 							<p class="quote-zh">{currentQuote.zh}</p>
 							{#if currentQuote.channel}
-								<p class="quote-source">— {currentQuote.channel}</p>
+								<p class="quote-source">@{currentQuote.channel}</p>
 							{/if}
 						</div>
 						<a href="/watch/{currentQuote.videoId}" class="example-cta" target="_blank" rel="noopener">
@@ -518,8 +518,8 @@
 				</h2>
 				<p class="banner-desc">
 					{locale === 'zh'
-						? 'AI 自動產生逐字稿、中英對照翻譯、單字分析、金句提取——一鍵完成，用你喜歡的影片學英文。'
-						: 'AI-powered transcripts, bilingual translations, vocabulary analysis, and golden quotes — learn English from videos you actually enjoy.'
+						? 'AI 自動產生逐字稿、中英對照翻譯、單字分析、金句提取，一鍵完成，用你喜歡的影片學英文。'
+						: 'AI-powered transcripts, bilingual translations, vocabulary analysis, and golden quotes. Learn English from videos you actually enjoy.'
 					}
 				</p>
 				<div class="banner-stats">

@@ -43,6 +43,7 @@ Rules:
   好標題範例: "馬斯克談為什麼要移民火星", "如何用三個月學好英文", "為什麼你總是拖延"
   壞標題範例: "成功的秘訣", "學習方法論", "生活的真諦" (太籠統、沒記憶點)
   原則: 具體 > 抽象, 口語 > 書面, 有主角/動作 > 純概念
+- 所有中文輸出禁止使用破折號（— 或 ——），改用逗號、頓號或冒號
 - theme: 1 sentence in 繁體中文（台灣用語）, summarizing the core message
 - keyPoints: exactly 3 bullet points in 繁體中文（台灣用語）
 - goldenQuotes: exactly 3 memorable sentences from the original English, with 繁體中文翻譯
@@ -54,7 +55,7 @@ produce a JSON object with a title AND lyrics analysis.
 CRITICAL: All Chinese output MUST be 繁體中文（台灣用語）. 絕對不可以用簡體中文。
 
 {
-  "title": "歌名 — 歌手 (max 25 chars)",
+  "title": "歌名（歌手） (max 25 chars)",
   "theme": "一句話描述歌曲核心意境（繁體中文，台灣用語）",
   "keyPoints": ["主題意境1", "修辭手法/情感表達2", "歌曲結構或風格特色3"],
   "goldenQuotes": [
@@ -65,7 +66,7 @@ CRITICAL: All Chinese output MUST be 繁體中文（台灣用語）. 絕對不�
 }
 
 Rules:
-- title: Try to identify song name and artist from lyrics/context. Format: "歌名 — 歌手"
+- title: Try to identify song name and artist from lyrics/context. Format: "歌名（歌手）", 禁止使用破折號
 - theme: Describe the emotional core and imagery of the song in 繁體中文（台灣用語）
 - keyPoints: 3 points covering: (1) core theme/emotion, (2) notable lyrical techniques (metaphor, repetition, imagery), (3) song mood/style
 - goldenQuotes: 3 most memorable/beautiful lyric lines with 繁體中文翻譯
@@ -93,6 +94,7 @@ CHINESE_SYSTEM_PROMPT = """你是一位內容分析專家。根據以下的繁�
 - 好標題：「馬斯克談為什麼要移民火星」、「如何用三個月學好英文」、「為什麼你總是拖延」
 - 壞標題：「成功的秘訣」、「學習方法論」（太籠統、沒記憶點）
 - 原則：具體 > 抽象，口語 > 書面，有主角/動作 > 純概念
+- 所有輸出禁止使用破折號（— 或 ——），改用逗號、頓號或冒號
 - goldenQuotes: 從字幕中挑 3 句最有記憶點的話
 - Output ONLY valid JSON, no markdown fences or extra text"""
 

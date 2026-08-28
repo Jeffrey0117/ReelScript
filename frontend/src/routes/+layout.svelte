@@ -7,7 +7,7 @@
 
 	let { children } = $props();
 
-	let theme = $state<'dark' | 'light'>('dark');
+	let theme = $state<'dark' | 'light'>('light');
 	let locale = $state<'zh' | 'en'>('zh');
 	let tick = $state(0);
 	let user = $state<AuthUser | null>(null);

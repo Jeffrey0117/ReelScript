@@ -57,7 +57,7 @@
 </script>
 
 <svelte:head>
-	<title>ReelScript — {t('heroTagline')}</title>
+	<title>ReelScript · {t('heroTagline')}</title>
 </svelte:head>
 
 <div class="landing" class:visible>
