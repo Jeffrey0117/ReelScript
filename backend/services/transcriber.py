@@ -10,6 +10,15 @@ from dataclasses import dataclass, asdict
 from typing import List, Optional
 
 
+class NonEnglishAudioError(Exception):
+    """Raised when the audio track is confidently detected as a non-English language."""
+
+    def __init__(self, language: str, probability: float):
+        self.language = language
+        self.probability = probability
+        super().__init__(f"Non-English audio detected: {language} ({probability:.0%})")
+
+
 @dataclass
 class Segment:
     """A single transcript segment with timestamps."""
@@ -111,6 +120,11 @@ class Transcriber:
 
         print(f"[Whisper] Transcribing: {os.path.basename(video_path)} (lang={lang})")
 
+        # Guard: pinning language=en on non-English audio makes Whisper hallucinate
+        # fake English. Detect the real language first and reject confident non-English.
+        if lang == "en" and whisper_cfg.get("reject_non_english", True):
+            self._assert_english(model, video_path, whisper_cfg)
+
         transcribe_opts = {
             "language": lang,
             "task": "transcribe",
@@ -126,6 +140,27 @@ class Transcriber:
         segments = self._process_segments(segments_gen, max_words)
         print(f"[Whisper] Done — {len(segments)} segments")
         return segments
+
+    def _assert_english(self, model, video_path: str, whisper_cfg: dict) -> None:
+        """Cheap detection pass (first 30s, no decode) — raises NonEnglishAudioError
+        when the audio is confidently not English. Low-confidence detections pass
+        through so accented English isn't rejected."""
+        threshold = whisper_cfg.get("language_detect_threshold", 0.5)
+        try:
+            gen, info = model.transcribe(
+                video_path,
+                language=None,
+                task="transcribe",
+                vad_filter=False,
+                condition_on_previous_text=False,
+            )
+            del gen  # detection only — never consume the generator
+        except Exception as e:
+            print(f"[Whisper] Language detection failed (non-fatal, continuing): {e}")
+            return
+        print(f"[Whisper] Language detected: {info.language} ({info.language_probability:.0%})")
+        if info.language != "en" and info.language_probability >= threshold:
+            raise NonEnglishAudioError(info.language, info.language_probability)
 
     def _process_segments(self, segments_gen, max_words: int) -> List[Segment]:
         entries = []

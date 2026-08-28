@@ -134,6 +134,7 @@ class BatchDeleteRequest(BaseModel):
 
 
 _ERROR_ZH = [
+    ("Non-English audio", "偵測到非英文影片，ReelScript 僅支援英文內容"),
     ("Sign in to confirm", "需要登入驗證，無法下載"),
     ("Private video", "私人影片，無法存取"),
     ("Video unavailable", "影片不存在或已被刪除"),
