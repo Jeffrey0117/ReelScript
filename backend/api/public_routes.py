@@ -230,6 +230,8 @@ async def video_audio(video_id: str, db: Session = Depends(get_db)):
         "channel": video.channel,
         "duration": video.duration,
         "audioUrl": f"/audio/{audio_filename}",
+        "videoUrl": f"/videos/{video.filename}",
+        "thumbnail": f"/thumbnails/{video.thumbnail}" if video.thumbnail else None,
         "segments": segments,
     }
 
