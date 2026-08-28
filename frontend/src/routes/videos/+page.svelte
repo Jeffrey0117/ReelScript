@@ -144,7 +144,7 @@
 
 	async function handleShareInvite() {
 		if (!inviteCode) return;
-		const link = `https://reelscript.isnowfriend.com?invite=${inviteCode}`;
+		const link = `${location.origin}?invite=${inviteCode}`;
 		try {
 			await navigator.clipboard.writeText(link);
 			inviteCopied = true;
