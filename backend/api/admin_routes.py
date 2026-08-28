@@ -21,6 +21,7 @@ PRO_MONTHLY_LIMIT = 200
 class UpdateVideoAdmin(BaseModel):
     category: str | None = None
     is_featured: bool | None = None
+    is_public: bool | None = None
     title: str | None = None
 
 
@@ -138,6 +139,7 @@ async def admin_list_videos(
             "status": v.status,
             "category": v.category,
             "is_featured": v.is_featured or False,
+            "is_public": v.is_public or False,
             "created_at": v.created_at.isoformat() if v.created_at else None,
             "uploader": uploader_map.get(v.id),
         }
@@ -160,6 +162,8 @@ async def admin_update_video(
         video.category = req.category
     if req.is_featured is not None:
         video.is_featured = req.is_featured
+    if req.is_public is not None:
+        video.is_public = req.is_public
     if req.title is not None:
         video.title = req.title
 
@@ -169,6 +173,7 @@ async def admin_update_video(
         "id": video.id,
         "category": video.category,
         "is_featured": video.is_featured,
+        "is_public": video.is_public,
         "title": video.title,
     }
 

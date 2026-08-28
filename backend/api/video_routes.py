@@ -220,6 +220,19 @@ def _check_quota(quota: UserQuota, limit: int, cost: int = COST_PROCESS) -> bool
     return quota.credits_used + cost <= limit + quota.bonus_credits
 
 
+def _can_view(db: Session, user: dict | None, video: Video) -> bool:
+    """Public videos are visible to everyone; private ones only to owners/admin."""
+    if video.is_public:
+        return True
+    if not user:
+        return False
+    if _is_admin(user):
+        return True
+    return db.query(UserVideo).filter(
+        UserVideo.user_id == _get_user_id(user), UserVideo.video_id == video.id
+    ).first() is not None
+
+
 def _ensure_user_video(db: Session, user_id: str, video_id: str):
     existing = db.query(UserVideo).filter(
         UserVideo.user_id == user_id, UserVideo.video_id == video_id
@@ -278,6 +291,7 @@ async def process_video(req: ProcessRequest, db: Session = Depends(get_db), user
         thumbnail=info.get("thumbnail"),
         channel=info.get("channel"),
         status="downloading",
+        is_public=is_admin,  # admin content feeds the public catalog; member uploads stay private
     )
     db.add(video)
     db.commit()
@@ -355,6 +369,7 @@ async def batch_process_videos(req: BatchProcessRequest, db: Session = Depends(g
             thumbnail=info.get("thumbnail"),
             channel=info.get("channel"),
             status="downloading",
+            is_public=is_admin,
         )
         db.add(video)
         db.commit()
@@ -515,20 +530,6 @@ async def list_videos(db: Session = Depends(get_db), user: dict | None = Depends
         return []
     user_id = _get_user_id(user)
 
-    # Migration: if user has no videos yet, adopt all orphan videos (no UserVideo link)
-    user_count = db.query(UserVideo).filter(UserVideo.user_id == user_id).count()
-    if user_count == 0:
-        from sqlalchemy import exists
-        orphan_videos = (
-            db.query(Video)
-            .filter(~exists().where(UserVideo.video_id == Video.id))
-            .all()
-        )
-        if orphan_videos:
-            for v in orphan_videos:
-                db.add(UserVideo(user_id=user_id, video_id=v.id))
-            db.commit()
-
     user_vids = (
         db.query(Video)
         .join(UserVideo, UserVideo.video_id == Video.id)
@@ -613,10 +614,10 @@ async def rename_video(video_id: str, req: RenameRequest, db: Session = Depends(
 
 
 @router.get("/{video_id}")
-async def get_video(video_id: str, db: Session = Depends(get_db)):
-    """Get a single video with transcript (public — content is shared)."""
+async def get_video(video_id: str, db: Session = Depends(get_db), user: dict | None = Depends(optional_auth)):
+    """Get a single video with transcript. Public videos are open; private ones owner-only."""
     video = db.query(Video).filter(Video.id == video_id).first()
-    if not video:
+    if not video or not _can_view(db, user, video):
         raise HTTPException(status_code=404, detail="Video not found")
 
     transcript_data = None
@@ -686,7 +687,7 @@ async def retry_video(video_id: str, db: Session = Depends(get_db), user: dict =
 @router.post("/{video_id}/translate")
 async def translate_video(video_id: str, db: Session = Depends(get_db), user: dict | None = Depends(optional_auth)):
     video = db.query(Video).filter(Video.id == video_id).first()
-    if not video:
+    if not video or not _can_view(db, user, video):
         raise HTTPException(status_code=404, detail="Video not found")
     transcript = video.transcript
     if not transcript or not transcript.segments:
@@ -718,7 +719,7 @@ async def translate_video(video_id: str, db: Session = Depends(get_db), user: di
 @router.post("/{video_id}/analyze-vocabulary")
 async def analyze_video_vocabulary(video_id: str, db: Session = Depends(get_db), user: dict | None = Depends(optional_auth)):
     video = db.query(Video).filter(Video.id == video_id).first()
-    if not video:
+    if not video or not _can_view(db, user, video):
         raise HTTPException(status_code=404, detail="Video not found")
     transcript = video.transcript
     if not transcript or not transcript.segments:
@@ -747,7 +748,7 @@ async def analyze_video_vocabulary(video_id: str, db: Session = Depends(get_db),
 @router.post("/{video_id}/appreciate")
 async def appreciate_video(video_id: str, db: Session = Depends(get_db), user: dict | None = Depends(optional_auth)):
     video = db.query(Video).filter(Video.id == video_id).first()
-    if not video:
+    if not video or not _can_view(db, user, video):
         raise HTTPException(status_code=404, detail="Video not found")
     transcript = video.transcript
     if not transcript or not transcript.full_text:

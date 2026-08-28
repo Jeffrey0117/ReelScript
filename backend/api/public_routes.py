@@ -37,13 +37,13 @@ def _format_timestamp(seconds: float) -> str:
 def _get_ready_videos(db: Session):
     return (
         db.query(Video)
-        .filter(Video.status == "ready", Video.is_featured == True)
+        .filter(Video.status == "ready", Video.is_public == True, Video.is_featured == True)
         .all()
     )
 
 
 def _get_all_ready_videos(db: Session):
-    return db.query(Video).filter(Video.status == "ready").all()
+    return db.query(Video).filter(Video.status == "ready", Video.is_public == True).all()
 
 
 def _video_has_segments(video: Video) -> bool:
@@ -177,7 +177,7 @@ async def daily_snippet(db: Session = Depends(get_db)):
 @router.get("/videos/{video_id}/cards")
 async def video_cards(video_id: str, db: Session = Depends(get_db)):
     """Get all segments of a video as ordered cards."""
-    video = db.query(Video).filter(Video.id == video_id, Video.status == "ready").first()
+    video = db.query(Video).filter(Video.id == video_id, Video.status == "ready", Video.is_public == True).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     if not _video_has_segments(video):
@@ -200,7 +200,7 @@ async def video_cards(video_id: str, db: Session = Depends(get_db)):
 @router.get("/videos/{video_id}/audio")
 async def video_audio(video_id: str, db: Session = Depends(get_db)):
     """Get audio URL + timeline for a video (extracts MP3 on first request)."""
-    video = db.query(Video).filter(Video.id == video_id, Video.status == "ready").first()
+    video = db.query(Video).filter(Video.id == video_id, Video.status == "ready", Video.is_public == True).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     if not video.filename:
@@ -239,7 +239,7 @@ async def video_audio(video_id: str, db: Session = Depends(get_db)):
 @router.get("/videos/{video_id}/article")
 async def video_article(video_id: str, db: Session = Depends(get_db)):
     """Get blog-ready article data for a video."""
-    video = db.query(Video).filter(Video.id == video_id, Video.status == "ready").first()
+    video = db.query(Video).filter(Video.id == video_id, Video.status == "ready", Video.is_public == True).first()
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     if not video.transcript:
@@ -361,7 +361,7 @@ async def public_videos(
     featured: bool = Query(False),
 ):
     """List publicly available videos."""
-    q = db.query(Video).filter(Video.status == "ready")
+    q = db.query(Video).filter(Video.status == "ready", Video.is_public == True)
     if featured:
         q = q.filter(Video.is_featured == True)
     q = q.order_by(Video.created_at.desc())

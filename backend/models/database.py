@@ -48,6 +48,7 @@ class Video(Base):
     error_message = Column(Text, nullable=True)
     category = Column(String, nullable=True)  # e.g. business, daily, tech, entertainment
     is_featured = Column(Boolean, default=False)
+    is_public = Column(Boolean, default=False)  # visible on public surfaces (blog, search, snippets)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 
@@ -193,6 +194,20 @@ def init_db():
             conn.commit()
         if "content_type" not in video_cols:
             conn.execute(text("ALTER TABLE videos ADD COLUMN content_type VARCHAR DEFAULT 'video'"))
+            conn.commit()
+        if "is_public" not in video_cols:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN is_public BOOLEAN DEFAULT 0"))
+            # Backfill: admin-owned videos (incl. legacy dev_admin) and ownerless
+            # imports (AutoReel) were the public catalog before per-member isolation.
+            conn.execute(text("""
+                UPDATE videos SET is_public = 1 WHERE
+                    id IN (
+                        SELECT video_id FROM user_videos
+                        WHERE user_id = 'dev_admin'
+                           OR user_id IN (SELECT id FROM users WHERE role = 'admin')
+                    )
+                    OR id NOT IN (SELECT video_id FROM user_videos)
+            """))
             conn.commit()
 
         # Add user_id to collections if missing

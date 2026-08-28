@@ -99,6 +99,7 @@ async def import_autoreel(
     video.channel = payload.channel or video.channel
     video.category = payload.category or video.category
     video.status = "ready"
+    video.is_public = True  # AutoReel content is the public blog/marketing feed
     video.error_message = None
     if video.completed_at is None:
         video.completed_at = datetime.utcnow()

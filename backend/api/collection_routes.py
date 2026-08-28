@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from models import get_db, Collection, CollectionItem, Video
 from middleware.auth import require_auth
+from api.video_routes import _can_view
 
 router = APIRouter(prefix="/api/collections", tags=["collections"])
 
@@ -86,7 +87,7 @@ async def add_video_to_collection(collection_id: str, req: AddVideoRequest, db: 
         raise HTTPException(status_code=404, detail="Collection not found")
 
     video = db.query(Video).filter(Video.id == req.video_id).first()
-    if not video:
+    if not video or not _can_view(db, user, video):
         raise HTTPException(status_code=404, detail="Video not found")
 
     existing = db.query(CollectionItem).filter(
