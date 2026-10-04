@@ -98,6 +98,35 @@ export function getToken(): string | null {
 	return window.letmeuse?.getToken() ?? null;
 }
 
+/**
+ * Resolve once the SDK has finished init — including the silent refresh that
+ * swaps the (4h) access token for a fresh one via the (30d) refresh token.
+ * Falls through after a timeout so the app still works if the SDK never loads.
+ */
+export function whenAuthReady(timeoutMs = 8000): Promise<void> {
+	if (typeof window === 'undefined') return Promise.resolve();
+	if (window.letmeuse?.ready) return Promise.resolve();
+	return new Promise((resolve) => {
+		const started = Date.now();
+		const check = setInterval(() => {
+			if (window.letmeuse?.ready || Date.now() - started > timeoutMs) {
+				clearInterval(check);
+				resolve();
+			}
+		}, 50);
+	});
+}
+
+/**
+ * Token that's safe to put on the wire: waits out the SDK's silent refresh so
+ * we never send yesterday's expired JWT. Sending the stale one is what made
+ * every return visit 401 and flash「請先登入」at people who WERE logged in.
+ */
+export async function getFreshToken(): Promise<string | null> {
+	await whenAuthReady();
+	return getToken();
+}
+
 /** Check if user is admin. */
 export function isAdmin(): boolean {
 	const user = getUser();

@@ -1,10 +1,12 @@
-import { getToken } from '$lib/auth';
+import { getToken, getFreshToken } from '$lib/auth';
 
 const DEV = import.meta.env.DEV;
 const API_BASE = DEV ? 'http://localhost:4005' : '';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-	const token = getToken();
+	// Waits for the SDK's init refresh on the first calls after page load —
+	// afterwards it resolves instantly. One gate here covers every page.
+	const token = await getFreshToken();
 	const headers: Record<string, string> = {
 		'Content-Type': 'application/json',
 	};
@@ -197,7 +199,7 @@ export const audioFileUrl = (path: string) => `${API_BASE}${path}`;
 export const speakingFileUrl = (filename: string) => `${API_BASE}/speaking/files/${filename}`;
 
 export const uploadSpeaking = async (file: File): Promise<{ success: boolean; session_id: string; status: string }> => {
-	const token = getToken();
+	const token = await getFreshToken();
 	const formData = new FormData();
 	formData.append('file', file);
 	const headers: Record<string, string> = {};
