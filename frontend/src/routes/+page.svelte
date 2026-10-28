@@ -21,7 +21,21 @@
 			}
 		});
 
+		// 示範影片只在捲到該區塊時自動播放,離開就暫停
+		let observer: IntersectionObserver | undefined;
+		if (demoSection) {
+			observer = new IntersectionObserver(
+				(entries) => {
+					for (const entry of entries) demoVisible = entry.isIntersecting;
+				},
+				{ threshold: 0.25 }
+			);
+			observer.observe(demoSection);
+		}
+
 		requestAnimationFrame(() => { visible = true; });
+
+		return () => observer?.disconnect();
 	});
 
 	function handleCta() {
@@ -37,12 +51,27 @@
 		poster: `/thumbnails/demo-${n}.jpg`,
 	}));
 
-	function pauseOthers(e: Event) {
-		const current = e.currentTarget as HTMLVideoElement;
-		for (const v of document.querySelectorAll<HTMLVideoElement>('.demo-card video')) {
-			if (v !== current) v.pause();
-		}
+	let demoIdx = $state(0);
+	let demoVisible = $state(false);
+	let demoSection: HTMLElement | undefined = $state();
+	let demoVideos: HTMLVideoElement[] = $state([]);
+
+	const mod = (n: number, m: number) => ((n % m) + m) % m;
+
+	function demoPos(i: number, idx: number): 'center' | 'left' | 'right' | 'hidden' {
+		if (i === idx) return 'center';
+		if (i === mod(idx - 1, demos.length)) return 'left';
+		if (i === mod(idx + 1, demos.length)) return 'right';
+		return 'hidden';
 	}
+
+	$effect(() => {
+		demoVideos.forEach((video, i) => {
+			if (!video) return;
+			if (i === demoIdx && demoVisible) video.play().catch(() => {});
+			else video.pause();
+		});
+	});
 
 	const features = $derived([
 		{
@@ -162,24 +191,61 @@
 		</div>
 	</section>
 
-	<!-- Demo videos -->
-	<section class="demos">
+	<!-- Demo videos: 暗幕劇院輪播 -->
+	<section class="demos" bind:this={demoSection}>
+		<div class="demos-glow"></div>
 		<h2 class="demos-title">{t('demoTitle')}</h2>
 		<p class="demos-sub">{t('demoSubtitle')}</p>
-		<div class="demos-grid">
-			{#each demos as demo (demo.src)}
-				<div class="demo-card">
-					<!-- svelte-ignore a11y_media_has_caption -->
-					<video
-						src={demo.src}
-						poster={demo.poster}
-						controls
-						preload="none"
-						playsinline
-						onplay={pauseOthers}
-					></video>
+		<div class="demo-stage">
+			{#key demoIdx}
+				<div class="lcard lc-transcript" style="--lc-delay: 0.5s">
+					<div class="lcard-cap"><span class="lcard-dot"></span>{t('demoCapTranscript')}</div>
+					<div class="lcard-en">How do you define success?</div>
+					<div class="lcard-zh">你如何定義成功？</div>
+				</div>
+				<div class="lcard lc-vocab" style="--lc-delay: 0.95s">
+					<div class="lcard-cap"><span class="lcard-dot"></span>{t('demoCapVocab')}</div>
+					<span class="lcard-word">resilience</span><span class="lcard-pos">n.</span><span class="lcard-zh">韌性、復原力</span>
+				</div>
+				<div class="lcard lc-quote" style="--lc-delay: 1.4s">
+					<div class="lcard-cap"><span class="lcard-dot"></span>{t('demoCapQuote')}</div>
+					<div class="lcard-quote">"The best way to predict the future is to create it."</div>
+				</div>
+			{/key}
+			{#each demos as demo, i (demo.src)}
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="demo-slot {demoPos(i, demoIdx)}"
+					onclick={() => { if (i !== demoIdx) demoIdx = i; }}
+				>
+					<div class="demo-phone">
+						<!-- svelte-ignore a11y_media_has_caption -->
+						<video
+							src={demo.src}
+							poster={demo.poster}
+							muted
+							loop
+							playsinline
+							preload="metadata"
+							bind:this={demoVideos[i]}
+						></video>
+					</div>
 				</div>
 			{/each}
+		</div>
+		<div class="demo-controls">
+			<button class="demo-arrow" aria-label={t('demoPrev')} onclick={() => (demoIdx = mod(demoIdx - 1, demos.length))}>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+			</button>
+			<div class="demo-dots">
+				{#each demos as demo, i (demo.src)}
+					<button class:on={i === demoIdx} aria-label="demo {i + 1}" onclick={() => (demoIdx = i)}></button>
+				{/each}
+			</div>
+			<button class="demo-arrow" aria-label={t('demoNext')} onclick={() => (demoIdx = mod(demoIdx + 1, demos.length))}>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+			</button>
 		</div>
 	</section>
 
@@ -491,10 +557,28 @@
 		color: var(--text-dim);
 	}
 
-	/* ── Demo videos ── */
+	/* ── Demo videos: 暗幕劇院 ──
+	   固定純黑配色,亮暗主題都走同一個「劇院」視覺 */
 	.demos {
-		padding: 0 0 80px;
+		position: relative;
+		width: 100vw;
+		margin-left: calc(50% - 50vw);
+		background: #050505;
+		color: #ececec;
+		padding: 64px 24px 56px;
+		overflow: hidden;
 		text-align: center;
+	}
+
+	.demos-glow {
+		position: absolute;
+		top: -140px;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 700px;
+		height: 420px;
+		background: radial-gradient(ellipse, rgba(255, 255, 255, 0.07) 0%, transparent 70%);
+		pointer-events: none;
 	}
 
 	.demos-title {
@@ -502,40 +586,232 @@
 		font-weight: 700;
 		letter-spacing: -0.5px;
 		margin-bottom: 8px;
+		color: #fff;
 	}
 
 	.demos-sub {
 		font-size: 15px;
-		color: var(--text-dim);
-		margin-bottom: 32px;
+		color: #9a9a9a;
 	}
 
-	.demos-grid {
-		display: grid;
-		grid-template-columns: repeat(4, 1fr);
-		gap: 16px;
+	.demo-stage {
+		position: relative;
+		max-width: 1100px;
+		margin: 44px auto 0;
+		height: 560px;
+		perspective: 1200px;
 	}
 
-	.demo-card {
-		background: var(--bg-card);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		overflow: hidden;
-		transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+	.demo-slot {
+		position: absolute;
+		top: 0;
+		left: 50%;
+		width: 280px;
+		transition: transform 0.55s cubic-bezier(0.3, 0.8, 0.3, 1), opacity 0.55s, filter 0.55s;
+		cursor: pointer;
 	}
 
-	.demo-card:hover {
-		border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-		transform: translateY(-2px);
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+	.demo-slot.center {
+		transform: translateX(-50%);
+		z-index: 3;
+		cursor: default;
 	}
 
-	.demo-card video {
+	.demo-slot.left {
+		transform: translateX(calc(-50% - 300px)) scale(0.76) rotateY(14deg);
+		opacity: 0.32;
+		filter: saturate(0.55) brightness(0.6);
+		z-index: 2;
+	}
+
+	.demo-slot.right {
+		transform: translateX(calc(-50% + 300px)) scale(0.76) rotateY(-14deg);
+		opacity: 0.32;
+		filter: saturate(0.55) brightness(0.6);
+		z-index: 2;
+	}
+
+	.demo-slot.hidden {
+		transform: translateX(-50%) scale(0.5);
+		opacity: 0;
+		pointer-events: none;
+		z-index: 1;
+	}
+
+	.demo-phone {
+		position: relative;
+		border-radius: 28px;
+		background: #000;
+		padding: 10px;
+		box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), inset 0 0 0 1.5px rgba(255, 255, 255, 0.12);
+	}
+
+	.demo-phone::after {
+		content: '';
+		position: absolute;
+		top: 16px;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 72px;
+		height: 16px;
+		background: #000;
+		border-radius: 999px;
+		z-index: 3;
+	}
+
+	.demo-phone video {
 		display: block;
 		width: 100%;
 		aspect-ratio: 9 / 16;
 		object-fit: cover;
-		background: #000;
+		border-radius: 20px;
+		background: #111;
+	}
+
+	/* 學習浮卡 */
+	.lcard {
+		position: absolute;
+		background: #141414;
+		border: 1px solid #2c2c2c;
+		border-radius: var(--radius-sm);
+		padding: 10px 14px;
+		box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+		opacity: 0;
+		z-index: 5;
+		text-align: left;
+		animation: lcard-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+		animation-delay: var(--lc-delay);
+	}
+
+	@keyframes lcard-in {
+		from {
+			opacity: 0;
+			transform: translateY(14px) scale(0.92);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+		}
+	}
+
+	.lc-transcript {
+		top: 60px;
+		right: calc(50% + 170px);
+		max-width: 230px;
+	}
+
+	.lc-vocab {
+		top: 250px;
+		left: calc(50% + 170px);
+	}
+
+	.lc-quote {
+		top: 380px;
+		right: calc(50% + 180px);
+		max-width: 220px;
+	}
+
+	.lcard-cap {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-size: 10.5px;
+		font-weight: 700;
+		letter-spacing: 0.4px;
+		color: var(--accent-hover);
+		text-transform: uppercase;
+		margin-bottom: 5px;
+	}
+
+	.lcard-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: var(--accent-hover);
+	}
+
+	.lcard-en {
+		font-size: 13.5px;
+		font-weight: 600;
+		color: #ececec;
+	}
+
+	.lcard-zh {
+		font-size: 12.5px;
+		color: #9a9a9a;
+		margin-top: 3px;
+	}
+
+	.lcard-word {
+		font-size: 14px;
+		font-weight: 700;
+		color: var(--accent-hover);
+	}
+
+	.lcard-pos {
+		font-size: 11px;
+		font-style: italic;
+		color: #9a9a9a;
+		margin: 0 5px;
+	}
+
+	.lcard-quote {
+		font-size: 12.5px;
+		font-style: italic;
+		line-height: 1.5;
+		color: #d6d6d6;
+	}
+
+	/* 輪播控制 */
+	.demo-controls {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 28px;
+		margin-top: 36px;
+		position: relative;
+		z-index: 4;
+	}
+
+	.demo-arrow {
+		width: 42px;
+		height: 42px;
+		border-radius: 50%;
+		border: 1px solid #2c2c2c;
+		background: #141414;
+		color: #ececec;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: border-color 0.2s, transform 0.15s;
+		flex-shrink: 0;
+	}
+
+	.demo-arrow:hover {
+		border-color: var(--accent);
+		transform: scale(1.06);
+	}
+
+	.demo-dots {
+		display: flex;
+		gap: 8px;
+	}
+
+	.demo-dots button {
+		width: 8px;
+		height: 8px;
+		border-radius: 999px;
+		border: none;
+		background: rgba(255, 255, 255, 0.25);
+		cursor: pointer;
+		padding: 0;
+		transition: width 0.25s, background 0.25s;
+	}
+
+	.demo-dots button.on {
+		width: 24px;
+		background: #fff;
 	}
 
 	/* ── Bottom CTA ── */
@@ -609,8 +885,24 @@
 			grid-template-columns: repeat(2, 1fr);
 		}
 
-		.demos-grid {
-			grid-template-columns: repeat(2, 1fr);
+		.demo-stage {
+			height: 500px;
+		}
+
+		.demo-slot {
+			width: 240px;
+		}
+
+		.demo-slot.left {
+			transform: translateX(calc(-50% - 210px)) scale(0.7) rotateY(14deg);
+		}
+
+		.demo-slot.right {
+			transform: translateX(calc(-50% + 210px)) scale(0.7) rotateY(-14deg);
+		}
+
+		.lcard {
+			display: none;
 		}
 	}
 
@@ -659,15 +951,32 @@
 		}
 
 		.demos {
-			padding-bottom: 56px;
+			padding: 48px 16px 44px;
 		}
 
 		.demos-title {
 			font-size: 22px;
 		}
 
-		.demos-grid {
-			gap: 12px;
+		.demo-stage {
+			height: 440px;
+			margin-top: 32px;
+		}
+
+		.demo-slot {
+			width: 210px;
+		}
+
+		.demo-slot.left {
+			transform: translateX(calc(-50% - 150px)) scale(0.66) rotateY(14deg);
+		}
+
+		.demo-slot.right {
+			transform: translateX(calc(-50% + 150px)) scale(0.66) rotateY(-14deg);
+		}
+
+		.demo-controls {
+			margin-top: 24px;
 		}
 
 		.bottom-cta {

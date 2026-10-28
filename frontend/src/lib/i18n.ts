@@ -23,7 +23,12 @@ const translations = {
 		bottomCtaTitle: '開始你的英文學習之旅',
 		bottomCtaSubtitle: '每月 30 點免費額度，不需信用卡。',
 		demoTitle: '看影片學英文，長這樣',
-		demoSubtitle: '雙語字幕範例影片，點開直接看。',
+		demoSubtitle: '雙語字幕範例影片，點旁邊換一支。',
+		demoCapTranscript: '逐字稿',
+		demoCapVocab: '單字',
+		demoCapQuote: '金句',
+		demoPrev: '上一支',
+		demoNext: '下一支',
 
 		// Home page
 		addVideo: '新增影片',
@@ -291,7 +296,12 @@ const translations = {
 		bottomCtaTitle: 'Start Your English Learning Journey',
 		bottomCtaSubtitle: '30 free credits per month, no credit card required.',
 		demoTitle: 'Learning English from Videos, in Action',
-		demoSubtitle: 'Sample videos with bilingual subtitles — tap to watch.',
+		demoSubtitle: 'Sample videos with bilingual subtitles — tap the sides to switch.',
+		demoCapTranscript: 'Transcript',
+		demoCapVocab: 'Vocabulary',
+		demoCapQuote: 'Quote',
+		demoPrev: 'Previous',
+		demoNext: 'Next',
 
 		// Home page
 		addVideo: 'Add Video',
