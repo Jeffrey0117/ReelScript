@@ -20,7 +20,7 @@ def _require_env(key: str) -> str:
     return val
 
 
-LMU_APP_SECRET = _require_env("LMU_APP_SECRET")
+LMU_APP_SECRET = os.environ.get("LMU_APP_SECRET", "")  # HS256 已廢(2026-10-28),不再強制
 LMU_APP_ID = os.environ.get("LMU_APP_ID", "app_3lXIxPKb")
 LEGACY_ADMIN_KEY = _require_env("ADMIN_KEY")
 BOT_TOKEN = _require_env("BOT_TOKEN")
@@ -45,20 +45,19 @@ _jwk_client = PyJWKClient(LMU_JWKS_URL, cache_keys=True, lifespan=3600)
 
 
 def _decode_letmeuse(token: str) -> dict:
-    """Verify a LetMeUse JWT, accepting BOTH algorithms during the HS256→ES256
-    migration. Verification is pinned to the header alg so an attacker can't
-    downgrade (e.g. alg=none): HS256 → shared app secret; ES256 → JWKS public key.
+    """Verify a LetMeUse JWT — ES256 (JWKS public key) only.
+
+    ⚠️ 2026-10-28 資安:廢除 HS256(pokkit 事件 — app secret 一洩就能自簽任意 sub
+    偽造任何用戶)。LetMeUse 已全面 ES256,真實 token 走 JWKS 公鑰無法偽造。
     """
     alg = jwt.get_unverified_header(token).get("alg")
-    if alg == "ES256":
-        try:
-            signing_key = _jwk_client.get_signing_key_from_jwt(token)
-        except Exception as exc:  # JWKS fetch / unknown kid → treat as invalid
-            raise jwt.InvalidTokenError(f"JWKS lookup failed: {exc}")
-        return jwt.decode(token, signing_key.key, algorithms=["ES256"])
-    if alg == "HS256":
-        return jwt.decode(token, LMU_APP_SECRET, algorithms=["HS256"])
-    raise jwt.InvalidTokenError(f"unsupported alg: {alg}")
+    if alg != "ES256":
+        raise jwt.InvalidTokenError(f"unsupported alg: {alg} (只收 ES256)")
+    try:
+        signing_key = _jwk_client.get_signing_key_from_jwt(token)
+    except Exception as exc:  # JWKS fetch / unknown kid → treat as invalid
+        raise jwt.InvalidTokenError(f"JWKS lookup failed: {exc}")
+    return jwt.decode(token, signing_key.key, algorithms=["ES256"])
 
 
 def _cache_user(payload: dict) -> None:

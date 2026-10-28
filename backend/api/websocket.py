@@ -18,18 +18,16 @@ _jwk_client = PyJWKClient(LMU_JWKS_URL, cache_keys=True, lifespan=3600)
 
 
 def _decode_letmeuse(token: str) -> dict:
-    """Accept both HS256 (shared secret) and ES256 (JWKS) during the migration,
-    pinned to the header alg (alg=none and friends are rejected)."""
+    """ES256 (JWKS public key) only. ⚠️ 2026-10-28 資安:廢除 HS256(pokkit 事件 —
+    app secret 一洩就能自簽偽造)。LetMeUse 已全面 ES256。"""
     alg = jwt.get_unverified_header(token).get("alg")
-    if alg == "ES256":
-        try:
-            signing_key = _jwk_client.get_signing_key_from_jwt(token)
-        except Exception as exc:
-            raise jwt.InvalidTokenError(f"JWKS lookup failed: {exc}")
-        return jwt.decode(token, signing_key.key, algorithms=["ES256"])
-    if alg == "HS256":
-        return jwt.decode(token, LMU_APP_SECRET, algorithms=["HS256"])
-    raise jwt.InvalidTokenError(f"unsupported alg: {alg}")
+    if alg != "ES256":
+        raise jwt.InvalidTokenError(f"unsupported alg: {alg} (只收 ES256)")
+    try:
+        signing_key = _jwk_client.get_signing_key_from_jwt(token)
+    except Exception as exc:
+        raise jwt.InvalidTokenError(f"JWKS lookup failed: {exc}")
+    return jwt.decode(token, signing_key.key, algorithms=["ES256"])
 
 
 def _authenticate_ws(token: str) -> dict | None:
