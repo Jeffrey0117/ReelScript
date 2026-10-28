@@ -32,6 +32,18 @@
 		}
 	}
 
+	const demos = [1, 2, 3, 4].map((n) => ({
+		src: `/videos/demo-${n}.mp4`,
+		poster: `/thumbnails/demo-${n}.jpg`,
+	}));
+
+	function pauseOthers(e: Event) {
+		const current = e.currentTarget as HTMLVideoElement;
+		for (const v of document.querySelectorAll<HTMLVideoElement>('.demo-card video')) {
+			if (v !== current) v.pause();
+		}
+	}
+
 	const features = $derived([
 		{
 			icon: 'transcript',
@@ -145,6 +157,27 @@
 					</div>
 					<h3 class="feature-title">{feature.title}</h3>
 					<p class="feature-desc">{feature.desc}</p>
+				</div>
+			{/each}
+		</div>
+	</section>
+
+	<!-- Demo videos -->
+	<section class="demos">
+		<h2 class="demos-title">{t('demoTitle')}</h2>
+		<p class="demos-sub">{t('demoSubtitle')}</p>
+		<div class="demos-grid">
+			{#each demos as demo (demo.src)}
+				<div class="demo-card">
+					<!-- svelte-ignore a11y_media_has_caption -->
+					<video
+						src={demo.src}
+						poster={demo.poster}
+						controls
+						preload="none"
+						playsinline
+						onplay={pauseOthers}
+					></video>
 				</div>
 			{/each}
 		</div>
@@ -458,6 +491,53 @@
 		color: var(--text-dim);
 	}
 
+	/* ── Demo videos ── */
+	.demos {
+		padding: 0 0 80px;
+		text-align: center;
+	}
+
+	.demos-title {
+		font-size: 28px;
+		font-weight: 700;
+		letter-spacing: -0.5px;
+		margin-bottom: 8px;
+	}
+
+	.demos-sub {
+		font-size: 15px;
+		color: var(--text-dim);
+		margin-bottom: 32px;
+	}
+
+	.demos-grid {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 16px;
+	}
+
+	.demo-card {
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		overflow: hidden;
+		transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+	}
+
+	.demo-card:hover {
+		border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+		transform: translateY(-2px);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+	}
+
+	.demo-card video {
+		display: block;
+		width: 100%;
+		aspect-ratio: 9 / 16;
+		object-fit: cover;
+		background: #000;
+	}
+
 	/* ── Bottom CTA ── */
 	.bottom-cta {
 		position: relative;
@@ -528,6 +608,10 @@
 		.features-grid {
 			grid-template-columns: repeat(2, 1fr);
 		}
+
+		.demos-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
 	}
 
 	@media (max-width: 640px) {
@@ -572,6 +656,18 @@
 
 		.feature-card {
 			padding: 20px;
+		}
+
+		.demos {
+			padding-bottom: 56px;
+		}
+
+		.demos-title {
+			font-size: 22px;
+		}
+
+		.demos-grid {
+			gap: 12px;
 		}
 
 		.bottom-cta {

@@ -22,6 +22,8 @@ const translations = {
 		featureQuotesDesc: '提取影片精華語句，重點摘要一目瞭然。',
 		bottomCtaTitle: '開始你的英文學習之旅',
 		bottomCtaSubtitle: '每月 30 點免費額度，不需信用卡。',
+		demoTitle: '看影片學英文，長這樣',
+		demoSubtitle: '雙語字幕範例影片，點開直接看。',
 
 		// Home page
 		addVideo: '新增影片',
@@ -288,6 +290,8 @@ const translations = {
 		featureQuotesDesc: 'Extracts the most impactful lines and key takeaways from every video.',
 		bottomCtaTitle: 'Start Your English Learning Journey',
 		bottomCtaSubtitle: '30 free credits per month, no credit card required.',
+		demoTitle: 'Learning English from Videos, in Action',
+		demoSubtitle: 'Sample videos with bilingual subtitles — tap to watch.',
 
 		// Home page
 		addVideo: 'Add Video',
