@@ -7,17 +7,46 @@
 		analyzeVocabulary,
 		appreciateVideo,
 		videoFileUrl,
+		saveWord,
+		listWordbook,
 		type VideoDetail,
 		type VocabularyItem,
 		type Appreciation,
 	} from '$lib/api';
 	import { t } from '$lib/i18n';
+	import { getUser, login, onAuthChange } from '$lib/auth';
 
 	let video = $state<VideoDetail | null>(null);
 	let loading = $state(true);
 	let translating = $state(false);
 	let analyzing = $state(false);
 	let appreciating = $state(false);
+
+	// Wordbook integration
+	let isLoggedIn = $state(false);
+	let savedWordSet = $state<Set<string>>(new Set());
+
+	async function loadSavedWords() {
+		const data = await listWordbook().catch(() => null);
+		if (data) savedWordSet = new Set(data.words.map((w) => w.word.toLowerCase()));
+	}
+
+	async function handleSaveWord(v: VocabularyItem) {
+		if (!isLoggedIn) {
+			login();
+			return;
+		}
+		const key = v.word.toLowerCase();
+		if (savedWordSet.has(key)) return;
+		savedWordSet = new Set([...savedWordSet, key]);
+		try {
+			await saveWord({ word: v.word, meaning: v.translation, video_id: videoId });
+		} catch {
+			const next = new Set(savedWordSet);
+			next.delete(key);
+			savedWordSet = next;
+		}
+	}
 
 	// Audio player state
 	let audioEl = $state<HTMLAudioElement | null>(null);
@@ -103,6 +132,14 @@
 	);
 
 	onMount(async () => {
+		isLoggedIn = !!getUser();
+		if (isLoggedIn) void loadSavedWords();
+		onAuthChange((u) => {
+			const was = isLoggedIn;
+			isLoggedIn = !!u;
+			if (u && !was) void loadSavedWords();
+		});
+
 		video = await getVideo(videoId);
 		loading = false;
 
@@ -318,9 +355,27 @@
 				{#if allVocabulary.length > 0}
 					<div class="vocab-grid">
 						{#each allVocabulary as v}
+							{@const saved = savedWordSet.has(v.word.toLowerCase())}
 							<div class="vocab-card">
 								<span class="vocab-en">{v.word}</span>
 								<span class="vocab-zh">{v.translation}</span>
+								<button
+									class="vocab-save"
+									class:saved
+									onclick={() => handleSaveWord(v)}
+									title={saved ? t('savedToWordbook') : t('saveToWordbook')}
+								>
+									{#if saved}
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+											<polyline points="20 6 9 17 4 12"/>
+										</svg>
+									{:else}
+										<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+											<line x1="12" y1="5" x2="12" y2="19"/>
+											<line x1="5" y1="12" x2="19" y2="12"/>
+										</svg>
+									{/if}
+								</button>
 							</div>
 						{/each}
 					</div>
@@ -692,6 +747,7 @@
 	}
 
 	.vocab-card {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
@@ -704,6 +760,41 @@
 
 	.vocab-card:hover {
 		border-color: var(--accent);
+	}
+
+	.vocab-save {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 26px;
+		height: 26px;
+		border-radius: 50%;
+		border: 1px solid var(--border);
+		background: var(--bg-card);
+		color: var(--text-dim);
+		cursor: pointer;
+		opacity: 0;
+		transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+	}
+
+	.vocab-card:hover .vocab-save,
+	.vocab-save.saved {
+		opacity: 1;
+	}
+
+	.vocab-save:hover {
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+
+	.vocab-save.saved {
+		color: var(--accent);
+		border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+		background: color-mix(in srgb, var(--accent) 8%, var(--bg-card));
+		cursor: default;
 	}
 
 	.vocab-en {

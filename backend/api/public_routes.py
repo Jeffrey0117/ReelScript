@@ -13,7 +13,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from models import get_db, Video, Transcript
+from models import get_db, Video, Transcript, Collection, SharedDeck
 from services.downloader import VIDEOS_DIR, extract_audio
 
 # meei SDK for semantic search — auto-injected by CloudPipe.
@@ -424,6 +424,114 @@ async def example_videos(db: Session = Depends(get_db), limit: int = Query(3, ge
             }
             for v in videos
         ]
+    }
+
+
+# ── Material packs: public collections ──────────────────
+
+def _pack_public_videos(pack: Collection) -> list:
+    """Only public+ready videos leave the building — member uploads stay private."""
+    return [
+        item.video
+        for item in sorted(pack.items, key=lambda i: i.added_at or datetime.min)
+        if item.video and item.video.is_public and item.video.status == "ready"
+    ]
+
+
+@router.get("/packs")
+async def public_packs(db: Session = Depends(get_db)):
+    """Public material packs. Official first, then newest. Empty packs hidden."""
+    packs = (
+        db.query(Collection)
+        .filter(Collection.is_public == True)
+        .order_by(Collection.is_official.desc(), Collection.created_at.desc())
+        .all()
+    )
+    out = []
+    for p in packs:
+        videos = _pack_public_videos(p)
+        if not videos:
+            continue
+        out.append({
+            "id": p.id,
+            "name": p.name,
+            "description": p.description,
+            "is_official": bool(p.is_official),
+            "video_count": len(videos),
+            "cover": next((v.thumbnail for v in videos if v.thumbnail), None),
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        })
+    return {"packs": out}
+
+
+@router.get("/packs/{pack_id}")
+async def public_pack_detail(pack_id: str, db: Session = Depends(get_db)):
+    pack = db.query(Collection).filter(Collection.id == pack_id, Collection.is_public == True).first()
+    if not pack:
+        raise HTTPException(status_code=404, detail="Pack not found")
+    videos = _pack_public_videos(pack)
+    return {
+        "id": pack.id,
+        "name": pack.name,
+        "description": pack.description,
+        "is_official": bool(pack.is_official),
+        "videos": [
+            {
+                "id": v.id,
+                "title": v.title,
+                "source": v.source,
+                "channel": v.channel,
+                "duration": v.duration,
+                "thumbnail": v.thumbnail,
+            }
+            for v in videos
+        ],
+    }
+
+
+# ── Shared decks: member-published word sets ─────────────
+
+@router.get("/decks")
+async def public_decks(db: Session = Depends(get_db)):
+    """Browsable deck list — most saved first, then newest."""
+    decks = (
+        db.query(SharedDeck)
+        .order_by(SharedDeck.saves_count.desc(), SharedDeck.created_at.desc())
+        .all()
+    )
+    return {
+        "decks": [
+            {
+                "id": d.id,
+                "title": d.title,
+                "description": d.description,
+                "author_name": d.author_name,
+                "word_count": len(d.words),
+                "saves_count": d.saves_count or 0,
+                "preview": [w.word for w in sorted(d.words, key=lambda w: w.position or 0)[:3]],
+                "created_at": d.created_at.isoformat() if d.created_at else None,
+            }
+            for d in decks
+        ]
+    }
+
+
+@router.get("/decks/{deck_id}")
+async def public_deck_detail(deck_id: str, db: Session = Depends(get_db)):
+    deck = db.query(SharedDeck).filter(SharedDeck.id == deck_id).first()
+    if not deck:
+        raise HTTPException(status_code=404, detail="Deck not found")
+    return {
+        "id": deck.id,
+        "title": deck.title,
+        "description": deck.description,
+        "author_name": deck.author_name,
+        "saves_count": deck.saves_count or 0,
+        "created_at": deck.created_at.isoformat() if deck.created_at else None,
+        "words": [
+            {"word": w.word, "meaning": w.meaning, "example": w.example}
+            for w in sorted(deck.words, key=lambda w: w.position or 0)
+        ],
     }
 
 

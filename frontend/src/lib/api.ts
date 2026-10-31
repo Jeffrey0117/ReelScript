@@ -202,6 +202,138 @@ export interface ExampleVideo {
 export const exampleVideos = () =>
 	request<{ examples: ExampleVideo[] }>('/api/public/examples');
 
+// Wordbook (personal saved words + Leitner SRS)
+export interface SavedWord {
+	id: string;
+	word: string;
+	meaning: string | null;
+	example: string | null;
+	video_id: string | null;
+	box: number;
+	due_at: string | null;
+	reviews: number;
+	lapses: number;
+	created_at: string | null;
+}
+
+export const saveWord = (data: { word: string; meaning?: string; example?: string; video_id?: string }) =>
+	request<{ success: boolean; saved: SavedWord; duplicate: boolean }>('/api/wordbook', {
+		method: 'POST',
+		body: JSON.stringify(data),
+	});
+
+export const listWordbook = () =>
+	request<{ total: number; due: number; words: SavedWord[] }>('/api/wordbook');
+
+export const deleteWord = (id: string) =>
+	request<{ success: boolean }>(`/api/wordbook/${id}`, { method: 'DELETE' });
+
+export const reviewQueue = () =>
+	request<{ cards: SavedWord[] }>('/api/wordbook/review');
+
+export const reviewWord = (id: string, correct: boolean) =>
+	request<{ success: boolean; word: SavedWord }>(`/api/wordbook/${id}/review`, {
+		method: 'POST',
+		body: JSON.stringify({ correct }),
+	});
+
+export const exportWordbook = async (): Promise<string> => {
+	const token = await getFreshToken();
+	const res = await fetch(`${API_BASE}/api/wordbook/export`, {
+		headers: token ? { Authorization: `Bearer ${token}` } : {},
+	});
+	if (!res.ok) throw new Error(`HTTP ${res.status}`);
+	return res.text();
+};
+
+// Shared decks (published wordbook snapshots)
+export interface DeckSummary {
+	id: string;
+	title: string;
+	description: string | null;
+	author_name: string | null;
+	word_count: number;
+	saves_count: number;
+	preview?: string[];
+	created_at: string | null;
+}
+
+export interface DeckWord {
+	word: string;
+	meaning: string | null;
+	example: string | null;
+}
+
+export interface DeckDetail {
+	id: string;
+	title: string;
+	description: string | null;
+	author_name: string | null;
+	saves_count: number;
+	created_at: string | null;
+	words: DeckWord[];
+}
+
+export const publishDeck = (data: { title: string; description?: string; word_ids: string[] }) =>
+	request<{ success: boolean; deck: DeckSummary }>('/api/decks', {
+		method: 'POST',
+		body: JSON.stringify(data),
+	});
+
+export const myDecks = () =>
+	request<{ decks: DeckSummary[] }>('/api/decks/mine');
+
+export const deleteDeck = (id: string) =>
+	request<{ success: boolean }>(`/api/decks/${id}`, { method: 'DELETE' });
+
+export const saveDeckToWordbook = (id: string) =>
+	request<{ success: boolean; added: number; total: number; first_save: boolean }>(`/api/decks/${id}/save`, {
+		method: 'POST',
+	});
+
+export const publicDecks = () =>
+	request<{ decks: DeckSummary[] }>('/api/public/decks');
+
+export const publicDeck = (id: string) =>
+	request<DeckDetail>(`/api/public/decks/${id}`);
+
+// Material packs (public collections)
+export interface PackSummary {
+	id: string;
+	name: string;
+	description: string | null;
+	is_official: boolean;
+	video_count: number;
+	cover: string | null;
+	created_at: string | null;
+}
+
+export interface PackVideo {
+	id: string;
+	title: string | null;
+	source: string;
+	channel: string | null;
+	duration: number | null;
+	thumbnail: string | null;
+}
+
+export const publicPacks = () =>
+	request<{ packs: PackSummary[] }>('/api/public/packs');
+
+export const publicPack = (id: string) =>
+	request<{ id: string; name: string; description: string | null; is_official: boolean; videos: PackVideo[] }>(
+		`/api/public/packs/${id}`
+	);
+
+export const updateCollection = (
+	id: string,
+	data: { name?: string; description?: string; is_public?: boolean; is_official?: boolean }
+) =>
+	request<{ success: boolean; id: string; is_public: boolean; is_official: boolean }>(`/api/collections/${id}`, {
+		method: 'PATCH',
+		body: JSON.stringify(data),
+	});
+
 export const publicArticle = (id: string) =>
 	request<ArticleData>(`/api/public/videos/${id}/article`);
 
@@ -342,6 +474,8 @@ export interface Collection {
 	name: string;
 	description: string | null;
 	video_count: number;
+	is_public?: boolean;
+	is_official?: boolean;
 	created_at: string | null;
 }
 

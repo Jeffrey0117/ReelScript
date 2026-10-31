@@ -36,6 +36,8 @@ from api.quota_routes import router as quota_router
 from api.invite_routes import router as invite_router
 from api.public_routes import router as public_router
 from api.import_routes import router as import_router
+from api.wordbook_routes import router as wordbook_router
+from api.deck_routes import router as deck_router
 from api.webhook_routes import router as webhook_router
 from api.billing_routes import router as billing_router
 from api.speaking_routes import router as speaking_router
@@ -105,6 +107,8 @@ app.include_router(import_router)
 app.include_router(webhook_router)
 app.include_router(billing_router)
 app.include_router(speaking_router)
+app.include_router(wordbook_router)
+app.include_router(deck_router)
 
 # Serve video files and thumbnails
 if VIDEOS_DIR.exists():

@@ -78,9 +78,70 @@ class Collection(Base):
     user_id = Column(String, nullable=True, index=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    is_public = Column(Boolean, default=False)  # visible as a material pack on /packs
+    is_official = Column(Boolean, default=False)  # admin-curated, listed first
     created_at = Column(DateTime, default=datetime.utcnow)
 
     items = relationship("CollectionItem", back_populates="collection", cascade="all, delete-orphan")
+
+
+class SavedWord(Base):
+    """A member's personal wordbook entry with Leitner SRS state."""
+    __tablename__ = "saved_words"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    word = Column(String, nullable=False)
+    meaning = Column(Text, nullable=True)
+    example = Column(Text, nullable=True)
+    video_id = Column(String, nullable=True)  # source video, informational only
+    box = Column(Integer, default=1)  # Leitner box 1..5
+    due_at = Column(DateTime, default=datetime.utcnow)
+    reviews = Column(Integer, default=0)
+    lapses = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("user_id", "word", name="uq_user_word"),)
+
+
+class SharedDeck(Base):
+    """A published snapshot of wordbook entries, browsable by everyone."""
+    __tablename__ = "shared_decks"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    author_name = Column(String, nullable=True)  # snapshot at publish time
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    saves_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    words = relationship("SharedDeckWord", back_populates="deck", cascade="all, delete-orphan")
+
+
+class SharedDeckWord(Base):
+    __tablename__ = "shared_deck_words"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    deck_id = Column(String, ForeignKey("shared_decks.id"), nullable=False, index=True)
+    word = Column(String, nullable=False)
+    meaning = Column(Text, nullable=True)
+    example = Column(Text, nullable=True)
+    position = Column(Integer, default=0)
+
+    deck = relationship("SharedDeck", back_populates="words")
+
+
+class DeckSave(Base):
+    """Who saved which deck — dedupes the saves_count reputation metric."""
+    __tablename__ = "deck_saves"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    deck_id = Column(String, nullable=False, index=True)
+    user_id = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("deck_id", "user_id", name="uq_deck_save"),)
 
 
 class CollectionItem(Base):
@@ -215,6 +276,12 @@ def init_db():
             col_cols = [c["name"] for c in inspector.get_columns("collections")]
             if "user_id" not in col_cols:
                 conn.execute(text("ALTER TABLE collections ADD COLUMN user_id VARCHAR"))
+                conn.commit()
+            if "is_public" not in col_cols:
+                conn.execute(text("ALTER TABLE collections ADD COLUMN is_public BOOLEAN DEFAULT 0"))
+                conn.commit()
+            if "is_official" not in col_cols:
+                conn.execute(text("ALTER TABLE collections ADD COLUMN is_official BOOLEAN DEFAULT 0"))
                 conn.commit()
 
         # Add discourse column to speaking_sessions if missing

@@ -25,8 +25,19 @@ class AddVideoRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class UpdateCollectionRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_public: Optional[bool] = None
+    is_official: Optional[bool] = None  # admin only
+
+
 def _get_user_id(user: dict) -> str:
     return user.get("sub", "")
+
+
+def _is_admin(user: dict) -> bool:
+    return user.get("role") == "admin"
 
 
 @router.post("")
@@ -53,10 +64,41 @@ async def list_collections(db: Session = Depends(get_db), user: dict = Depends(r
             "name": c.name,
             "description": c.description,
             "video_count": len(c.items),
+            "is_public": bool(c.is_public),
+            "is_official": bool(c.is_official),
             "created_at": c.created_at.isoformat() if c.created_at else None,
         }
         for c in collections
     ]
+
+
+@router.patch("/{collection_id}")
+async def update_collection(collection_id: str, req: UpdateCollectionRequest, db: Session = Depends(get_db), user: dict = Depends(require_auth)):
+    user_id = _get_user_id(user)
+    collection = db.query(Collection).filter(Collection.id == collection_id, Collection.user_id == user_id).first()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    if req.name is not None and req.name.strip():
+        collection.name = req.name.strip()
+    if req.description is not None:
+        collection.description = req.description.strip() or None
+    if req.is_public is not None:
+        collection.is_public = req.is_public
+    if req.is_official is not None:
+        if not _is_admin(user):
+            raise HTTPException(status_code=403, detail="Admin only")
+        collection.is_official = req.is_official
+
+    db.commit()
+    return {
+        "success": True,
+        "id": collection.id,
+        "name": collection.name,
+        "description": collection.description,
+        "is_public": bool(collection.is_public),
+        "is_official": bool(collection.is_official),
+    }
 
 
 @router.get("/{collection_id}")

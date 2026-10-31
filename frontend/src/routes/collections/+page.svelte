@@ -6,21 +6,48 @@
 		deleteCollection,
 		getCollection,
 		removeFromCollection,
+		updateCollection,
 		type Collection,
 		type CollectionDetail,
 	} from '$lib/api';
 	import { t } from '$lib/i18n';
+	import { isAdmin, onAuthChange } from '$lib/auth';
 
 	let collections = $state<Collection[]>([]);
 	let loadingCollections = $state(true);
 	let newName = $state('');
 	let creating = $state(false);
 	let selectedDetail = $state<CollectionDetail | null>(null);
+	let admin = $state(false);
+
+	let selectedMeta = $derived(collections.find((c) => c.id === selectedDetail?.id) ?? null);
 
 	onMount(async () => {
+		admin = isAdmin();
+		onAuthChange(() => (admin = isAdmin()));
 		collections = await listCollections();
 		loadingCollections = false;
 	});
+
+	async function toggleVisibility(col: Collection) {
+		const next = !col.is_public;
+		try {
+			await updateCollection(col.id, { is_public: next });
+			collections = collections.map((c) => (c.id === col.id ? { ...c, is_public: next } : c));
+		} catch {
+			// ignore — UI stays at server truth
+		}
+	}
+
+	async function toggleOfficial(col: Collection) {
+		const next = !col.is_official;
+		try {
+			await updateCollection(col.id, { is_official: next });
+			collections = collections.map((c) => (c.id === col.id ? { ...c, is_official: next } : c));
+		} catch {
+			// ignore
+		}
+	}
 
 	async function handleCreate() {
 		if (!newName.trim()) return;
@@ -79,7 +106,14 @@
 			{#each collections as col (col.id)}
 				<div class="collection-row" class:active={selectedDetail?.id === col.id}>
 					<button class="collection-btn" onclick={() => openCollection(col.id)}>
-						<span class="col-name">{col.name}</span>
+						<span class="col-name">
+							{col.name}
+							{#if col.is_public}
+								<span class="public-tag" class:official={col.is_official}>
+									{col.is_official ? t('officialBadge') : t('packPublic')}
+								</span>
+							{/if}
+						</span>
 						<span class="col-count-badge">{col.video_count}</span>
 					</button>
 					<button class="btn btn-danger btn-sm" onclick={() => handleDelete(col.id)}>
@@ -101,6 +135,31 @@
 			<h2>{selectedDetail.name}</h2>
 			{#if selectedDetail.description}
 				<p class="description">{selectedDetail.description}</p>
+			{/if}
+
+			{#if selectedMeta}
+				<div class="visibility-row">
+					<button
+						class="btn btn-ghost btn-sm"
+						class:vis-on={selectedMeta.is_public}
+						onclick={() => toggleVisibility(selectedMeta)}
+						title={t('publicHint')}
+					>
+						{selectedMeta.is_public ? t('packPublic') : t('packPrivate')}
+					</button>
+					{#if admin && selectedMeta.is_public}
+						<button
+							class="btn btn-ghost btn-sm"
+							class:vis-on={selectedMeta.is_official}
+							onclick={() => toggleOfficial(selectedMeta)}
+						>
+							{t('packOfficialToggle')}
+						</button>
+					{/if}
+					{#if selectedMeta.is_public}
+						<a href="/packs/{selectedMeta.id}" class="view-pack-link">{t('materials')} →</a>
+					{/if}
+				</div>
 			{/if}
 
 			{#if selectedDetail.videos.length === 0}
@@ -230,6 +289,47 @@
 
 	.col-name {
 		font-weight: 500;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.public-tag {
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.3px;
+		color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		border-radius: 4px;
+		padding: 1px 6px;
+	}
+
+	.public-tag.official {
+		color: #fff;
+		background: var(--accent);
+	}
+
+	.visibility-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 20px;
+	}
+
+	.visibility-row .vis-on {
+		color: var(--accent);
+		border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
+	}
+
+	.view-pack-link {
+		font-size: 13px;
+		color: var(--text-dim) !important;
+		text-decoration: none;
+	}
+
+	.view-pack-link:hover {
+		color: var(--accent) !important;
 	}
 
 	.col-count-badge {
