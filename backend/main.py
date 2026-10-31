@@ -37,6 +37,7 @@ from api.invite_routes import router as invite_router
 from api.public_routes import router as public_router
 from api.import_routes import router as import_router
 from api.webhook_routes import router as webhook_router
+from api.billing_routes import router as billing_router
 from api.speaking_routes import router as speaking_router
 from api.websocket import manager
 
@@ -102,6 +103,7 @@ app.include_router(invite_router)
 app.include_router(public_router)
 app.include_router(import_router)
 app.include_router(webhook_router)
+app.include_router(billing_router)
 app.include_router(speaking_router)
 
 # Serve video files and thumbnails

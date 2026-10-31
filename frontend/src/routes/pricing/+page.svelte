@@ -1,35 +1,58 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import { onMount } from 'svelte';
-	import { getQuota, type Quota } from '$lib/api';
+	import { getQuota, createCheckout, cancelSubscription, type Quota } from '$lib/api';
 	import { onAuthChange, login, type AuthUser } from '$lib/auth';
 
 	let quota = $state<Quota | null>(null);
 	let user = $state<AuthUser | null>(null);
-
-	const CHECKOUT_URLS = {
-		pro: 'https://api.payuni.com.tw/api/period/U02465736/TWPeOannjn',
-		unlimited: 'https://api.payuni.com.tw/api/period/U02465736/TEVebTyQUW',
-	};
+	let busyPlan = $state<string | null>(null);
+	let notice = $state<string | null>(null);
+	let upgraded = $state(false);
 
 	onMount(() => {
+		upgraded = new URLSearchParams(window.location.search).get('upgraded') === '1';
 		getQuota().then((q) => (quota = q)).catch(() => {});
 		onAuthChange(async (u) => {
 			user = u;
 			if (u) {
 				quota = await getQuota().catch(() => null);
+				// 藍新 notify 可能晚幾秒才到 PayGate → 再補抓一次
+				if (upgraded) setTimeout(async () => (quota = await getQuota().catch(() => quota)), 4000);
 			}
 		});
 	});
 
-	function handleSubscribe(planKey: string) {
+	async function handleSubscribe(planKey: string) {
 		if (!user) {
 			login();
 			return;
 		}
-		const url = CHECKOUT_URLS[planKey as keyof typeof CHECKOUT_URLS];
-		if (url) {
-			window.open(url, '_blank');
+		if (planKey !== 'pro' && planKey !== 'unlimited') return;
+		busyPlan = planKey;
+		notice = null;
+		try {
+			const { checkout_url } = await createCheckout(planKey);
+			window.location.href = checkout_url;
+		} catch (e) {
+			notice = (e as Error).message || t('checkoutFailed');
+			busyPlan = null;
+		}
+	}
+
+	async function handleCancel() {
+		if (!window.confirm(t('cancelConfirm'))) return;
+		busyPlan = 'cancel';
+		notice = null;
+		try {
+			const res = await cancelSubscription();
+			notice = res.active_until
+				? `${t('cancelDone')} ${new Date(res.active_until).toLocaleDateString()}`
+				: t('cancelDone');
+		} catch (e) {
+			notice = (e as Error).message || t('checkoutFailed');
+		} finally {
+			busyPlan = null;
 		}
 	}
 
@@ -98,6 +121,12 @@
 		<h1>{t('pricingTitle')}</h1>
 		<p>{t('pricingSubtitle')}</p>
 	</div>
+	{#if upgraded}
+		<p class="pricing-notice">{t('upgradedNotice')}</p>
+	{/if}
+	{#if notice}
+		<p class="pricing-notice">{notice}</p>
+	{/if}
 
 	<div class="plans-grid">
 		{#each plans as plan (plan.key)}
@@ -139,20 +168,27 @@
 						{isCurrentPlan('free') ? t('currentPlan') : t('planFree')}
 					</button>
 				{:else}
-					<button
-						class="plan-btn"
-						class:plan-btn-highlight={plan.highlight}
-						disabled={isCurrentPlan(plan.key)}
-						onclick={() => handleSubscribe(plan.key)}
-					>
-						{#if isCurrentPlan(plan.key)}
-							{t('currentPlan')}
-						{:else if !user}
-							{t('loginToSubscribe')}
-						{:else}
-							{t('subscribe')}
-						{/if}
-					</button>
+					{#if isCurrentPlan(plan.key)}
+						<button class="plan-btn" disabled>{t('currentPlan')}</button>
+						<button class="plan-cancel" disabled={busyPlan !== null} onclick={handleCancel}>
+							{busyPlan === 'cancel' ? t('subscribing') : t('cancelSubscription')}
+						</button>
+					{:else}
+						<button
+							class="plan-btn"
+							class:plan-btn-highlight={plan.highlight}
+							disabled={busyPlan !== null}
+							onclick={() => handleSubscribe(plan.key)}
+						>
+							{#if busyPlan === plan.key}
+								{t('subscribing')}
+							{:else if !user}
+								{t('loginToSubscribe')}
+							{:else}
+								{t('subscribe')}
+							{/if}
+						</button>
+					{/if}
 				{/if}
 			</div>
 		{/each}
@@ -366,4 +402,26 @@
 			gap: 20px;
 		}
 	}
+	.pricing-notice {
+		text-align: center;
+		margin: 0 auto 1.5rem;
+		padding: 0.6rem 1rem;
+		border-radius: 8px;
+		background: var(--surface-2, rgba(255, 255, 255, 0.06));
+		color: var(--text-muted, inherit);
+		max-width: 640px;
+		font-size: 0.9rem;
+	}
+	.plan-cancel {
+		margin-top: 0.5rem;
+		width: 100%;
+		background: none;
+		border: none;
+		color: var(--text-muted, inherit);
+		font-size: 0.8rem;
+		cursor: pointer;
+		text-decoration: underline;
+		opacity: 0.7;
+	}
+	.plan-cancel:disabled { cursor: default; opacity: 0.4; }
 </style>

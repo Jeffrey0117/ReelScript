@@ -33,6 +33,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	return res.json();
 }
 
+// Billing (PayGate → NewebPay 定期定額)
+export const createCheckout = (plan: 'pro' | 'unlimited') =>
+	request<{ checkout_url: string }>('/api/billing/checkout', {
+		method: 'POST',
+		body: JSON.stringify({ plan }),
+	});
+export const cancelSubscription = () =>
+	request<{ ok: boolean; active_until: string | null }>('/api/billing/cancel', { method: 'POST' });
+
 // Videos
 export const processVideo = (url: string) =>
 	request<{ success: boolean; video_id: string; title: string; status?: string; duplicate?: boolean }>('/api/videos/process', {
@@ -179,6 +188,19 @@ export const adminGetUser = (adminKey = '', userId: string) =>
 // Public API (no auth required)
 export const publicVideos = (featured = false) =>
 	request<PublicVideoList>(`/api/public/videos?limit=100${featured ? '&featured=true' : ''}`);
+
+export interface ExampleVideo {
+	id: string;
+	title: string | null;
+	url: string;
+	source: string;
+	channel: string | null;
+	duration: number | null;
+	thumbnail: string | null;
+}
+
+export const exampleVideos = () =>
+	request<{ examples: ExampleVideo[] }>('/api/public/examples');
 
 export const publicArticle = (id: string) =>
 	request<ArticleData>(`/api/public/videos/${id}/article`);

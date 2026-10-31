@@ -16,16 +16,15 @@ from models import Subscription, get_db
 
 router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
 
-PAYGATE_WEBHOOK_SECRET = os.environ.get(
-    "PAYGATE_WEBHOOK_SECRET",
-    "a109fab9c19dcfc97669cb0c787d9ece77b9c79f52aa8550f5d4b0ad3f7103a7",
-)
+# Fail closed: without the shared secret every delivery is rejected (401),
+# never accept unsigned/forged activations.
+PAYGATE_WEBHOOK_SECRET = os.environ.get("PAYGATE_WEBHOOK_SECRET", "")
 
 FREE_CREDITS = 30
 
 
 def _verify_signature(body: bytes, signature: str) -> bool:
-    if not signature.startswith("sha256="):
+    if not PAYGATE_WEBHOOK_SECRET or not signature.startswith("sha256="):
         return False
     expected = signature[7:]
     calculated = hmac.new(
