@@ -16,9 +16,11 @@
 		thumbnailUrl,
 		getQuota,
 		getMyInviteCode,
+		exampleVideos,
 		type Video,
 		type Collection,
 		type Quota,
+		type ExampleVideo,
 	} from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
@@ -34,6 +36,8 @@
 	let quota = $state<Quota | null>(null);
 	let inviteCode = $state('');
 	let inviteCopied = $state(false);
+	let examples = $state<ExampleVideo[]>([]);
+	let openingExampleId = $state<string | null>(null);
 
 	// Inline rename state
 	let editingVideoId = $state<string | null>(null);
@@ -69,6 +73,64 @@
 		videos = await listVideos().catch(() => []);
 		loadingVideos = false;
 		quota = await getQuota().catch(() => null);
+		const ex = await exampleVideos().catch(() => null);
+		examples = ex?.examples ?? [];
+	}
+
+	// ── Try-it-now examples ──
+	// Example URLs are already processed: resubmitting dedupes server-side
+	// (zero quota cost, instant ready) and links the video to the user.
+	async function tryExample(ex: ExampleVideo) {
+		if (openingExampleId) return;
+		openingExampleId = ex.id;
+		try {
+			if (isLoggedIn) {
+				const result = await processVideo(ex.url).catch(() => null);
+				if (result?.video_id) {
+					refreshVideos();
+					goto(`/watch/${result.video_id}`);
+					return;
+				}
+			}
+			// Not logged in (or resubmit failed): public examples are viewable directly.
+			goto(`/watch/${ex.id}`);
+		} finally {
+			openingExampleId = null;
+		}
+	}
+
+	// ── Onboarding tour (onboarding-kit vanilla build) ──
+	const TOUR_DONE_KEY = 'reelscript_tour_done';
+	let tourAutoStarted = false;
+
+	function startTour() {
+		const tour = window.OnboardTour;
+		if (!tour) return;
+		const accent =
+			getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() ||
+			undefined;
+		tour.start(
+			[
+				{ title: t('tourWelcomeTitle'), body: t('tourWelcomeBody') },
+				{ sel: '[data-tour="paste"]', title: t('tourPasteTitle'), body: t('tourPasteBody') },
+				{ sel: '[data-tour="examples"]', title: t('tourExamplesTitle'), body: t('tourExamplesBody') },
+				{ sel: '[data-tour="quota"]', title: t('tourQuotaTitle'), body: t('tourQuotaBody') },
+				{ title: t('tourDoneTitle'), body: t('tourDoneBody') },
+			],
+			{
+				labels: { next: t('tourNext'), prev: t('tourPrev'), skip: t('tourSkip'), done: t('tourDone') },
+				accent,
+				// Skipping is NOT completion — skippers see the tour again next visit.
+				onComplete: () => localStorage.setItem(TOUR_DONE_KEY, '1'),
+			}
+		);
+	}
+
+	function maybeAutoStartTour() {
+		if (tourAutoStarted || localStorage.getItem(TOUR_DONE_KEY)) return;
+		tourAutoStarted = true;
+		// Let the examples section render before the tour tries to highlight it.
+		setTimeout(startTour, 600);
 	}
 
 	// Sync callback so the returned cleanup actually runs (async onMount can't return one).
@@ -78,6 +140,7 @@
 		onAuthChange(async (user) => {
 			isLoggedIn = !!user;
 			if (user) {
+				maybeAutoStartTour();
 				videos = await listVideos().catch(() => []);
 				quota = await getQuota().catch(() => null);
 				const inv = await getMyInviteCode().catch(() => null);
@@ -449,7 +512,7 @@
 	<p class="hero-subtitle">{t('urlPlaceholder')}</p>
 
 	<form class="url-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
-		<div class="input-wrapper">
+		<div class="input-wrapper" data-tour="paste">
 			<textarea
 				bind:value={url}
 				placeholder="貼上 IG 或 YouTube 連結..."
@@ -485,7 +548,7 @@
 	</form>
 	<div class="hero-meta">
 		{#if quota && quota.plan === 'free'}
-			<a href="/pricing" class="quota-pill">
+			<a href="/pricing" class="quota-pill" data-tour="quota">
 				<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
 					<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
 				</svg>
@@ -497,12 +560,72 @@
 				{inviteCopied ? t('linkCopied') : t('inviteFriends')}
 			</button>
 		{/if}
+		{#if isLoggedIn}
+			<button class="replay-tour-btn" onclick={startTour} title={t('replayTour')}>
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="12" r="10"/>
+					<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+					<line x1="12" y1="17" x2="12.01" y2="17"/>
+				</svg>
+				<span>{t('replayTour')}</span>
+			</button>
+		{/if}
 	</div>
 
 	{#if error}
 		<p class="error-msg">{error}</p>
 	{:else if notice}
 		<p class="notice-msg" role="status">{notice}</p>
+	{/if}
+
+	{#if examples.length > 0}
+		<div class="examples" data-tour="examples">
+			<p class="examples-title">{t('examplesTitle')}</p>
+			<div class="example-chips">
+				{#each examples as ex (ex.id)}
+					<button
+						class="example-chip"
+						onclick={() => tryExample(ex)}
+						disabled={openingExampleId !== null}
+					>
+						{#if ex.thumbnail}
+							<span class="example-thumb">
+								<img src={thumbnailUrl(ex.thumbnail)} alt="" loading="lazy" />
+								<span class="example-play">
+									<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+										<polygon points="5 3 19 12 5 21 5 3"/>
+									</svg>
+								</span>
+							</span>
+						{/if}
+						<span class="example-chip-body">
+							<span class="example-badge">{t('exampleBadge')}</span>
+							<span class="example-chip-title">
+								{openingExampleId === ex.id ? t('exampleOpening') : ex.title || ''}
+							</span>
+						</span>
+					</button>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
+	{#if !loadingVideos && videos.length === 0}
+		<div class="how-it-works">
+			{#each [
+				{ n: 1, title: t('howStep1Title'), desc: t('howStep1Desc') },
+				{ n: 2, title: t('howStep2Title'), desc: t('howStep2Desc') },
+				{ n: 3, title: t('howStep3Title'), desc: t('howStep3Desc') }
+			] as step (step.n)}
+				<div class="how-step">
+					<span class="how-step-num">{step.n}</span>
+					<div class="how-step-text">
+						<span class="how-step-title">{step.title}</span>
+						<span class="how-step-desc">{step.desc}</span>
+					</div>
+				</div>
+			{/each}
+		</div>
 	{/if}
 </section>
 
@@ -527,15 +650,6 @@
 			<h2>{t('myVideos')}</h2>
 			<div class="header-actions">
 				{#if !manageMode && readyVideos.length > 0}
-					<button class="btn btn-ghost btn-sm ig-mode-btn" onclick={() => goto('/blog')}>
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-							<polyline points="14 2 14 8 20 8"/>
-							<line x1="16" y1="13" x2="8" y2="13"/>
-							<line x1="16" y1="17" x2="8" y2="17"/>
-						</svg>
-						{t('blog')}
-					</button>
 					<button class="btn btn-ghost btn-sm ig-mode-btn" onclick={() => goto('/ig')}>
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
@@ -952,6 +1066,188 @@
 		color: var(--accent);
 		font-size: 14px;
 		margin-top: 14px;
+	}
+
+	.replay-tour-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--text-dim);
+		background: none;
+		border: 1px solid var(--border);
+		border-radius: 20px;
+		padding: 4px 14px;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
+	.replay-tour-btn:hover {
+		border-color: var(--accent);
+		color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 6%, transparent);
+	}
+
+	/* ── Try-it-now examples ── */
+	.examples {
+		max-width: 560px;
+		margin: 28px auto 0;
+	}
+
+	.examples-title {
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--text-dim);
+		margin-bottom: 12px;
+	}
+
+	.example-chips {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 10px;
+	}
+
+	.example-chip {
+		display: flex;
+		flex-direction: column;
+		text-align: left;
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		padding: 0;
+		overflow: hidden;
+		cursor: pointer;
+		transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+	}
+
+	.example-chip:hover:not(:disabled) {
+		border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+		transform: translateY(-2px);
+		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+	}
+
+	.example-chip:disabled {
+		opacity: 0.6;
+		cursor: wait;
+	}
+
+	.example-thumb {
+		position: relative;
+		display: block;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		background: var(--bg-hover);
+	}
+
+	.example-thumb img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.example-play {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #fff;
+		background: rgba(0, 0, 0, 0.25);
+		opacity: 0;
+		transition: opacity 0.15s;
+	}
+
+	.example-chip:hover .example-play {
+		opacity: 1;
+	}
+
+	.example-play svg {
+		width: 28px;
+		height: 28px;
+		filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+	}
+
+	.example-chip-body {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 10px 12px;
+	}
+
+	.example-badge {
+		align-self: flex-start;
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.4px;
+		text-transform: uppercase;
+		color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		border-radius: 4px;
+		padding: 2px 6px;
+	}
+
+	.example-chip-title {
+		font-size: 12.5px;
+		font-weight: 500;
+		line-height: 1.4;
+		color: var(--text);
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	/* ── How it works (empty state) ── */
+	.how-it-works {
+		display: flex;
+		justify-content: center;
+		gap: 32px;
+		max-width: 720px;
+		margin: 40px auto 0;
+		padding-top: 32px;
+		border-top: 1px solid var(--border);
+	}
+
+	.how-step {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		flex: 1;
+		text-align: left;
+	}
+
+	.how-step-num {
+		flex-shrink: 0;
+		width: 24px;
+		height: 24px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		color: var(--accent);
+		font-size: 12px;
+		font-weight: 700;
+	}
+
+	.how-step-text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.how-step-title {
+		font-size: 13.5px;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.how-step-desc {
+		font-size: 12.5px;
+		line-height: 1.5;
+		color: var(--text-dim);
 	}
 
 	/* Transcription has no measurable progress — sweep instead of a frozen 100% bar. */

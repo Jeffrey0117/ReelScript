@@ -393,6 +393,40 @@ async def public_videos(
     }
 
 
+@router.get("/examples")
+async def example_videos(db: Session = Depends(get_db), limit: int = Query(3, ge=1, le=10)):
+    """Curated try-it-now examples for the upload page: public, fully processed,
+    with thumbnail + appreciation. Featured first, then newest. Includes the
+    source url so the frontend can one-click resubmit (dedup = instant ready)."""
+    videos = (
+        db.query(Video)
+        .join(Transcript, Transcript.video_id == Video.id)
+        .filter(
+            Video.status == "ready",
+            Video.is_public == True,
+            Video.thumbnail.isnot(None),
+            Transcript.appreciation.isnot(None),
+        )
+        .order_by(Video.is_featured.desc(), Video.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return {
+        "examples": [
+            {
+                "id": v.id,
+                "title": v.title,
+                "url": v.url,
+                "source": v.source,
+                "channel": v.channel,
+                "duration": v.duration,
+                "thumbnail": v.thumbnail,
+            }
+            for v in videos
+        ]
+    }
+
+
 # ── Search: keyword + semantic ───────────────────────────
 
 @router.get("/search")
