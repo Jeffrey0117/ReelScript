@@ -797,6 +797,13 @@
 		cursor: default;
 	}
 
+	/* Touch devices have no hover — keep the save button visible */
+	@media (pointer: coarse) {
+		.vocab-save {
+			opacity: 1;
+		}
+	}
+
 	.vocab-en {
 		font-weight: 600;
 		font-size: 15px;

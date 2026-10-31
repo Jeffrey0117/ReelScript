@@ -314,5 +314,26 @@
 		.grid {
 			grid-template-columns: 1fr;
 		}
+
+		.packs-hero {
+			padding: 24px 0 4px;
+		}
+
+		.packs-hero h1 {
+			font-size: 23px;
+		}
+
+		.subtitle {
+			font-size: 14px;
+			margin-bottom: 18px;
+		}
+
+		.tabs {
+			overflow-x: auto;
+		}
+
+		.tab {
+			white-space: nowrap;
+		}
 	}
 </style>

@@ -12,6 +12,7 @@
 	let tick = $state(0);
 	let user = $state<AuthUser | null>(null);
 	let showUserMenu = $state(false);
+	let showMobileMenu = $state(false);
 	let quota = $state<Quota | null>(null);
 
 	onMount(() => {
@@ -60,8 +61,11 @@
 			}
 		});
 
-		// Close user menu on outside click
-		const handleClick = () => { showUserMenu = false; };
+		// Close menus on outside click
+		const handleClick = () => {
+			showUserMenu = false;
+			showMobileMenu = false;
+		};
 		document.addEventListener('click', handleClick);
 		return () => document.removeEventListener('click', handleClick);
 	});
@@ -124,6 +128,50 @@
 					<a href="/">{t('home')}</a>
 					<a href="/packs">{t('materials')}</a>
 					<a href="/pricing">{t('pricing')}</a>
+				{/if}
+			</div>
+
+			<div class="mobile-menu-wrapper">
+				<button
+					class="nav-btn menu-btn"
+					aria-label="Menu"
+					aria-expanded={showMobileMenu}
+					onclick={(e) => {
+						e.stopPropagation();
+						showMobileMenu = !showMobileMenu;
+						showUserMenu = false;
+					}}
+				>
+					{#if showMobileMenu}
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<line x1="18" y1="6" x2="6" y2="18"/>
+							<line x1="6" y1="6" x2="18" y2="18"/>
+						</svg>
+					{:else}
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<line x1="3" y1="6" x2="21" y2="6"/>
+							<line x1="3" y1="12" x2="21" y2="12"/>
+							<line x1="3" y1="18" x2="21" y2="18"/>
+						</svg>
+					{/if}
+				</button>
+				{#if showMobileMenu}
+					<div class="mobile-menu">
+						{#if user}
+							<a href="/videos" onclick={() => (showMobileMenu = false)}>{t('myVideosNav')}</a>
+							<a href="/packs" onclick={() => (showMobileMenu = false)}>{t('materials')}</a>
+							<a href="/wordbook" onclick={() => (showMobileMenu = false)}>{t('wordbook')}</a>
+							<a href="/speaking" onclick={() => (showMobileMenu = false)}>{t('speakingCoach')}</a>
+							<a href="/collections" onclick={() => (showMobileMenu = false)}>{t('collections')}</a>
+							{#if user.role === 'admin'}
+								<a href="/admin" onclick={() => (showMobileMenu = false)}>{t('admin')}</a>
+							{/if}
+						{:else}
+							<a href="/" onclick={() => (showMobileMenu = false)}>{t('home')}</a>
+							<a href="/packs" onclick={() => (showMobileMenu = false)}>{t('materials')}</a>
+							<a href="/pricing" onclick={() => (showMobileMenu = false)}>{t('pricing')}</a>
+						{/if}
+					</div>
 				{/if}
 			</div>
 
@@ -328,6 +376,41 @@
 		color: var(--accent);
 		border: 1px solid var(--accent);
 		border-radius: var(--radius-sm);
+		white-space: nowrap;
+	}
+
+	/* Mobile menu — hidden on desktop, replaces nav-links below 768px */
+	.mobile-menu-wrapper {
+		display: none;
+		position: relative;
+	}
+
+	.mobile-menu {
+		position: absolute;
+		top: calc(100% + 8px);
+		right: 0;
+		min-width: 180px;
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+		display: flex;
+		flex-direction: column;
+		padding: 6px;
+		z-index: 200;
+	}
+
+	.mobile-menu a {
+		padding: 11px 14px;
+		font-size: 14px;
+		font-weight: 500;
+		color: var(--text) !important;
+		border-radius: var(--radius-sm);
+		text-decoration: none;
+	}
+
+	.mobile-menu a:hover {
+		background: var(--bg-hover);
 	}
 
 	.login-btn:hover {
@@ -401,15 +484,16 @@
 
 	@media (max-width: 768px) {
 		.nav-links {
-			gap: 12px;
+			display: none;
 		}
 
-		.nav-links a {
-			font-size: 13px;
+		.mobile-menu-wrapper {
+			display: block;
+			order: 2;
 		}
 
 		.nav-right {
-			gap: 10px;
+			gap: 8px;
 		}
 
 		.nav-actions {

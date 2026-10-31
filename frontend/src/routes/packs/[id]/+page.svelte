@@ -221,5 +221,13 @@
 		.thumb {
 			width: 110px;
 		}
+
+		.pack-head h1 {
+			font-size: 21px;
+		}
+
+		.row-body h3 {
+			font-size: 14px;
+		}
 	}
 </style>

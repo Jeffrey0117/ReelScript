@@ -183,5 +183,20 @@
 		.word-en {
 			min-width: 0;
 		}
+
+		.deck-head h1 {
+			font-size: 21px;
+		}
+
+		.actions {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 10px;
+		}
+
+		.actions .btn {
+			text-align: center;
+			justify-content: center;
+		}
 	}
 </style>

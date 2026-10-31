@@ -1011,6 +1011,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		flex-wrap: wrap;
 		gap: 12px;
 		margin-top: 14px;
 	}
@@ -1712,6 +1713,39 @@
 	@media (max-width: 640px) {
 		.hero {
 			padding: 36px 0 24px;
+		}
+
+		/* Example chips become finger-friendly horizontal rows */
+		.example-chips {
+			grid-template-columns: 1fr;
+			gap: 8px;
+		}
+
+		.example-chip {
+			flex-direction: row;
+			align-items: center;
+		}
+
+		.example-thumb {
+			width: 96px;
+			flex-shrink: 0;
+			aspect-ratio: 16 / 10;
+		}
+
+		.example-chip-body {
+			padding: 8px 12px;
+			min-width: 0;
+		}
+
+		.example-chip-title {
+			-webkit-line-clamp: 1;
+		}
+
+		.how-it-works {
+			flex-direction: column;
+			gap: 18px;
+			margin-top: 32px;
+			padding-top: 24px;
 		}
 
 		.hero-icon {

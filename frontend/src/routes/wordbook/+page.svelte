@@ -697,6 +697,14 @@
 	}
 
 	@media (max-width: 640px) {
+		.head {
+			padding: 24px 0 20px;
+		}
+
+		.head h1 {
+			font-size: 23px;
+		}
+
 		.stats {
 			width: 100%;
 		}
@@ -704,6 +712,44 @@
 		.stat {
 			flex: 1;
 			min-width: 0;
+			padding: 12px 16px;
+		}
+
+		.stat-num {
+			font-size: 22px;
+		}
+
+		.head-actions .btn {
+			flex: 1 1 auto;
+			text-align: center;
+		}
+
+		.review {
+			margin: 20px auto;
+		}
+
+		.review-card {
+			min-height: 220px;
+			padding: 28px 20px;
+		}
+
+		.review-word {
+			font-size: 28px;
+		}
+
+		.word-row {
+			padding: 10px 12px;
+			gap: 10px;
+		}
+
+		.word-main {
+			flex-direction: column;
+			gap: 2px;
+		}
+
+		.modal {
+			max-height: 86vh;
+			padding: 16px;
 		}
 	}
 </style>
