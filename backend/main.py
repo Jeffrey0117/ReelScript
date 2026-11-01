@@ -61,6 +61,10 @@ async def lifespan(app: FastAPI):
     # Recover pipelines stuck from previous crash
     from api.video_routes import recover_stuck_pipelines
     await recover_stuck_pipelines()
+    # Resume batch ingest left over from a restart
+    from services.ingest import resume_on_startup, ensure_worker
+    if resume_on_startup():
+        ensure_worker()
     yield
 
 

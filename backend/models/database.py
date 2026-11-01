@@ -132,6 +132,23 @@ class SharedDeckWord(Base):
     deck = relationship("SharedDeck", back_populates="words")
 
 
+class IngestItem(Base):
+    """Admin batch-ingest queue — one URL per row, processed serially by the
+    ingest worker (download→transcribe→translate→appreciate→vocab→pack)."""
+    __tablename__ = "ingest_items"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    batch_id = Column(String, nullable=False, index=True)
+    url = Column(Text, nullable=False)
+    status = Column(String, default="pending")  # pending, processing, done, failed
+    video_id = Column(String, nullable=True)
+    error = Column(Text, nullable=True)
+    category = Column(String, nullable=True)
+    collection_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class DeckSave(Base):
     """Who saved which deck — dedupes the saves_count reputation metric."""
     __tablename__ = "deck_saves"

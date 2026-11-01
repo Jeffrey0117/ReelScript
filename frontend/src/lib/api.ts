@@ -185,6 +185,57 @@ export const adminGetUser = (adminKey = '', userId: string) =>
 		headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
 	});
 
+// Admin batch ingest
+export interface IngestCounts {
+	pending: number;
+	processing: number;
+	done: number;
+	failed: number;
+	total: number;
+}
+
+export interface IngestItemRow {
+	id: string;
+	url: string;
+	status: string;
+	video_id: string | null;
+	title: string | null;
+	error: string | null;
+}
+
+export interface IngestStatus {
+	batch_id: string | null;
+	counts: IngestCounts | null;
+	items: IngestItemRow[];
+}
+
+export const adminStartIngest = (
+	adminKey = '',
+	data: { urls: string[]; category?: string; collection_id?: string; new_collection_name?: string }
+) =>
+	request<{ success: boolean; batch_id: string; queued: number; invalid: string[]; collection_id: string | null }>(
+		'/api/admin/ingest',
+		{
+			method: 'POST',
+			headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+			body: JSON.stringify(data),
+		}
+	);
+
+export const adminIngestStatus = (adminKey = '', batchId?: string) =>
+	request<IngestStatus>(`/api/admin/ingest/status${batchId ? `?batch_id=${batchId}` : ''}`, {
+		headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+	});
+
+export const adminIngestRetryFailed = (adminKey = '', batchId?: string) =>
+	request<{ success: boolean; retried: number }>(
+		`/api/admin/ingest/retry-failed${batchId ? `?batch_id=${batchId}` : ''}`,
+		{
+			method: 'POST',
+			headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+		}
+	);
+
 // Public API (no auth required)
 export const publicVideos = (featured = false) =>
 	request<PublicVideoList>(`/api/public/videos?limit=100${featured ? '&featured=true' : ''}`);

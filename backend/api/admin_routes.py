@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, literal_column
 
-from models import get_db, Video, Transcript, Collection, User, UserVideo, UserQuota, Subscription, Invite
+from models import get_db, Video, Transcript, Collection, User, UserVideo, UserQuota, Subscription, Invite, IngestItem
 from middleware.auth import require_admin
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -375,3 +375,134 @@ async def admin_get_user(user_id: str, db: Session = Depends(get_db)):
         "quota_history": quota_history,
         "invite": invite,
     }
+
+
+# ── Batch ingest: paste URLs, wake up to finished material ──
+
+class IngestRequest(BaseModel):
+    urls: list[str]
+    category: str | None = None
+    collection_id: str | None = None
+    new_collection_name: str | None = None
+
+
+def _ingest_counts(db: Session, batch_id: str) -> dict:
+    rows = (
+        db.query(IngestItem.status, func.count(IngestItem.id))
+        .filter(IngestItem.batch_id == batch_id)
+        .group_by(IngestItem.status)
+        .all()
+    )
+    counts = {"pending": 0, "processing": 0, "done": 0, "failed": 0}
+    for status, n in rows:
+        counts[status] = n
+    counts["total"] = sum(counts.values())
+    return counts
+
+
+@router.post("/ingest")
+async def start_ingest(req: IngestRequest, db: Session = Depends(get_db), user: dict = Depends(require_admin)):
+    from api.video_routes import _is_valid_url
+    from services.ingest import ensure_worker, new_batch_id
+
+    seen: set[str] = set()
+    urls: list[str] = []
+    invalid: list[str] = []
+    for raw in req.urls:
+        u = raw.strip()
+        if not u or u in seen:
+            continue
+        seen.add(u)
+        if _is_valid_url(u):
+            urls.append(u)
+        else:
+            invalid.append(u)
+
+    if not urls:
+        raise HTTPException(status_code=400, detail="No valid URLs")
+
+    collection_id = req.collection_id
+    if not collection_id and req.new_collection_name and req.new_collection_name.strip():
+        pack = Collection(
+            name=req.new_collection_name.strip(),
+            user_id=user.get("sub", "legacy-admin"),
+            is_public=True,
+            is_official=True,
+        )
+        db.add(pack)
+        db.commit()
+        db.refresh(pack)
+        collection_id = pack.id
+
+    batch_id = new_batch_id()
+    for u in urls:
+        db.add(IngestItem(
+            batch_id=batch_id,
+            url=u,
+            category=(req.category or "").strip() or None,
+            collection_id=collection_id,
+        ))
+    db.commit()
+
+    ensure_worker()
+    return {
+        "success": True,
+        "batch_id": batch_id,
+        "queued": len(urls),
+        "invalid": invalid,
+        "collection_id": collection_id,
+    }
+
+
+@router.get("/ingest/status", dependencies=[Depends(require_admin)])
+async def ingest_status(db: Session = Depends(get_db), batch_id: str | None = None):
+    if not batch_id:
+        latest = db.query(IngestItem).order_by(IngestItem.created_at.desc()).first()
+        if not latest:
+            return {"batch_id": None, "counts": None, "items": []}
+        batch_id = latest.batch_id
+
+    items = (
+        db.query(IngestItem)
+        .filter(IngestItem.batch_id == batch_id)
+        .order_by(IngestItem.created_at.asc())
+        .all()
+    )
+    video_ids = [i.video_id for i in items if i.video_id]
+    titles = {}
+    if video_ids:
+        for vid, title in db.query(Video.id, Video.title).filter(Video.id.in_(video_ids)).all():
+            titles[vid] = title
+
+    return {
+        "batch_id": batch_id,
+        "counts": _ingest_counts(db, batch_id),
+        "items": [
+            {
+                "id": i.id,
+                "url": i.url,
+                "status": i.status,
+                "video_id": i.video_id,
+                "title": titles.get(i.video_id),
+                "error": i.error,
+            }
+            for i in items
+        ],
+    }
+
+
+@router.post("/ingest/retry-failed", dependencies=[Depends(require_admin)])
+async def ingest_retry_failed(db: Session = Depends(get_db), batch_id: str | None = None):
+    from services.ingest import ensure_worker
+
+    q = db.query(IngestItem).filter(IngestItem.status == "failed")
+    if batch_id:
+        q = q.filter(IngestItem.batch_id == batch_id)
+    failed = q.all()
+    for item in failed:
+        item.status = "pending"
+        item.error = None
+    db.commit()
+    if failed:
+        ensure_worker()
+    return {"success": True, "retried": len(failed)}

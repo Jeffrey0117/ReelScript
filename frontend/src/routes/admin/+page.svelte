@@ -7,11 +7,15 @@
 		adminDeleteVideo,
 		adminListUsers,
 		adminGetUser,
+		adminStartIngest,
+		adminIngestStatus,
+		adminIngestRetryFailed,
 		thumbnailUrl,
 		type AdminStats,
 		type AdminVideo,
 		type AdminUser,
 		type AdminUserDetail,
+		type IngestStatus,
 	} from '$lib/api';
 	import { t } from '$lib/i18n';
 	import { onAuthChange, type AdmanUser } from '$lib/auth';
@@ -25,7 +29,75 @@
 	let authError = $state('');
 
 	// Tab
-	let activeTab = $state<'overview' | 'videos' | 'members'>('overview');
+	let activeTab = $state<'overview' | 'videos' | 'members' | 'ingest'>('overview');
+
+	// Batch ingest
+	let ingestUrls = $state('');
+	let ingestCategory = $state('motivation');
+	let ingestPackName = $state('');
+	let ingestSubmitting = $state(false);
+	let ingestNotice = $state('');
+	let ingest = $state<IngestStatus | null>(null);
+	let ingestPollTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function parseIngestUrls(input: string): string[] {
+		return input
+			.split(/[\s\n]+/)
+			.map((s) => s.trim())
+			.filter((s) => s.startsWith('http'));
+	}
+
+	async function refreshIngest() {
+		ingest = await adminIngestStatus(getAdminKey()).catch(() => null);
+		scheduleIngestPoll();
+	}
+
+	function scheduleIngestPoll() {
+		if (ingestPollTimer) clearTimeout(ingestPollTimer);
+		const active = ingest?.counts && ingest.counts.pending + ingest.counts.processing > 0;
+		if (active && activeTab === 'ingest') {
+			ingestPollTimer = setTimeout(refreshIngest, 5000);
+		}
+	}
+
+	async function startIngest() {
+		const urls = parseIngestUrls(ingestUrls);
+		if (urls.length === 0 || ingestSubmitting) return;
+		ingestSubmitting = true;
+		ingestNotice = '';
+		try {
+			const result = await adminStartIngest(getAdminKey(), {
+				urls,
+				category: ingestCategory.trim() || undefined,
+				new_collection_name: ingestPackName.trim() || undefined,
+			});
+			ingestUrls = '';
+			ingestNotice = t('ingestQueuedNotice').replace('{n}', String(result.queued));
+			if (result.invalid.length > 0) {
+				ingestNotice += ' · ' + t('ingestInvalidNotice').replace('{n}', String(result.invalid.length));
+			}
+			await refreshIngest();
+		} catch (e) {
+			ingestNotice = (e as Error).message;
+		} finally {
+			ingestSubmitting = false;
+		}
+	}
+
+	async function retryIngestFailed() {
+		await adminIngestRetryFailed(getAdminKey(), ingest?.batch_id ?? undefined).catch(() => {});
+		await refreshIngest();
+	}
+
+	function ingestStatusLabel(status: string): string {
+		const map: Record<string, string> = {
+			pending: t('ingestStatusPending'),
+			processing: t('ingestStatusProcessing'),
+			done: t('ingestStatusDone'),
+			failed: t('ingestStatusFailed'),
+		};
+		return map[status] ?? status;
+	}
 
 	// Stats
 	let stats = $state<AdminStats | null>(null);
@@ -157,10 +229,16 @@
 		selectedUser = null;
 	}
 
-	async function switchTab(tab: 'overview' | 'videos' | 'members') {
+	async function switchTab(tab: 'overview' | 'videos' | 'members' | 'ingest') {
 		activeTab = tab;
 		if (tab === 'members' && users.length === 0) {
 			await loadUsers();
+		}
+		if (tab === 'ingest') {
+			await refreshIngest();
+		} else if (ingestPollTimer) {
+			clearTimeout(ingestPollTimer);
+			ingestPollTimer = null;
 		}
 	}
 
@@ -269,7 +347,87 @@
 				class:active={activeTab === 'members'}
 				onclick={() => switchTab('members')}
 			>{t('members')}</button>
+			<button
+				class="tab-btn"
+				class:active={activeTab === 'ingest'}
+				onclick={() => switchTab('ingest')}
+			>{t('ingestTab')}</button>
 		</div>
+
+		<!-- ═══ Ingest Tab ═══ -->
+		{#if activeTab === 'ingest'}
+			<div class="ingest-form card">
+				<label class="ingest-label" for="ingest-urls">{t('ingestUrlsLabel')}</label>
+				<textarea
+					id="ingest-urls"
+					class="ingest-textarea"
+					bind:value={ingestUrls}
+					rows="8"
+					placeholder={'https://...\nhttps://...'}
+					disabled={ingestSubmitting}
+				></textarea>
+				<div class="ingest-options">
+					<label>
+						<span>{t('ingestCategoryLabel')}</span>
+						<select bind:value={ingestCategory}>
+							{#each CATEGORIES as cat (cat)}
+								<option value={cat}>{cat}</option>
+							{/each}
+							<option value="">-</option>
+						</select>
+					</label>
+					<label class="ingest-pack-field">
+						<span>{t('ingestPackLabel')}</span>
+						<input type="text" bind:value={ingestPackName} maxlength="100" />
+					</label>
+				</div>
+				<div class="ingest-actions">
+					<button
+						class="btn btn-primary"
+						onclick={startIngest}
+						disabled={ingestSubmitting || parseIngestUrls(ingestUrls).length === 0}
+					>
+						{ingestSubmitting ? t('ingestStarting') : `${t('ingestStart')} (${parseIngestUrls(ingestUrls).length})`}
+					</button>
+					{#if ingestNotice}
+						<span class="ingest-notice" role="status">{ingestNotice}</span>
+					{/if}
+				</div>
+			</div>
+
+			{#if ingest?.counts}
+				<div class="ingest-status">
+					<div class="ingest-counts">
+						<span class="ic" class:on={ingest.counts.processing > 0}>{ingestStatusLabel('processing')} {ingest.counts.processing}</span>
+						<span class="ic">{ingestStatusLabel('pending')} {ingest.counts.pending}</span>
+						<span class="ic ic-done" class:on={ingest.counts.done > 0}>{ingestStatusLabel('done')} {ingest.counts.done}</span>
+						<span class="ic ic-failed" class:on={ingest.counts.failed > 0}>{ingestStatusLabel('failed')} {ingest.counts.failed}</span>
+						{#if ingest.counts.failed > 0}
+							<button class="btn btn-ghost btn-sm" onclick={retryIngestFailed}>{t('ingestRetryFailed')}</button>
+						{/if}
+					</div>
+					<div class="ingest-items card">
+						{#each ingest.items as item (item.id)}
+							<div class="ingest-row">
+								<span class="ingest-row-main">
+									{#if item.video_id && item.status === 'done'}
+										<a href="/watch/{item.video_id}" target="_blank">{item.title || item.url}</a>
+									{:else}
+										<span class="ingest-url">{item.title || item.url}</span>
+									{/if}
+									{#if item.error}
+										<span class="ingest-error">{item.error}</span>
+									{/if}
+								</span>
+								<span class="ingest-badge {item.status}">{ingestStatusLabel(item.status)}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+			{:else if ingest}
+				<p class="ingest-empty">{t('ingestEmpty')}</p>
+			{/if}
+		{/if}
 
 		<!-- ═══ Overview Tab ═══ -->
 		{#if activeTab === 'overview'}
@@ -1012,5 +1170,176 @@
 			flex-direction: column;
 			align-items: flex-start;
 		}
+	}
+
+	/* ── Batch ingest ── */
+	.ingest-form {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+		padding: 20px;
+		margin-bottom: 20px;
+	}
+
+	.ingest-label {
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--text-dim);
+	}
+
+	.ingest-textarea {
+		width: 100%;
+		font-family: ui-monospace, monospace;
+		font-size: 13px;
+		line-height: 1.6;
+		padding: 12px 14px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--bg);
+		color: var(--text);
+		resize: vertical;
+		outline: none;
+	}
+
+	.ingest-textarea:focus {
+		border-color: var(--accent);
+	}
+
+	.ingest-options {
+		display: flex;
+		gap: 16px;
+		flex-wrap: wrap;
+	}
+
+	.ingest-options label {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		font-size: 12.5px;
+		color: var(--text-dim);
+	}
+
+	.ingest-options select,
+	.ingest-options input {
+		padding: 8px 10px;
+		font-size: 13.5px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--bg);
+		color: var(--text);
+	}
+
+	.ingest-pack-field {
+		flex: 1;
+		min-width: 240px;
+	}
+
+	.ingest-actions {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		flex-wrap: wrap;
+	}
+
+	.ingest-notice {
+		font-size: 13px;
+		color: var(--accent);
+	}
+
+	.ingest-counts {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		flex-wrap: wrap;
+		margin-bottom: 12px;
+		font-size: 13px;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.ic {
+		color: var(--text-dim);
+	}
+
+	.ic.on {
+		color: var(--accent);
+		font-weight: 700;
+	}
+
+	.ic-done.on {
+		color: #10b981;
+	}
+
+	.ic-failed.on {
+		color: var(--danger);
+	}
+
+	.ingest-items {
+		padding: 0;
+		overflow: hidden;
+		margin-bottom: 32px;
+	}
+
+	.ingest-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 14px;
+		padding: 9px 16px;
+		border-bottom: 1px solid var(--border);
+		font-size: 13px;
+	}
+
+	.ingest-row:last-child {
+		border-bottom: none;
+	}
+
+	.ingest-row-main {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	.ingest-row-main a {
+		color: var(--text);
+		font-weight: 500;
+	}
+
+	.ingest-url {
+		color: var(--text-dim);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 640px;
+	}
+
+	.ingest-error {
+		font-size: 12px;
+		color: var(--danger);
+	}
+
+	.ingest-badge {
+		flex-shrink: 0;
+		font-size: 11.5px;
+		font-weight: 600;
+		color: var(--text-dim);
+	}
+
+	.ingest-badge.processing {
+		color: var(--accent);
+	}
+
+	.ingest-badge.done {
+		color: #10b981;
+	}
+
+	.ingest-badge.failed {
+		color: var(--danger);
+	}
+
+	.ingest-empty {
+		color: var(--text-dim);
+		font-size: 14px;
+		padding: 16px 0;
 	}
 </style>
