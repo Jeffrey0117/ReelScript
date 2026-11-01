@@ -7,19 +7,14 @@
 		analyzeVocabulary,
 		appreciateVideo,
 		videoFileUrl,
-		saveWord,
-		deleteWord,
-		listWordbook,
-		lookupWord,
 		type VideoDetail,
 		type VocabularyItem,
 		type Appreciation,
-		type SavedWord,
-		type DictEntry,
 	} from '$lib/api';
 	import { t } from '$lib/i18n';
-	import { getUser, login, onAuthChange } from '$lib/auth';
-	import WordCard from '$lib/components/WordCard.svelte';
+	import { getUser, onAuthChange } from '$lib/auth';
+	import InteractiveText from '$lib/components/InteractiveText.svelte';
+	import { loadSavedWords, resetWordbook, wordState, markWord } from '$lib/wordbook.svelte';
 
 	let video = $state<VideoDetail | null>(null);
 	let loading = $state(true);
@@ -27,153 +22,10 @@
 	let analyzing = $state(false);
 	let appreciating = $state(false);
 
-	// Wordbook integration
-	let isLoggedIn = $state(false);
-	let savedMap = $state<Map<string, SavedWord>>(new Map());
-
-	const MASTERED_BOX = 5;
-
-	async function loadSavedWords() {
-		const data = await listWordbook().catch(() => null);
-		if (data) savedMap = new Map(data.words.map((w) => [w.word.toLowerCase(), w]));
-	}
-
-	function wordState(word: string): 'none' | 'learning' | 'mastered' {
-		const saved = savedMap.get(word.toLowerCase());
-		if (!saved) return 'none';
-		return saved.box >= MASTERED_BOX ? 'mastered' : 'learning';
-	}
-
-	async function markWord(v: VocabularyItem, mastered: boolean) {
-		if (!isLoggedIn) {
-			login();
-			return;
-		}
-		try {
-			const result = await saveWord({
-				word: v.word,
-				meaning: v.translation,
-				video_id: videoId,
-				mastered,
-			});
-			savedMap = new Map(savedMap).set(v.word.toLowerCase(), result.saved);
-		} catch {
-			// server is truth — UI simply stays unmarked
-		}
-	}
-
-	async function unmarkWord(v: VocabularyItem) {
-		const saved = savedMap.get(v.word.toLowerCase());
-		if (!saved) return;
-		const next = new Map(savedMap);
-		next.delete(v.word.toLowerCase());
-		savedMap = next;
-		deleteWord(saved.id).catch(() => loadSavedWords());
-	}
-
-	// Backwards-compatible save for the vocab grid's + button
+	// Save from the vocab grid's + button
 	async function handleSaveWord(v: VocabularyItem) {
 		if (wordState(v.word) !== 'none') return;
-		await markWord(v, false);
-	}
-
-	// ── Interactive word card ──
-	let activeCard = $state<{
-		v: VocabularyItem;
-		isPhrase: boolean;
-		anchor: { top: number; bottom: number; left: number; width: number };
-		phonetic?: string | null;
-		loading?: boolean;
-	} | null>(null);
-
-	function openWordCard(e: MouseEvent, v: VocabularyItem) {
-		e.preventDefault();
-		e.stopPropagation();
-		const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-		activeCard = {
-			v,
-			isPhrase: v.word.trim().includes(' '),
-			anchor: { top: r.top, bottom: r.bottom, left: r.left, width: r.width },
-		};
-	}
-
-	// ── Any-word dictionary lookup ──
-	const dictCache = new Map<string, DictEntry>();
-
-	async function openDictWord(e: MouseEvent, raw: string) {
-		e.preventDefault();
-		e.stopPropagation();
-		const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-		const anchor = { top: r.top, bottom: r.bottom, left: r.left, width: r.width };
-		const key = raw.toLowerCase();
-
-		const cached = dictCache.get(key);
-		if (cached) {
-			activeCard = {
-				v: { word: cached.found ? cached.word : raw, translation: cached.translation ?? '' },
-				isPhrase: false,
-				anchor,
-				phonetic: cached.phonetic || null,
-			};
-			return;
-		}
-
-		activeCard = { v: { word: raw, translation: '' }, isPhrase: false, anchor, loading: true };
-		const entry = await lookupWord(raw).catch(() => null);
-		if (entry) dictCache.set(key, entry);
-		// The user may have closed or opened another card while we fetched.
-		if (activeCard?.loading && activeCard.v.word === raw) {
-			activeCard = {
-				v: { word: entry?.found ? entry.word : raw, translation: entry?.translation ?? '' },
-				isPhrase: false,
-				anchor,
-				phonetic: entry?.phonetic || null,
-			};
-		}
-	}
-
-	// Split a sentence into tokens: analyzed vocabulary (longest entries win so
-	// phrases swallow the words inside them), then every remaining English word
-	// becomes a dictionary-lookup token.
-	interface SentenceToken {
-		text: string;
-		v?: VocabularyItem;
-		dict?: boolean;
-	}
-
-	function splitDictWords(text: string): SentenceToken[] {
-		const tokens: SentenceToken[] = [];
-		let last = 0;
-		for (const m of text.matchAll(/[A-Za-z][A-Za-z'’-]*/g)) {
-			const idx = m.index ?? 0;
-			if (idx > last) tokens.push({ text: text.slice(last, idx) });
-			tokens.push({ text: m[0], dict: true });
-			last = idx + m[0].length;
-		}
-		if (last < text.length) tokens.push({ text: text.slice(last) });
-		return tokens;
-	}
-
-	function tokenizeSentence(text: string, vocabulary: VocabularyItem[]): SentenceToken[] {
-		const sorted = [...vocabulary].sort((a, b) => b.word.length - a.word.length);
-		const escaped = sorted
-			.map((v) => v.word.trim())
-			.filter(Boolean)
-			.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-		if (!escaped.length) return splitDictWords(text);
-		const regex = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi');
-		const byLower = new Map(sorted.map((v) => [v.word.trim().toLowerCase(), v]));
-
-		const tokens: SentenceToken[] = [];
-		let last = 0;
-		for (const m of text.matchAll(regex)) {
-			const idx = m.index ?? 0;
-			if (idx > last) tokens.push(...splitDictWords(text.slice(last, idx)));
-			tokens.push({ text: m[0], v: byLower.get(m[0].toLowerCase()) });
-			last = idx + m[0].length;
-		}
-		if (last < text.length) tokens.push(...splitDictWords(text.slice(last)));
-		return tokens;
+		await markWord(v, false, videoId);
 	}
 
 	// Audio player state
@@ -260,12 +112,10 @@
 	);
 
 	onMount(async () => {
-		isLoggedIn = !!getUser();
-		if (isLoggedIn) void loadSavedWords();
+		if (getUser()) void loadSavedWords();
 		onAuthChange((u) => {
-			const was = isLoggedIn;
-			isLoggedIn = !!u;
-			if (u && !was) void loadSavedWords();
+			if (u) void loadSavedWords();
+			else resetWordbook();
 		});
 
 		video = await getVideo(videoId);
@@ -537,26 +387,7 @@
 							</div>
 							<div class="row-content" role="button" tabindex="0" onclick={() => seekToSentence(i)} onkeydown={(e) => e.key === 'Enter' && seekToSentence(i)}>
 								<p class="row-en">
-									{#each tokenizeSentence(sent.en, sent.vocabulary) as tk, ti (ti)}
-										{#if tk.v}
-											{@const st = wordState(tk.v.word)}
-											<button
-												class="wtk"
-												class:phrase={tk.v.word.trim().includes(' ')}
-												class:learning={st === 'learning'}
-												class:mastered={st === 'mastered'}
-												onclick={(e) => openWordCard(e, tk.v)}
-											>{tk.text}</button>
-										{:else if tk.dict}
-											{@const dst = wordState(tk.text)}
-											<button
-												class="dtk"
-												class:learning={dst === 'learning'}
-												class:mastered={dst === 'mastered'}
-												onclick={(e) => openDictWord(e, tk.text)}
-											>{tk.text}</button>
-										{:else}{tk.text}{/if}
-									{/each}
+									<InteractiveText text={sent.en} vocabulary={sent.vocabulary} {videoId} />
 								</p>
 								{#if sent.zh}
 									<p class="row-zh">{sent.zh}</p>
@@ -571,7 +402,9 @@
 			<section class="section">
 				<h2>{t('fullText')}</h2>
 				<div class="fulltext-block">
-					<div class="fulltext-en">{fullEnglish}</div>
+					<div class="fulltext-en">
+						<InteractiveText text={fullEnglish} vocabulary={allVocabulary} {videoId} />
+					</div>
 					{#if fullChinese}
 						<div class="fulltext-zh">{fullChinese}</div>
 					{/if}
@@ -625,22 +458,6 @@
 			/>
 		</div>
 	{/if}
-{/if}
-
-{#if activeCard}
-	<WordCard
-		word={activeCard.v.word}
-		meaning={activeCard.v.translation || null}
-		phonetic={activeCard.phonetic ?? null}
-		loading={activeCard.loading ?? false}
-		isPhrase={activeCard.isPhrase}
-		state={wordState(activeCard.v.word)}
-		anchor={activeCard.anchor}
-		onLearning={() => activeCard && markWord(activeCard.v, false)}
-		onMastered={() => activeCard && markWord(activeCard.v, true)}
-		onUnmark={() => activeCard && unmarkWord(activeCard.v)}
-		onClose={() => (activeCard = null)}
-	/>
 {/if}
 
 <style>
@@ -1061,76 +878,6 @@
 		font-size: 14px;
 		line-height: 1.6;
 		color: var(--text-dim);
-	}
-
-	/* Interactive vocabulary tokens — word = blue family, phrase = green family */
-	.wtk {
-		display: inline;
-		font: inherit;
-		padding: 0 4px;
-		margin: 0 1px;
-		border: 1.5px solid rgba(59, 130, 246, 0.55);
-		border-radius: 6px;
-		background: rgba(59, 130, 246, 0.06);
-		color: inherit;
-		cursor: pointer;
-		transition: background 0.15s, border-color 0.15s;
-	}
-
-	.wtk:hover {
-		background: rgba(59, 130, 246, 0.16);
-	}
-
-	.wtk.phrase {
-		border-color: rgba(16, 185, 129, 0.55);
-		background: rgba(16, 185, 129, 0.06);
-	}
-
-	.wtk.phrase:hover {
-		background: rgba(16, 185, 129, 0.16);
-	}
-
-	.wtk.learning {
-		background: rgba(59, 130, 246, 0.22);
-		border-color: #3b82f6;
-	}
-
-	.wtk.mastered {
-		background: rgba(16, 185, 129, 0.22);
-		border-color: #10b981;
-	}
-
-	/* Dictionary tokens: every other word, quiet until touched */
-	.dtk {
-		display: inline;
-		font: inherit;
-		padding: 0;
-		margin: 0;
-		border: none;
-		background: none;
-		color: inherit;
-		cursor: pointer;
-		border-radius: 3px;
-		text-decoration-line: underline;
-		text-decoration-style: dashed;
-		text-decoration-color: transparent;
-		text-underline-offset: 3px;
-		transition: text-decoration-color 0.15s, background 0.15s;
-	}
-
-	.dtk:hover {
-		text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
-		background: color-mix(in srgb, var(--accent) 8%, transparent);
-	}
-
-	.dtk.learning {
-		background: rgba(59, 130, 246, 0.18);
-		text-decoration-color: #3b82f6;
-	}
-
-	.dtk.mastered {
-		background: rgba(16, 185, 129, 0.18);
-		text-decoration-color: #10b981;
 	}
 
 	/* Full Text */

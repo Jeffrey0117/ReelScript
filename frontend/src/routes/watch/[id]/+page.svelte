@@ -14,6 +14,9 @@
 	} from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
+	import { getUser, onAuthChange } from '$lib/auth';
+	import InteractiveText from '$lib/components/InteractiveText.svelte';
+	import { loadSavedWords, resetWordbook } from '$lib/wordbook.svelte';
 
 	let video = $state<VideoDetail | null>(null);
 	let videoEl = $state<HTMLVideoElement | null>(null);
@@ -42,6 +45,11 @@
 	});
 
 	onMount(async () => {
+		if (getUser()) void loadSavedWords();
+		onAuthChange((u) => {
+			if (u) void loadSavedWords();
+			else resetWordbook();
+		});
 		video = await getVideo(videoId);
 	});
 
@@ -283,20 +291,25 @@
 				<div class="segments">
 					{#each video.transcript.segments as segment, i (segment.index)}
 						<div class="segment-row" class:active={i === activeSegmentIndex} class:repeating={playbackMode === 'repeat-one' && i === repeatSegmentIndex}>
-						<button
+						<div
 							class="segment"
+							role="button"
+							tabindex="0"
 							onclick={() => seekTo(segment)}
+							onkeydown={(e) => e.key === 'Enter' && seekTo(segment)}
 						>
 							<span class="segment-time">{formatTime(segment.start)}</span>
 							<span class="segment-text-wrapper">
 								{#if displayMode === 'en' || displayMode === 'both'}
-									<span class="segment-text">{segment.text}</span>
+									<span class="segment-text">
+										<InteractiveText text={segment.text} vocabulary={segment.vocabulary ?? []} videoId={video.id} />
+									</span>
 								{/if}
 								{#if (displayMode === 'zh' || displayMode === 'both') && segment.translation}
 									<span class="segment-translation">{segment.translation}</span>
 								{/if}
 							</span>
-						</button>
+						</div>
 						<button
 							class="segment-lock"
 							class:locked={playbackMode === 'repeat-one' && i === repeatSegmentIndex}
@@ -554,6 +567,7 @@
 		width: 100%;
 		flex: 1;
 		min-width: 0;
+		cursor: pointer;
 	}
 
 	.segment-lock {
