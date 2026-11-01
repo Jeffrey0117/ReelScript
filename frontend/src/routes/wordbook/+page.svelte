@@ -215,8 +215,18 @@
 	</section>
 {:else}
 	<!-- ── Overview ── -->
-	<section class="head">
-		<h1>{t('wordbook')}</h1>
+	<section class="head page-hero-wrap">
+		<div class="page-glow"></div>
+		<span class="pill-tag">
+			<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M12 20h9"/>
+				<path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+			</svg>
+			{t('wordbookPill')}
+		</span>
+		<h1 class="page-title-xl wb-title">
+			{t('wordbookTitle1')}<span class="accent-word">{t('wordbookTitle2')}</span>
+		</h1>
 		<div class="stats">
 			<div class="stat card">
 				<span class="stat-num">{words.length}</span>
@@ -352,14 +362,13 @@
 		padding: 40px 0 24px;
 	}
 
-	.head h1 {
-		font-size: 28px;
-		font-weight: 700;
-		letter-spacing: -0.5px;
-		margin-bottom: 20px;
+	.wb-title {
+		margin: 14px 0 20px;
 	}
 
 	.stats {
+		position: relative;
+		z-index: 1;
 		display: flex;
 		gap: 12px;
 		margin-bottom: 20px;
@@ -414,6 +423,7 @@
 		font-variant-numeric: tabular-nums;
 	}
 
+	/* 暗幕劇院複習卡 — 亮暗主題都走同一個聚焦視覺(同首頁示範區) */
 	.review-card {
 		display: flex;
 		flex-direction: column;
@@ -423,25 +433,38 @@
 		min-height: 260px;
 		padding: 36px 28px;
 		text-align: center;
+		background: #1d1d1d;
+		border-color: #2e2e2e;
+		border-radius: 16px;
+		box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
 	}
 
 	.review-word {
 		font-size: 34px;
 		font-weight: 800;
 		letter-spacing: -0.5px;
-		color: var(--accent);
+		color: #a5b4fc;
 	}
 
 	.review-meaning {
 		font-size: 19px;
-		color: var(--text);
+		color: #ececec;
 	}
 
 	.review-example {
 		font-size: 14px;
-		color: var(--text-dim);
+		color: #9a9a9a;
 		font-style: italic;
 		line-height: 1.6;
+	}
+
+	.done-card h2,
+	.done-card p {
+		color: #ececec;
+	}
+
+	.done-card p {
+		color: #9a9a9a;
 	}
 
 	.review-actions {
@@ -699,10 +722,6 @@
 	@media (max-width: 640px) {
 		.head {
 			padding: 24px 0 20px;
-		}
-
-		.head h1 {
-			font-size: 23px;
 		}
 
 		.stats {

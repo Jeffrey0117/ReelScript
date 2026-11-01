@@ -502,14 +502,18 @@
 	<title>{t('myVideos')} - ReelScript</title>
 </svelte:head>
 
-<section class="hero">
-	<div class="hero-icon">
-		<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+<section class="hero page-hero-wrap">
+	<div class="page-glow"></div>
+	<span class="pill-tag">
+		<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 			<polygon points="5 3 19 12 5 21 5 3"/>
 		</svg>
-	</div>
-	<h1>{t('addVideo')}</h1>
-	<p class="hero-subtitle">{t('urlPlaceholder')}</p>
+		{t('heroPill')}
+	</span>
+	<h1 class="page-title-xl hero-title-row">
+		{t('videosTitle1')}<span class="accent-word">{t('videosTitle2')}</span>
+	</h1>
+	<p class="hero-subtitle">{t('videosSubtitle')}</p>
 
 	<form class="url-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
 		<div class="input-wrapper" data-tour="paste">
@@ -913,32 +917,21 @@
 		padding: 56px 0 44px;
 	}
 
-	.hero-icon {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 64px;
-		height: 64px;
-		border-radius: 16px;
-		background: color-mix(in srgb, var(--accent) 10%, transparent);
-		color: var(--accent);
-		margin-bottom: 20px;
-	}
-
-	.hero h1 {
-		font-size: 28px;
-		font-weight: 700;
-		letter-spacing: -0.5px;
-		margin-bottom: 6px;
+	.hero-title-row {
+		margin: 16px 0 10px;
 	}
 
 	.hero-subtitle {
+		position: relative;
+		z-index: 1;
 		color: var(--text-dim);
 		font-size: 15px;
 		margin-bottom: 32px;
 	}
 
 	.url-form {
+		position: relative;
+		z-index: 1;
 		max-width: 560px;
 		margin: 0 auto;
 	}
@@ -950,6 +943,7 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		overflow: hidden;
+		box-shadow: 0 10px 32px rgba(0, 0, 0, 0.07);
 		transition: border-color 0.2s, box-shadow 0.2s;
 	}
 
@@ -1746,21 +1740,6 @@
 			gap: 18px;
 			margin-top: 32px;
 			padding-top: 24px;
-		}
-
-		.hero-icon {
-			width: 52px;
-			height: 52px;
-			margin-bottom: 16px;
-		}
-
-		.hero-icon svg {
-			width: 28px;
-			height: 28px;
-		}
-
-		.hero h1 {
-			font-size: 22px;
 		}
 
 		.hero-subtitle {

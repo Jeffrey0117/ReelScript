@@ -31,8 +31,18 @@
 	<title>{t('packsTitle')} - ReelScript</title>
 </svelte:head>
 
-<section class="packs-hero">
-	<h1>{t('packsTitle')}</h1>
+<section class="packs-hero page-hero-wrap">
+	<div class="page-glow"></div>
+	<span class="pill-tag">
+		<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+			<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+		</svg>
+		{t('packsPill')}
+	</span>
+	<h1 class="page-title-xl packs-title">
+		{t('packsTitle1')}<span class="accent-word">{t('packsTitle2')}</span>
+	</h1>
 	<p class="subtitle">{t('packsSubtitle')}</p>
 
 	<div class="tabs">
@@ -117,17 +127,16 @@
 
 <style>
 	.packs-hero {
-		padding: 40px 0 8px;
+		padding: 44px 0 8px;
 	}
 
-	.packs-hero h1 {
-		font-size: 28px;
-		font-weight: 700;
-		letter-spacing: -0.5px;
-		margin-bottom: 6px;
+	.packs-title {
+		margin: 14px 0 8px;
 	}
 
 	.subtitle {
+		position: relative;
+		z-index: 1;
 		color: var(--text-dim);
 		font-size: 15px;
 		margin-bottom: 24px;
@@ -317,10 +326,6 @@
 
 		.packs-hero {
 			padding: 24px 0 4px;
-		}
-
-		.packs-hero h1 {
-			font-size: 23px;
 		}
 
 		.subtitle {
