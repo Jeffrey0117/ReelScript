@@ -133,6 +133,8 @@ const translations = {
 		// Word card (interactive vocabulary)
 		markLearning: '收藏',
 		markMastered: '已熟',
+		dictLoading: '查詢中...',
+		dictMiss: '字典裡找不到這個字',
 		tryClickWord: '👇 點點看單字',
 		heroPill: '看劇學英文',
 		heroTitle1: '不用背單字，',
@@ -503,6 +505,8 @@ const translations = {
 		// Word card (interactive vocabulary)
 		markLearning: 'Learning',
 		markMastered: 'Mastered',
+		dictLoading: 'Looking up...',
+		dictMiss: 'Not in the dictionary',
 		tryClickWord: '👇 Try it! Click any word',
 		heroPill: 'Learn English from videos',
 		heroTitle1: 'Stop memorizing.',

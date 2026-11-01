@@ -427,6 +427,18 @@ async def example_videos(db: Session = Depends(get_db), limit: int = Query(3, ge
     }
 
 
+# ── Dictionary: offline EN → zh-Hant lookup ─────────────
+
+@router.get("/dict/{word}")
+async def dict_lookup(word: str):
+    from services.dictionary import lookup
+
+    entry = lookup(word)
+    if not entry:
+        return {"found": False, "word": word}
+    return {"found": True, **entry}
+
+
 # ── Material packs: public collections ──────────────────
 
 def _pack_public_videos(pack: Collection) -> list:

@@ -202,6 +202,17 @@ export interface ExampleVideo {
 export const exampleVideos = () =>
 	request<{ examples: ExampleVideo[] }>('/api/public/examples');
 
+// Offline dictionary (EN → zh-Hant, handles inflected forms)
+export interface DictEntry {
+	found: boolean;
+	word: string;
+	phonetic?: string;
+	translation?: string;
+}
+
+export const lookupWord = (word: string) =>
+	request<DictEntry>(`/api/public/dict/${encodeURIComponent(word)}`);
+
 // Wordbook (personal saved words + Leitner SRS)
 export interface SavedWord {
 	id: string;

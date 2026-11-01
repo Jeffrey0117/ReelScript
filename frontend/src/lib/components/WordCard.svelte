@@ -6,6 +6,8 @@
 	let {
 		word,
 		meaning = null,
+		phonetic = null,
+		loading = false,
 		isPhrase = false,
 		state = 'none',
 		anchor,
@@ -16,6 +18,8 @@
 	}: {
 		word: string;
 		meaning?: string | null;
+		phonetic?: string | null;
+		loading?: boolean;
 		isPhrase?: boolean;
 		state?: WordState;
 		anchor: { top: number; bottom: number; left: number; width: number };
@@ -57,6 +61,9 @@
 <div class="wc-card" style="left: {pos.left}px; top: {pos.top}px; width: {CARD_W}px;" role="dialog">
 	<div class="wc-head">
 		<span class="wc-word">{word}</span>
+		{#if phonetic}
+			<span class="wc-phonetic">/{phonetic}/</span>
+		{/if}
 		<button class="wc-speak" onclick={speak} aria-label="pronounce">
 			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -67,8 +74,18 @@
 		<span class="wc-dot" class:learning={state === 'learning'} class:mastered={state === 'mastered'}></span>
 	</div>
 	<p class="wc-meaning">
-		<em class="wc-pos">{isPhrase ? 'phrase' : 'word'}</em>
-		{meaning || '—'}
+		{#if loading}
+			<span class="wc-loading">{t('dictLoading')}</span>
+		{:else}
+			<em class="wc-pos">{isPhrase ? 'phrase' : 'word'}</em>
+			{#if meaning}
+				{#each meaning.split('\n').slice(0, 3) as line, li (li)}
+					{#if li > 0}<br />{/if}{line}
+				{/each}
+			{:else}
+				{t('dictMiss')}
+			{/if}
+		{/if}
 	</p>
 	<div class="wc-actions">
 		<button
@@ -174,9 +191,20 @@
 	}
 
 	.wc-meaning {
-		font-size: 14px;
+		font-size: 13.5px;
 		color: var(--text);
-		line-height: 1.5;
+		line-height: 1.55;
+		max-height: 84px;
+		overflow-y: auto;
+	}
+
+	.wc-phonetic {
+		font-size: 12.5px;
+		color: var(--text-dim);
+	}
+
+	.wc-loading {
+		color: var(--text-dim);
 	}
 
 	.wc-pos {
