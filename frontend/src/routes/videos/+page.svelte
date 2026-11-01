@@ -120,8 +120,10 @@
 			{
 				labels: { next: t('tourNext'), prev: t('tourPrev'), skip: t('tourSkip'), done: t('tourDone') },
 				accent,
-				// Skipping is NOT completion — skippers see the tour again next visit.
 				onComplete: () => localStorage.setItem(TOUR_DONE_KEY, '1'),
+				// Dismissing also counts — auto-popping on every visit is hostile.
+				// The replay button is the way back in.
+				onClose: () => localStorage.setItem(TOUR_DONE_KEY, '1'),
 			}
 		);
 	}
@@ -1132,14 +1134,16 @@
 		display: block;
 		width: 100%;
 		aspect-ratio: 16 / 9;
+		overflow: hidden;
 		background: var(--bg-hover);
 	}
 
 	.example-thumb img {
+		position: absolute;
+		inset: 0;
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-		display: block;
 	}
 
 	.example-play {

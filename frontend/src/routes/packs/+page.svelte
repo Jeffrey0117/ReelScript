@@ -214,14 +214,18 @@
 	.pack-cover {
 		position: relative;
 		aspect-ratio: 16 / 9;
+		overflow: hidden;
 		background: var(--bg-hover);
 	}
 
+	/* Absolute fill — height:100% inside an aspect-ratio box lets a portrait
+	   image blow the box up to its intrinsic height. */
 	.pack-cover img {
+		position: absolute;
+		inset: 0;
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
-		display: block;
 	}
 
 	.official-badge {
