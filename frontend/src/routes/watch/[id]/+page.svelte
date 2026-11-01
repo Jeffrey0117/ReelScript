@@ -38,6 +38,12 @@
 		video?.transcript?.segments?.some((s) => s.translation) ?? false
 	);
 
+	let allVocabulary = $derived(
+		(video?.transcript?.segments ?? [])
+			.flatMap((s) => s.vocabulary ?? [])
+			.filter((v, i, arr) => arr.findIndex((a) => a.word === v.word) === i)
+	);
+
 	// Derive from page store
 	let videoId = '';
 	page.subscribe((p) => {
@@ -329,7 +335,7 @@
 				<div class="full-text-section">
 					<h3>{t('fullText')}</h3>
 					<div class="full-text">
-						{video.transcript.full_text}
+						<InteractiveText text={video.transcript.full_text} vocabulary={allVocabulary} videoId={video.id} />
 					</div>
 				</div>
 			{:else}
