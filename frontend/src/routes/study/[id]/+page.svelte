@@ -470,7 +470,7 @@
 	.study-page {
 		max-width: 800px;
 		margin: 0 auto;
-		padding-bottom: 88px;
+		padding-bottom: 104px;
 	}
 
 	/* Header */
@@ -509,19 +509,22 @@
 	}
 
 	/* Audio Player Bar — fixed bottom like music app */
+	/* 懸浮播放列 — 跟內文同寬(800px)置中,不再滿版 */
 	.audio-bar {
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 12px 24px;
+		padding: 12px 20px;
 		background: var(--bg-card);
-		border-top: 1px solid var(--border);
+		border: 1px solid var(--border);
+		border-radius: 16px;
 		position: fixed;
-		bottom: 0;
-		left: 0;
-		right: 0;
+		bottom: 16px;
+		left: 50%;
+		transform: translateX(-50%);
+		width: min(800px, calc(100% - 32px));
 		z-index: 50;
-		box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
 	}
 
 	.audio-play-btn {
@@ -924,7 +927,10 @@
 
 		.audio-bar {
 			gap: 6px;
-			padding: 10px 16px;
+			padding: 10px 14px;
+			bottom: 10px;
+			width: calc(100% - 20px);
+			border-radius: 14px;
 		}
 
 		.audio-play-btn {
