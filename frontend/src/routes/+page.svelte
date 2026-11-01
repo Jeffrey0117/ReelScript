@@ -3,9 +3,55 @@
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
 	import { onAuthChange, login, getUser } from '$lib/auth';
+	import WordCard from '$lib/components/WordCard.svelte';
 
 	let isLoggedIn = $state(false);
 	let visible = $state(false);
+
+	// ── Hero: live clickable demo sentence ──
+	interface DemoVocab {
+		word: string;
+		translation: string;
+		phrase?: boolean;
+	}
+
+	const demoTokens: Array<{ text: string; v?: DemoVocab }> = [
+		{ text: 'The best way', v: { word: 'the best way', translation: '最好的方法', phrase: true } },
+		{ text: ' to ' },
+		{ text: 'predict', v: { word: 'predict', translation: '預測' } },
+		{ text: ' the ' },
+		{ text: 'future', v: { word: 'future', translation: '未來' } },
+		{ text: ' is to ' },
+		{ text: 'create', v: { word: 'create', translation: '創造' } },
+		{ text: ' it.' },
+	];
+
+	// Pre-mark one word and one phrase so the sentence reads as a product, not a quote.
+	let demoStates = $state<Record<string, 'none' | 'learning' | 'mastered'>>({
+		predict: 'learning',
+		'the best way': 'mastered',
+	});
+
+	let demoCard = $state<{
+		v: DemoVocab;
+		anchor: { top: number; bottom: number; left: number; width: number };
+	} | null>(null);
+
+	function demoStateOf(word: string): 'none' | 'learning' | 'mastered' {
+		return demoStates[word] ?? 'none';
+	}
+
+	function openDemoCard(e: MouseEvent, v: DemoVocab) {
+		e.preventDefault();
+		e.stopPropagation();
+		const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		demoCard = { v, anchor: { top: r.top, bottom: r.bottom, left: r.left, width: r.width } };
+	}
+
+	function demoMark(state: 'none' | 'learning' | 'mastered') {
+		if (!demoCard) return;
+		demoStates = { ...demoStates, [demoCard.v.word]: state };
+	}
 
 	onMount(() => {
 		const user = getUser();
@@ -106,8 +152,16 @@
 	<section class="hero">
 		<div class="hero-glow"></div>
 		<div class="hero-content">
-			<img src="/logo.png" alt="ReelScript" class="hero-logo" />
-			<h1 class="hero-title">{t('heroTagline')}</h1>
+			<span class="hero-pill">
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<polygon points="5 3 19 12 5 21 5 3"/>
+				</svg>
+				{t('heroPill')}
+			</span>
+			<h1 class="hero-title">
+				{t('heroTitle1')}<br />
+				<span class="hero-accent">{t('heroTitle2')}</span><span class="hero-period">。</span>
+			</h1>
 			<p class="hero-sub">{t('heroSubtitle')}</p>
 			<div class="hero-actions">
 				<button class="cta-btn" onclick={handleCta}>
@@ -119,32 +173,33 @@
 				</button>
 				<a href="/pricing" class="secondary-link">{t('pricing')}</a>
 			</div>
+			<div class="hero-platforms">
+				<span class="platforms-label">{t('heroPlatforms')}</span>
+				<span class="platform">YouTube</span>
+				<span class="platform">Instagram</span>
+				<span class="platform">TikTok</span>
+				<span class="platform">Bilibili</span>
+			</div>
 		</div>
 
-		<!-- Decorative floating cards -->
-		<div class="hero-visual">
-			<div class="float-card card-1">
-				<div class="float-card-icon">
-					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<polygon points="5 3 19 12 5 21 5 3"/>
-					</svg>
-				</div>
-				<div class="float-card-lines">
-					<div class="line-en">How do you define success?</div>
-					<div class="line-zh">你如何定義成功？</div>
-				</div>
+		<!-- Live demo: the product IS the hero visual -->
+		<div class="hero-demo">
+			<p class="demo-hint">{t('tryClickWord')}</p>
+			<div class="demo-sentence">
+				{#each demoTokens as tk, ti (ti)}
+					{#if tk.v}
+						{@const st = demoStateOf(tk.v.word)}
+						<button
+							class="wtk"
+							class:phrase={tk.v.phrase}
+							class:learning={st === 'learning'}
+							class:mastered={st === 'mastered'}
+							onclick={(e) => openDemoCard(e, tk.v)}
+						>{tk.text}</button>
+					{:else}{tk.text}{/if}
+				{/each}
 			</div>
-			<div class="float-card card-2">
-				<span class="vocab-word">resilience</span>
-				<span class="vocab-pos">n.</span>
-				<span class="vocab-zh">韌性、復原力</span>
-			</div>
-			<div class="float-card card-3">
-				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-					<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-				</svg>
-				<span class="quote-text">"The best way to predict the future is to create it."</span>
-			</div>
+			<p class="demo-zh">「預測未來最好的方法，就是創造它。」</p>
 		</div>
 	</section>
 
@@ -264,6 +319,20 @@
 	</section>
 </div>
 
+{#if demoCard}
+	<WordCard
+		word={demoCard.v.word}
+		meaning={demoCard.v.translation}
+		isPhrase={!!demoCard.v.phrase}
+		state={demoStateOf(demoCard.v.word)}
+		anchor={demoCard.anchor}
+		onLearning={() => demoMark('learning')}
+		onMastered={() => demoMark('mastered')}
+		onUnmark={() => demoMark('none')}
+		onClose={() => (demoCard = null)}
+	/>
+{/if}
+
 <style>
 	.landing {
 		opacity: 0;
@@ -302,18 +371,6 @@
 		z-index: 1;
 		flex: 1;
 		max-width: 520px;
-	}
-
-	.hero-logo {
-		height: 80px;
-		width: auto;
-		object-fit: contain;
-		margin-bottom: 24px;
-		border-radius: 16px;
-	}
-
-	:global([data-theme="dark"]) .hero-logo {
-		filter: invert(1);
 	}
 
 	.hero-title {
@@ -376,114 +433,68 @@
 		color: var(--text) !important;
 	}
 
-	/* ── Floating visual cards ── */
-	.hero-visual {
+	/* ── Hero pill + platforms ── */
+	.hero-pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 12.5px;
+		font-weight: 600;
+		color: var(--text-dim);
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		padding: 5px 12px;
+		margin-bottom: 18px;
+	}
+
+	.hero-pill svg {
+		color: var(--accent);
+	}
+
+	.hero-accent {
+		-webkit-text-fill-color: var(--accent);
+	}
+
+	.hero-period {
+		-webkit-text-fill-color: var(--text);
+	}
+
+	.hero-platforms {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 12px;
+		margin-top: 32px;
+		padding-top: 20px;
+		border-top: 1px solid var(--border);
+	}
+
+	.platforms-label {
+		font-size: 12px;
+		color: var(--text-dim);
+	}
+
+	.platform {
+		font-size: 13px;
+		font-weight: 700;
+		color: var(--text-dim);
+		letter-spacing: -0.2px;
+	}
+
+	/* ── Hero live demo ── */
+	.hero-demo {
 		position: relative;
 		z-index: 1;
 		flex-shrink: 0;
-		width: 360px;
-		height: 320px;
-	}
-
-	.float-card {
-		position: absolute;
-		background: var(--bg-card);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		padding: 12px 16px;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-		animation: float-in 0.8s ease-out both;
-	}
-
-	.card-1 {
-		top: 0;
-		left: 0;
-		right: 20px;
-		display: flex;
-		align-items: flex-start;
-		gap: 12px;
-		animation-delay: 0.3s;
-	}
-
-	.float-card-icon {
-		flex-shrink: 0;
-		width: 36px;
-		height: 36px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: 8px;
-		background: color-mix(in srgb, var(--accent) 12%, transparent);
-		color: var(--accent);
-	}
-
-	.float-card-lines {
+		width: 440px;
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: 14px;
+		animation: demo-in 0.8s ease-out 0.3s both;
 	}
 
-	.line-en {
-		font-size: 14px;
-		font-weight: 500;
-		color: var(--text);
-	}
-
-	.line-zh {
-		font-size: 13px;
-		color: var(--text-dim);
-	}
-
-	.card-2 {
-		top: 110px;
-		left: 20px;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		animation-delay: 0.5s;
-	}
-
-	.vocab-word {
-		font-size: 15px;
-		font-weight: 700;
-		color: var(--accent);
-	}
-
-	.vocab-pos {
-		font-size: 12px;
-		color: var(--text-dim);
-		font-style: italic;
-	}
-
-	.vocab-zh {
-		font-size: 13px;
-		color: var(--text-dim);
-	}
-
-	.card-3 {
-		top: 190px;
-		left: 40px;
-		right: 0;
-		display: flex;
-		align-items: flex-start;
-		gap: 8px;
-		animation-delay: 0.7s;
-	}
-
-	.card-3 svg {
-		flex-shrink: 0;
-		margin-top: 2px;
-	}
-
-	.quote-text {
-		font-size: 13px;
-		font-weight: 500;
-		color: var(--text);
-		line-height: 1.5;
-		font-style: italic;
-	}
-
-	@keyframes float-in {
+	@keyframes demo-in {
 		from {
 			opacity: 0;
 			transform: translateY(16px);
@@ -492,6 +503,67 @@
 			opacity: 1;
 			transform: translateY(0);
 		}
+	}
+
+	.demo-hint {
+		font-size: 14px;
+		font-weight: 600;
+		color: var(--text-dim);
+		text-align: center;
+	}
+
+	.demo-sentence {
+		background: #262626;
+		color: #ececec;
+		border-radius: 14px;
+		padding: 26px 28px;
+		font-size: 21px;
+		font-weight: 500;
+		line-height: 2;
+		box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+	}
+
+	.demo-zh {
+		font-size: 13.5px;
+		color: var(--text-dim);
+		text-align: center;
+	}
+
+	/* Interactive tokens — word = blue family, phrase = green family */
+	.wtk {
+		display: inline;
+		font: inherit;
+		padding: 0 5px;
+		margin: 0 1px;
+		border: 1.5px solid rgba(96, 165, 250, 0.65);
+		border-radius: 7px;
+		background: rgba(59, 130, 246, 0.12);
+		color: inherit;
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s;
+	}
+
+	.wtk:hover {
+		background: rgba(59, 130, 246, 0.28);
+	}
+
+	.wtk.phrase {
+		border-color: rgba(52, 211, 153, 0.65);
+		background: rgba(16, 185, 129, 0.12);
+	}
+
+	.wtk.phrase:hover {
+		background: rgba(16, 185, 129, 0.28);
+	}
+
+	.wtk.learning {
+		background: rgba(59, 130, 246, 0.35);
+		border-color: #60a5fa;
+	}
+
+	.wtk.mastered {
+		background: rgba(16, 185, 129, 0.35);
+		border-color: #34d399;
 	}
 
 	/* ── Features ── */
@@ -874,11 +946,14 @@
 			justify-content: center;
 		}
 
-		.hero-visual {
+		.hero-demo {
 			width: 100%;
-			max-width: 360px;
-			height: 280px;
+			max-width: 440px;
 			margin: 0 auto;
+		}
+
+		.hero-platforms {
+			justify-content: center;
 		}
 
 		.features-grid {
@@ -911,13 +986,8 @@
 			padding: 32px 0 40px;
 		}
 
-		.hero-logo {
-			height: 56px;
-			margin-bottom: 16px;
-		}
-
 		.hero-title {
-			font-size: 28px;
+			font-size: 30px;
 			letter-spacing: -1px;
 		}
 
@@ -938,8 +1008,13 @@
 			justify-content: center;
 		}
 
-		.hero-visual {
-			display: none;
+		.hero-demo {
+			max-width: 100%;
+		}
+
+		.demo-sentence {
+			font-size: 17px;
+			padding: 20px 18px;
 		}
 
 		.features-grid {

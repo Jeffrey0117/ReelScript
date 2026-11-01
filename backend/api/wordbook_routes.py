@@ -27,6 +27,9 @@ class SaveWordRequest(BaseModel):
     meaning: Optional[str] = Field(default=None, max_length=500)
     example: Optional[str] = Field(default=None, max_length=1000)
     video_id: Optional[str] = None
+    # True → mark as mastered (box 5, next review in 30d); False → back to
+    # learning (box 1, due now); None → leave SRS state alone.
+    mastered: Optional[bool] = None
 
 
 class ReviewRequest(BaseModel):
@@ -60,6 +63,7 @@ async def save_word(req: SaveWordRequest, db: Session = Depends(get_db), user: d
     if not word:
         raise HTTPException(status_code=400, detail="Word is empty")
 
+    now = datetime.utcnow()
     existing = db.query(SavedWord).filter(SavedWord.user_id == user_id, SavedWord.word == word).first()
     if existing:
         if req.meaning:
@@ -68,6 +72,12 @@ async def save_word(req: SaveWordRequest, db: Session = Depends(get_db), user: d
             existing.example = req.example
         if req.video_id:
             existing.video_id = req.video_id
+        if req.mastered is True:
+            existing.box = MAX_BOX
+            existing.due_at = now + timedelta(days=BOX_INTERVAL_DAYS[MAX_BOX])
+        elif req.mastered is False:
+            existing.box = 1
+            existing.due_at = now
         db.commit()
         return {"success": True, "saved": _word_dict(existing), "duplicate": True}
 
@@ -77,6 +87,8 @@ async def save_word(req: SaveWordRequest, db: Session = Depends(get_db), user: d
         meaning=req.meaning,
         example=req.example,
         video_id=req.video_id,
+        box=MAX_BOX if req.mastered else 1,
+        due_at=now + timedelta(days=BOX_INTERVAL_DAYS[MAX_BOX]) if req.mastered else now,
     )
     db.add(saved)
     db.commit()

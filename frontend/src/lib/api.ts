@@ -216,7 +216,7 @@ export interface SavedWord {
 	created_at: string | null;
 }
 
-export const saveWord = (data: { word: string; meaning?: string; example?: string; video_id?: string }) =>
+export const saveWord = (data: { word: string; meaning?: string; example?: string; video_id?: string; mastered?: boolean }) =>
 	request<{ success: boolean; saved: SavedWord; duplicate: boolean }>('/api/wordbook', {
 		method: 'POST',
 		body: JSON.stringify(data),

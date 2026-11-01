@@ -130,6 +130,15 @@ const translations = {
 		packOfficialToggle: '官方',
 		publicHint: '公開後會出現在教材頁（只露出公開影片）',
 
+		// Word card (interactive vocabulary)
+		markLearning: '收藏',
+		markMastered: '已熟',
+		tryClickWord: '👇 點點看單字',
+		heroPill: '看劇學英文',
+		heroTitle1: '不用背單字，',
+		heroTitle2: '看片就好',
+		heroPlatforms: '支援來源',
+
 		// Watch page
 		loading: '載入中...',
 		videoNotAvailable: '影片無法播放',
@@ -490,6 +499,15 @@ const translations = {
 		packPrivate: 'Private',
 		packOfficialToggle: 'Official',
 		publicHint: 'Public collections appear on the Materials page (only public videos are shown)',
+
+		// Word card (interactive vocabulary)
+		markLearning: 'Learning',
+		markMastered: 'Mastered',
+		tryClickWord: '👇 Try it! Click any word',
+		heroPill: 'Learn English from videos',
+		heroTitle1: 'Stop memorizing.',
+		heroTitle2: 'Just watch',
+		heroPlatforms: 'Works with',
 
 		// Watch page
 		loading: 'Loading...',

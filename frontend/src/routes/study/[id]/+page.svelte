@@ -8,13 +8,16 @@
 		appreciateVideo,
 		videoFileUrl,
 		saveWord,
+		deleteWord,
 		listWordbook,
 		type VideoDetail,
 		type VocabularyItem,
 		type Appreciation,
+		type SavedWord,
 	} from '$lib/api';
 	import { t } from '$lib/i18n';
 	import { getUser, login, onAuthChange } from '$lib/auth';
+	import WordCard from '$lib/components/WordCard.svelte';
 
 	let video = $state<VideoDetail | null>(null);
 	let loading = $state(true);
@@ -24,28 +27,100 @@
 
 	// Wordbook integration
 	let isLoggedIn = $state(false);
-	let savedWordSet = $state<Set<string>>(new Set());
+	let savedMap = $state<Map<string, SavedWord>>(new Map());
+
+	const MASTERED_BOX = 5;
 
 	async function loadSavedWords() {
 		const data = await listWordbook().catch(() => null);
-		if (data) savedWordSet = new Set(data.words.map((w) => w.word.toLowerCase()));
+		if (data) savedMap = new Map(data.words.map((w) => [w.word.toLowerCase(), w]));
 	}
 
-	async function handleSaveWord(v: VocabularyItem) {
+	function wordState(word: string): 'none' | 'learning' | 'mastered' {
+		const saved = savedMap.get(word.toLowerCase());
+		if (!saved) return 'none';
+		return saved.box >= MASTERED_BOX ? 'mastered' : 'learning';
+	}
+
+	async function markWord(v: VocabularyItem, mastered: boolean) {
 		if (!isLoggedIn) {
 			login();
 			return;
 		}
-		const key = v.word.toLowerCase();
-		if (savedWordSet.has(key)) return;
-		savedWordSet = new Set([...savedWordSet, key]);
 		try {
-			await saveWord({ word: v.word, meaning: v.translation, video_id: videoId });
+			const result = await saveWord({
+				word: v.word,
+				meaning: v.translation,
+				video_id: videoId,
+				mastered,
+			});
+			savedMap = new Map(savedMap).set(v.word.toLowerCase(), result.saved);
 		} catch {
-			const next = new Set(savedWordSet);
-			next.delete(key);
-			savedWordSet = next;
+			// server is truth — UI simply stays unmarked
 		}
+	}
+
+	async function unmarkWord(v: VocabularyItem) {
+		const saved = savedMap.get(v.word.toLowerCase());
+		if (!saved) return;
+		const next = new Map(savedMap);
+		next.delete(v.word.toLowerCase());
+		savedMap = next;
+		deleteWord(saved.id).catch(() => loadSavedWords());
+	}
+
+	// Backwards-compatible save for the vocab grid's + button
+	async function handleSaveWord(v: VocabularyItem) {
+		if (wordState(v.word) !== 'none') return;
+		await markWord(v, false);
+	}
+
+	// ── Interactive word card ──
+	let activeCard = $state<{
+		v: VocabularyItem;
+		isPhrase: boolean;
+		anchor: { top: number; bottom: number; left: number; width: number };
+	} | null>(null);
+
+	function openWordCard(e: MouseEvent, v: VocabularyItem) {
+		e.preventDefault();
+		e.stopPropagation();
+		const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		activeCard = {
+			v,
+			isPhrase: v.word.trim().includes(' '),
+			anchor: { top: r.top, bottom: r.bottom, left: r.left, width: r.width },
+		};
+	}
+
+	// Split a sentence into plain-text and vocabulary tokens. Longest vocab
+	// entries win so phrases swallow the words inside them.
+	interface SentenceToken {
+		text: string;
+		v?: VocabularyItem;
+	}
+
+	function tokenizeSentence(text: string, vocabulary: VocabularyItem[]): SentenceToken[] {
+		if (!vocabulary.length) return [{ text }];
+		const sorted = [...vocabulary].sort((a, b) => b.word.length - a.word.length);
+		const escaped = sorted
+			.map((v) => v.word.trim())
+			.filter(Boolean)
+			.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+		if (!escaped.length) return [{ text }];
+		const regex = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi');
+		const byLower = new Map(sorted.map((v) => [v.word.trim().toLowerCase(), v]));
+
+		const tokens: SentenceToken[] = [];
+		let last = 0;
+		for (const m of text.matchAll(regex)) {
+			const idx = m.index ?? 0;
+			if (idx > last) tokens.push({ text: text.slice(last, idx) });
+			tokens.push({ text: m[0], v: byLower.get(m[0].toLowerCase()) });
+			last = idx + m[0].length;
+		}
+		if (last < text.length) tokens.push({ text: text.slice(last) });
+		return tokens;
 	}
 
 	// Audio player state
@@ -199,16 +274,6 @@
 		}
 	}
 
-	function highlightVocabulary(text: string, vocabulary: VocabularyItem[]): string {
-		let result = text;
-		for (const v of vocabulary) {
-			const escaped = v.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			const regex = new RegExp(`\\b(${escaped})\\b`, 'gi');
-			result = result.replace(regex, '<mark class="vocab-hl">$1</mark>');
-		}
-		return result;
-	}
-
 	// Audio controls
 	function togglePlay() {
 		if (!audioEl) return;
@@ -355,7 +420,7 @@
 				{#if allVocabulary.length > 0}
 					<div class="vocab-grid">
 						{#each allVocabulary as v}
-							{@const saved = savedWordSet.has(v.word.toLowerCase())}
+							{@const saved = wordState(v.word) !== 'none'}
 							<div class="vocab-card">
 								<span class="vocab-en">{v.word}</span>
 								<span class="vocab-zh">{v.translation}</span>
@@ -420,7 +485,18 @@
 							<div class="row-content" role="button" tabindex="0" onclick={() => seekToSentence(i)} onkeydown={(e) => e.key === 'Enter' && seekToSentence(i)}>
 								<p class="row-en">
 									{#if sent.vocabulary.length}
-										{@html highlightVocabulary(sent.en, sent.vocabulary)}
+										{#each tokenizeSentence(sent.en, sent.vocabulary) as tk, ti (ti)}
+											{#if tk.v}
+												{@const st = wordState(tk.v.word)}
+												<button
+													class="wtk"
+													class:phrase={tk.v.word.trim().includes(' ')}
+													class:learning={st === 'learning'}
+													class:mastered={st === 'mastered'}
+													onclick={(e) => openWordCard(e, tk.v)}
+												>{tk.text}</button>
+											{:else}{tk.text}{/if}
+										{/each}
 									{:else}
 										{sent.en}
 									{/if}
@@ -492,6 +568,20 @@
 			/>
 		</div>
 	{/if}
+{/if}
+
+{#if activeCard}
+	<WordCard
+		word={activeCard.v.word}
+		meaning={activeCard.v.translation}
+		isPhrase={activeCard.isPhrase}
+		state={wordState(activeCard.v.word)}
+		anchor={activeCard.anchor}
+		onLearning={() => activeCard && markWord(activeCard.v, false)}
+		onMastered={() => activeCard && markWord(activeCard.v, true)}
+		onUnmark={() => activeCard && unmarkWord(activeCard.v)}
+		onClose={() => (activeCard = null)}
+	/>
 {/if}
 
 <style>
@@ -914,11 +1004,41 @@
 		color: var(--text-dim);
 	}
 
-	:global(.vocab-hl) {
-		background: rgba(99, 102, 241, 0.18);
-		color: var(--accent-hover);
-		border-radius: 3px;
-		padding: 0 2px;
+	/* Interactive vocabulary tokens — word = blue family, phrase = green family */
+	.wtk {
+		display: inline;
+		font: inherit;
+		padding: 0 4px;
+		margin: 0 1px;
+		border: 1.5px solid rgba(59, 130, 246, 0.55);
+		border-radius: 6px;
+		background: rgba(59, 130, 246, 0.06);
+		color: inherit;
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s;
+	}
+
+	.wtk:hover {
+		background: rgba(59, 130, 246, 0.16);
+	}
+
+	.wtk.phrase {
+		border-color: rgba(16, 185, 129, 0.55);
+		background: rgba(16, 185, 129, 0.06);
+	}
+
+	.wtk.phrase:hover {
+		background: rgba(16, 185, 129, 0.16);
+	}
+
+	.wtk.learning {
+		background: rgba(59, 130, 246, 0.22);
+		border-color: #3b82f6;
+	}
+
+	.wtk.mastered {
+		background: rgba(16, 185, 129, 0.22);
+		border-color: #10b981;
 	}
 
 	/* Full Text */
