@@ -23,7 +23,7 @@ bot_token = os.getenv("BOT_TOKEN")
 bot_user_id = os.getenv("BOT_USER_ID")
 api_url = os.getenv("REELSCRIPT_API", "http://localhost:8002")
 
-print(f"BOT_TOKEN: {bot_token}")
+print(f"BOT_TOKEN: {'set, ' + str(len(bot_token)) + ' chars' if bot_token else 'NOT SET'}")
 print(f"BOT_USER_ID: {bot_user_id}")
 print(f"REELSCRIPT_API: {api_url}")
 

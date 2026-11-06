@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 REELSCRIPT_API = os.getenv("REELSCRIPT_API", "http://localhost:8002")
 REELSCRIPT_WEB = os.getenv("REELSCRIPT_WEB", "http://localhost:5173")
-BOT_TOKEN = os.getenv("BOT_TOKEN", "WcxHAMuFcPmzNwgEMTZDtSf4axNvjwaUp-w2JxojGi0")
+# 金鑰只從環境變數(backend/.env)讀,原始碼裡不放預設值
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 BOT_HEADERS = {"X-Bot-Token": BOT_TOKEN}
 
 

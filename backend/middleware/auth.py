@@ -4,6 +4,7 @@ Supports dual auth: JWT Bearer token OR legacy X-Admin-Key header.
 """
 
 import os
+import hmac
 import logging
 from datetime import datetime
 import jwt
@@ -102,8 +103,9 @@ def get_current_user(request: Request) -> dict:
     auth_header = request.headers.get("Authorization", "")
 
     # Bot service token: X-Bot-Token header
+    # 金鑰沒設(空字串)時絕對不能比對:沒帶標頭的請求也是空字串,會被當成管理員
     bot_token = request.headers.get("X-Bot-Token", "")
-    if bot_token == BOT_TOKEN:
+    if BOT_TOKEN and bot_token and hmac.compare_digest(bot_token, BOT_TOKEN):
         return {"sub": BOT_USER_ID, "role": "admin", "email": "bot@reelscript", "app": LMU_APP_ID}
 
     if not auth_header.startswith("Bearer "):
@@ -153,8 +155,9 @@ def require_admin(request: Request) -> dict:
         return user
 
     # Fallback: legacy X-Admin-Key
+    # ADMIN_KEY 沒設就停用這條路:不然空的標頭 == 空的金鑰,任何人都是管理員
     key = request.headers.get("X-Admin-Key", "")
-    if key == LEGACY_ADMIN_KEY:
+    if LEGACY_ADMIN_KEY and key and hmac.compare_digest(key, LEGACY_ADMIN_KEY):
         return {"sub": "legacy-admin", "role": "admin", "email": "admin"}
 
     raise HTTPException(status_code=401, detail="Unauthorized")
