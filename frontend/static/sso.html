@@ -22,9 +22,16 @@
   const code = params.get("code");
   const nextRaw = params.get("next") || "/";
   // 只允許站內相對路徑，防 open redirect
-  const next = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/";
+  // 用 URL 解析後比對 origin:只看開頭是不是 "/" 擋不住 "/\evil.com" 或夾了 Tab 的寫法
+  let next = "/";
+  try {
+    const target = new URL(nextRaw, location.origin);
+    if (target.origin === location.origin) next = target.pathname + target.search + target.hash;
+  } catch (err) { /* 解析不了就回首頁 */ }
 
   if (!code) { location.replace("/"); return; }
+  // 已經登入的人不換帳號:不然別人做一條連結,就能把這台瀏覽器的登入換成他的
+  if (localStorage.getItem("lmu_" + APP_ID + "_access_token")) { location.replace(next); return; }
   try {
     const res = await fetch(LMU + "/api/auth/sso/redeem", {
       method: "POST",
