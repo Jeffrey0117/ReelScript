@@ -49,6 +49,8 @@ class Video(Base):
     category = Column(String, nullable=True)  # e.g. business, daily, tech, entertainment
     is_featured = Column(Boolean, default=False)
     is_public = Column(Boolean, default=False)  # visible on public surfaces (blog, search, snippets)
+    # False = 只下載與轉文字(本機 Whisper),跳過翻譯與標題/重點這些要付費的 LLM 步驟
+    ai_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 
@@ -269,6 +271,9 @@ def init_db():
             conn.commit()
         if "is_featured" not in video_cols:
             conn.execute(text("ALTER TABLE videos ADD COLUMN is_featured BOOLEAN DEFAULT 0"))
+            conn.commit()
+        if "ai_enabled" not in video_cols:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN ai_enabled BOOLEAN DEFAULT 1"))
             conn.commit()
         if "content_type" not in video_cols:
             conn.execute(text("ALTER TABLE videos ADD COLUMN content_type VARCHAR DEFAULT 'video'"))

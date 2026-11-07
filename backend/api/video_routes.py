@@ -388,6 +388,10 @@ async def batch_process_videos(req: BatchProcessRequest, db: Session = Depends(g
     return {"success": True, "results": results, "total": len(results), "started": sum(1 for r in results if r.get("success"))}
 
 
+class _SkipAI(Exception):
+    """這支影片關閉 AI:用來跳過翻譯與分析那兩段。"""
+
+
 async def _process_pipeline(video_id: str, url: str, user_id: str = ""):
     # Per-user concurrency via Semaphore (no race conditions)
     if user_id:
@@ -445,13 +449,20 @@ async def _process_pipeline_inner(video_id: str, url: str):
         # Convert to dict format
         segment_dicts = transcriber.segments_to_dict(segments)
 
+        # 沒開 AI 的影片(姊妹站使用者貼的連結):轉完文字就結束,不翻譯、不叫 LLM
+        ai = video.ai_enabled is not False
+
         # Translate segments immediately after transcription
         try:
+            if not ai:
+                raise _SkipAI()
             ct = video.content_type or "video"
             print(f"[Pipeline] Translating {len(segment_dicts)} segments (content_type={ct})...")
             translated_segments = await loop.run_in_executor(None, translate_segments, segment_dicts, ct)
             segment_dicts = translated_segments
             print(f"[Pipeline] Translation completed")
+        except _SkipAI:
+            print("[Pipeline] AI disabled for this video: skipping translation")
         except Exception as trans_err:
             print(f"[Pipeline] Translation failed (non-fatal): {trans_err}")
             # Continue with untranslated segments
@@ -468,6 +479,8 @@ async def _process_pipeline_inner(video_id: str, url: str):
         db.commit()
 
         try:
+            if not ai:
+                raise _SkipAI()
             ct = video.content_type or "video"
             # Use translated Chinese text for title generation (more accurate)
             chinese_parts = [seg.get("translation", "") for seg in segment_dicts if seg.get("translation")]
@@ -488,6 +501,8 @@ async def _process_pipeline_inner(video_id: str, url: str):
                 from sqlalchemy.orm.attributes import flag_modified
                 flag_modified(transcript, "appreciation")
             db.commit()
+        except _SkipAI:
+            pass
         except Exception as ai_err:
             print(f"[Pipeline] Auto-analysis failed (non-fatal): {ai_err}")
 
