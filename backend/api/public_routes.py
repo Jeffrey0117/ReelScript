@@ -794,5 +794,7 @@ async def video_lesson(video_id: str, db: Session = Depends(get_db)):
         "thumbnail": video.thumbnail,
         "filename": video.filename,
         "theme": appreciation.get("theme", ""),
+        "keyPoints": [str(x) for x in (appreciation.get("keyPoints") or []) if x],
+        "goldenQuotes": appreciation.get("goldenQuotes") or [],
         "segments": segments,
     }
