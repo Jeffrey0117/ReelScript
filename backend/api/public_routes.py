@@ -758,3 +758,41 @@ def _parse_semantic_scores(response: str) -> list[dict]:
         pass
 
     return []
+
+
+# ── Lesson: timed bilingual sentences for a sister site's player ──
+
+@router.get("/videos/{video_id}/lesson")
+async def video_lesson(video_id: str, db: Session = Depends(get_db)):
+    """逐句(有起訖秒數)的中英字幕 + 重點單字,給姊妹站的播放器用。
+
+    只讀資料庫,不會觸發任何處理(不抽音檔、不呼叫 LLM),所以呼叫一次不花錢。
+    """
+    video = db.query(Video).filter(Video.id == video_id, Video.status == "ready", Video.is_public == True).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if not _video_has_segments(video):
+        raise HTTPException(status_code=404, detail="No transcript available")
+
+    appreciation = video.transcript.appreciation or {}
+    segments = []
+    for m in _merge_segments(video.transcript.segments):
+        vocab = [
+            {"word": str(v.get("word") or ""), "translation": str(v.get("translation") or "")}
+            for v in m.get("vocabulary", [])
+            if isinstance(v, dict) and v.get("word")
+        ]
+        segments.append({"start": m["start"], "end": m["end"], "en": m["en"], "zh": m["zh"], "vocabulary": vocab})
+
+    return {
+        "id": video.id,
+        "title": video.title,
+        "source": video.source,
+        "channel": video.channel,
+        "duration": video.duration,
+        "category": video.category,
+        "thumbnail": video.thumbnail,
+        "filename": video.filename,
+        "theme": appreciation.get("theme", ""),
+        "segments": segments,
+    }
