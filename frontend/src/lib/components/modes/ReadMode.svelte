@@ -55,11 +55,19 @@
 
 	let paragraphs = $derived(toParagraphs(sentences, 4));
 	let appreciation = $derived(video.transcript?.appreciation ?? null);
-	let pullQuote = $derived(appreciation?.goldenQuotes?.[0] ?? null);
+	let quotes = $derived(appreciation?.goldenQuotes ?? []);
+	// The stored title and theme exist only in Chinese. In the English-only view
+	// the headline is the video's own best line instead (first golden quote, else
+	// its opening sentence) so nothing Chinese is left on the page.
+	let englishOnly = $derived(lang === 'en');
+	let englishHeadline = $derived(quotes[0]?.en || sentences[0]?.en || '');
+	let headline = $derived((englishOnly && englishHeadline) || video.title || t('untitled'));
+	// Don't repeat the headline as the pull quote.
+	let pullQuote = $derived((englishOnly && quotes[0]?.en ? quotes[1] : quotes[0]) ?? null);
 	let needsZh = $derived(lang !== 'en' && !hasTranslation);
 	let published = $derived(
 		video.created_at
-			? new Date(video.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+			? new Date(video.created_at).toLocaleDateString(englishOnly ? 'en-US' : undefined, { year: 'numeric', month: 'long', day: 'numeric' })
 			: ''
 	);
 
@@ -85,17 +93,17 @@
 		<p class="kicker">
 			<span>ReelScript</span>
 			<span class="dot">·</span>
-			<span>{mt('readKicker')}</span>
+			<span>{englishOnly ? 'Read' : mt('readKicker')}</span>
 		</p>
-		<h1>{video.title || t('untitled')}</h1>
-		{#if appreciation?.theme}
+		<h1 class:latin={englishOnly && Boolean(englishHeadline)}>{headline}</h1>
+		{#if appreciation?.theme && !englishOnly}
 			<p class="dek">{appreciation.theme}</p>
 		{/if}
 		<p class="byline">
 			{#if video.channel}<span class="by">{video.channel}</span>{/if}
 			{#if published}<span>{published}</span>{/if}
-			<span>{readingMinutes(sentences)} {mt('readMinutes')}</span>
-			<span>{sentences.length} {mt('readSentences')}</span>
+			<span>{readingMinutes(sentences)} {englishOnly ? 'min read' : mt('readMinutes')}</span>
+			<span>{sentences.length} {englishOnly ? 'sentences' : mt('readSentences')}</span>
 		</p>
 	</header>
 
@@ -169,7 +177,8 @@
 		</div>
 	{/if}
 
-	{#if appreciation?.keyPoints?.length}
+	<!-- Key points are stored in Chinese only, so the English-only view leaves them out. -->
+	{#if appreciation?.keyPoints?.length && !englishOnly}
 		<aside class="points">
 			<h2>{mt('readKeyPoints')}</h2>
 			<ol>
@@ -218,6 +227,10 @@
 		line-height: 1.14;
 		letter-spacing: -0.02em;
 		text-wrap: balance;
+	}
+
+	h1.latin {
+		letter-spacing: -0.025em;
 	}
 
 	.dek {
