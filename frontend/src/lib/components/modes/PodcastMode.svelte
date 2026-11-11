@@ -5,17 +5,21 @@
 	import { t } from '$lib/i18n';
 	import { formatTime, currentIndex } from '$lib/lesson';
 	import { mt } from '$lib/modes/text';
+	import type { Gate } from '$lib/modes/access';
+	import ModeWall from './ModeWall.svelte';
 
 	let {
 		video,
 		segments,
 		hasTranslation,
+		gate,
 		startAt = 0,
 		onTime = () => {},
 	}: {
 		video: VideoDetail;
 		segments: TranscriptSegment[];
 		hasTranslation: boolean;
+		gate: Gate;
 		startAt?: number;
 		onTime?: (seconds: number) => void;
 	} = $props();
@@ -34,6 +38,7 @@
 	let src = $derived(video.filename ? videoFileUrl(video.filename) : '');
 	let active = $derived(currentIndex(segments, time));
 	let total = $derived(duration || segments[segments.length - 1]?.end || 0);
+	let stopAt = $derived(gate.stopAt);
 	let progress = $derived(total > 0 ? Math.min(time / total, 1) : 0);
 
 	// A stand-in waveform: bar heights follow how much is being said at each
@@ -54,12 +59,21 @@
 	function handleLoaded() {
 		if (!audioEl) return;
 		duration = audioEl.duration || 0;
-		if (startAt > 0 && startAt < duration) audioEl.currentTime = startAt;
+		const limit = stopAt ?? duration;
+		if (startAt > 0 && startAt < Math.min(duration, limit)) audioEl.currentTime = startAt;
 	}
 
 	function handleTime() {
 		if (!audioEl) return;
 		time = audioEl.currentTime;
+		// Reached the held-back part: stop just before it and bring up the wall.
+		if (stopAt !== null && time >= stopAt) {
+			audioEl.pause();
+			audioEl.currentTime = Math.max(stopAt - 0.3, 0);
+			time = audioEl.currentTime;
+			gate.open('lines');
+			return;
+		}
 		onTime(time);
 	}
 
@@ -71,6 +85,7 @@
 
 	function seek(seconds: number, play = false) {
 		if (!audioEl) return;
+		if (stopAt !== null && seconds >= stopAt) return gate.open('lines');
 		audioEl.currentTime = Math.max(0, Math.min(seconds, total || seconds));
 		time = audioEl.currentTime;
 		if (play) void audioEl.play().catch(() => {});
@@ -184,6 +199,11 @@
 			{:else}
 				<p class="empty">{mt('noTranscript')}</p>
 			{/each}
+			{#if gate.hiddenLines > 0}
+				<div class="locked">
+					<ModeWall tier={gate.tier} kind="lines" count={gate.hiddenLines} tone="dark" />
+				</div>
+			{/if}
 		</div>
 	</div>
 </section>
@@ -489,6 +509,10 @@
 
 	.empty {
 		color: var(--ink-dim);
+	}
+
+	.locked {
+		padding: 4px 4px 0 0;
 	}
 
 	@media (max-width: 900px) {

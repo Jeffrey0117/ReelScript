@@ -234,6 +234,29 @@ def _can_view(db: Session, user: dict | None, video: Video) -> bool:
     ).first() is not None
 
 
+def _access(db: Session, user: dict | None, video: Video) -> dict:
+    """Who is looking at this video — the watch page uses it to decide where the
+    learning modes stop for visitors and free members.
+
+    tier:  "guest" (not signed in) | "free" | "pro" (any active paid plan, or admin)
+    owner: the viewer added this video themselves — their own material is never cut short
+    """
+    if not user:
+        return {"tier": "guest", "owner": False}
+    owner = db.query(UserVideo).filter(
+        UserVideo.user_id == _get_user_id(user), UserVideo.video_id == video.id
+    ).first() is not None
+    if _is_admin(user):
+        return {"tier": "pro", "owner": owner}
+    email = user.get("email", "")
+    paid = bool(email) and db.query(Subscription).filter(
+        Subscription.email == email,
+        Subscription.status == "active",
+        Subscription.plan.in_(("pro", "unlimited")),
+    ).first() is not None
+    return {"tier": "pro" if paid else "free", "owner": owner}
+
+
 def _ensure_user_video(db: Session, user_id: str, video_id: str):
     existing = db.query(UserVideo).filter(
         UserVideo.user_id == user_id, UserVideo.video_id == video_id
@@ -652,6 +675,7 @@ async def get_video(video_id: str, db: Session = Depends(get_db), user: dict | N
         "filename": video.filename, "status": video.status, "error_message": video.error_message,
         "created_at": video.created_at.isoformat() if video.created_at else None,
         "transcript": transcript_data,
+        "access": _access(db, user, video),
     }
 
 

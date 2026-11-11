@@ -78,6 +78,31 @@ data/                              — SQLite DB + media files
 - `npm run preview` (repo root) builds into `frontend/build-preview` and serves it on :4905
   against the running server's data — look at a frontend change without touching the live build.
 
+## Access Wall (visitors / free members / paid)
+
+- Numbers live in one file: `frontend/src/lib/modes/access.ts` (`TIER_LIMITS`). Today:
+  visitor 5 lines, no Chinese · free member 12 lines · paid plan, admin, or the video's
+  owner: everything. Printing the handout is paid.
+- `GET /api/videos/:id` returns `access: {tier, owner}` (`_access` in `video_routes.py`).
+  The watch shell slices the transcript once and hands every mode a `gate`; modes show
+  `ModeWall` where the material runs out, and playback stops at `gate.stopAt`.
+- House rules (paywall-kit): no "Pro" labels on buttons, everyone can open every mode and
+  really use it, the wall appears mid-use and is the only place that sells. Visitors get
+  "free sign-in" + "see plans"; free members go straight to checkout.
+- This is a UI wall. The API still returns the whole transcript and the media file is not
+  protected, because the same text is public on `/blog/:id` for search engines. Making it a
+  real wall means cutting the transcript in `get_video` and signing media URLs.
+
+## SEO
+
+- `/blog` and `/blog/:id` are rendered on the server (`+page.server.ts` →
+  `lib/server/backend.ts`), so article text is in the HTML. If the backend read fails the
+  page falls back to loading in the browser.
+- `/sitemap.xml` and `/robots.txt` are generated routes (do not add `static/robots.txt` —
+  a static file shadows the route). The host is taken from the request, never hard-coded.
+- `SeoHead.svelte` sets title, description, canonical, share-preview tags and JSON-LD.
+- Landing copy for the descriptive sections is in `lib/landing-text.ts`.
+
 ## API (Key Endpoints)
 
 | Method | Path | Purpose |

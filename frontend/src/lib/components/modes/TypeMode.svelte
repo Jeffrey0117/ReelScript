@@ -18,6 +18,8 @@
 		type TypingLine,
 	} from '$lib/typing-core';
 		import { mt, type ModeTextKey } from '$lib/modes/text';
+	import type { Gate } from '$lib/modes/access';
+	import ModeWall from './ModeWall.svelte';
 	import TypeHud from './TypeHud.svelte';
 	import TypeResult from './TypeResult.svelte';
 	import TypeLineList from './TypeLineList.svelte';
@@ -31,11 +33,13 @@
 	let {
 		video,
 		segments,
+		gate,
 		startAt = 0,
 		onTime = () => {},
 	}: {
 		video: VideoDetail;
 		segments: TranscriptSegment[];
+		gate: Gate;
 		startAt?: number;
 		onTime?: (seconds: number) => void;
 	} = $props();
@@ -178,6 +182,8 @@
 		waiting = false;
 		pause();
 		refreshStats();
+		// Finished everything this viewer gets: the score first, then the wall.
+		if (gate.hiddenLines > 0) gate.open('lines');
 	}
 
 	function advance() {
@@ -340,6 +346,15 @@
 			return;
 		}
 
+		// Never play into the held-back part, even with end-of-line pause switched off.
+		if (gate.stopAt !== null && time >= gate.stopAt) {
+			pause();
+			seek(Math.max(gate.stopAt - 0.3, 0));
+			waiting = true;
+			focusInput();
+			return;
+		}
+
 		if (line && autoPause && !waiting && playing && time >= line.end + END_GRACE) {
 			waiting = true;
 			pause();
@@ -453,6 +468,12 @@
 				</div>
 			</div>
 		</div>
+
+		{#if gate.hiddenLines > 0}
+			<div class="locked">
+				<ModeWall tier={gate.tier} kind="lines" count={gate.hiddenLines} tone="dark" />
+			</div>
+		{/if}
 
 		<TypeLineList {lines} {index} {done} open={showLines} onPick={(i) => goTo(i, { seek: true, resume: true })} />
 	{/if}
@@ -722,6 +743,11 @@
 		background-position: calc(100% - 14px) 55%, calc(100% - 9px) 55%;
 		background-size: 5px 5px;
 		background-repeat: no-repeat;
+	}
+
+	.locked {
+		padding: 0 24px 24px;
+		font-family: 'Inter', 'Noto Sans TC', sans-serif;
 	}
 
 	.empty {

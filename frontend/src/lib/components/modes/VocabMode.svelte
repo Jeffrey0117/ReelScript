@@ -7,6 +7,8 @@
 	import { keyWords, exampleFor, type Sentence } from '$lib/lesson';
 	import { wordState, markWord, lookupWordCached } from '$lib/wordbook.svelte';
 	import { mt } from '$lib/modes/text';
+	import { applyLimit, type Gate } from '$lib/modes/access';
+	import ModeWall from './ModeWall.svelte';
 
 	interface Entry {
 		word: string;
@@ -20,11 +22,13 @@
 		segments,
 		sentences,
 		vocabulary,
+		gate,
 	}: {
 		video: VideoDetail;
 		segments: TranscriptSegment[];
 		sentences: Sentence[];
 		vocabulary: VocabularyItem[];
+		gate: Gate;
 	} = $props();
 
 	const ROWS_PER_PAGE = 10;
@@ -47,7 +51,7 @@
 			example: exampleFor(sentences, v.word),
 		}))
 	);
-	let entries = $derived.by<Entry[]>(() => {
+	let found = $derived.by<Entry[]>(() => {
 		const all = [...analyzed, ...looked];
 		if (!order) return all;
 		const byWord = new Map(all.map((e) => [e.word, e]));
@@ -55,6 +59,9 @@
 		const rest = all.filter((e) => !order?.includes(e.word));
 		return [...shuffled, ...rest];
 	});
+	// Visitors and free members get the first words; the count of the rest goes on the wall.
+	let limited = $derived(applyLimit(found, gate.words));
+	let entries = $derived(limited.shown);
 	let spreads = $derived(Math.max(1, Math.ceil(entries.length / PER_SPREAD)));
 	let visible = $derived(entries.slice(spread * PER_SPREAD, (spread + 1) * PER_SPREAD));
 	let leftPage = $derived(visible.slice(0, ROWS_PER_PAGE));
@@ -199,6 +206,13 @@
 				</div>
 				{@render sheet(rightPage, spread * PER_SPREAD + ROWS_PER_PAGE, 'right')}
 			</div>
+
+			{#if !looking && limited.hidden > 0}
+				<ModeWall tier={gate.tier} kind="words" count={limited.hidden} />
+			{:else if !looking && gate.hiddenLines > 0}
+				<!-- The word list is short only because most of the video is held back. -->
+				<ModeWall tier={gate.tier} kind="lines" count={gate.hiddenLines} />
+			{/if}
 
 			{#if spreads > 1}
 				<div class="turn">

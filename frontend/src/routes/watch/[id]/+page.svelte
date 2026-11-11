@@ -2,7 +2,7 @@
 	// One video, six ways to use it. This page only loads the material and
 	// decides which mode is on screen — every mode lives in its own component
 	// and brings its own look.
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { getVideo, translateVideo, appreciateVideo, type VideoDetail } from '$lib/api';
 	import { t } from '$lib/i18n';
@@ -11,6 +11,8 @@
 	import { mergeSentences, uniqueVocabulary } from '$lib/lesson';
 	import { parseMode } from '$lib/modes/text';
 	import { switchMode } from '$lib/modes/navigate';
+	import { limitsFor, applyLimit, lockedAt, type Gate, type WallKind } from '$lib/modes/access';
+	import ModeWall from '$lib/components/modes/ModeWall.svelte';
 	import ModeSwitcher from '$lib/components/modes/ModeSwitcher.svelte';
 	import VideoMode from '$lib/components/modes/VideoMode.svelte';
 	import ReadMode from '$lib/components/modes/ReadMode.svelte';
@@ -25,7 +27,26 @@
 	let appreciating = $state(false);
 
 	let mode = $derived(parseMode(page.url.searchParams.get('mode')));
-	let segments = $derived(video?.transcript?.segments ?? []);
+
+	// The wall. Visitors and free members get the first lines of a video in every
+	// mode; the rest is held back here, so no mode can show it by accident.
+	let limits = $derived(limitsFor(video?.access));
+	let allSegments = $derived(video?.transcript?.segments ?? []);
+	let visible = $derived(applyLimit(allSegments, limits.lines));
+	let segments = $derived(
+		limits.chinese ? visible.shown : visible.shown.map((s) => ({ ...s, translation: '' }))
+	);
+	let wall = $state<{ kind: WallKind; count: number } | null>(null);
+	let gate = $derived<Gate>({
+		tier: video?.access?.tier ?? 'guest',
+		hiddenLines: visible.hidden,
+		stopAt: lockedAt(allSegments, limits.lines),
+		chinese: limits.chinese,
+		print: limits.print,
+		words: limits.words,
+		open: (kind, count = visible.hidden) => (wall = { kind, count }),
+	});
+
 	let sentences = $derived(mergeSentences(segments));
 	let vocabulary = $derived(uniqueVocabulary(segments));
 	let hasTranslation = $derived(segments.some((s) => s.translation));
@@ -38,17 +59,39 @@
 		position = seconds;
 	};
 
-	onMount(async () => {
+	async function load(id: string) {
+		try {
+			const fresh = await getVideo(id);
+			// A slower answer for a video we already left must not replace the current one.
+			if (id === page.params.id) video = fresh;
+		} catch (e) {
+			if (!video) loadError = e instanceof Error ? e.message : 'Failed to load';
+		}
+	}
+
+	// Runs on arrival and again whenever the address points at another video.
+	$effect(() => {
+		const id = page.params.id ?? '';
+		untrack(() => {
+			if (video && video.id !== id) video = null;
+			wall = null;
+			void load(id);
+		});
+	});
+
+	onMount(() => {
 		if (getUser()) void loadSavedWords();
+		let first = true;
 		onAuthChange((u) => {
 			if (u) void loadSavedWords();
 			else resetWordbook();
+			// Signing in or out changes what this person may see — ask again.
+			if (!first) {
+				wall = null;
+				void load(page.params.id ?? '');
+			}
+			first = false;
 		});
-		try {
-			video = await getVideo(page.params.id ?? '');
-		} catch (e) {
-			loadError = e instanceof Error ? e.message : 'Failed to load';
-		}
 	});
 
 	async function handleTranslate(): Promise<boolean> {
@@ -101,30 +144,34 @@
 		{#key mode}
 			<div class="mode-stage">
 				{#if mode === 'read'}
-					<ReadMode {video} {sentences} {hasTranslation} {translating} onTranslate={handleTranslate} />
+					<ReadMode {video} {sentences} {hasTranslation} {translating} {gate} onTranslate={handleTranslate} />
 				{:else if mode === 'podcast'}
 					<PodcastMode
 						{video}
 						{segments}
 						{hasTranslation}
+						{gate}
 						startAt={position}
 						onTime={rememberTime}
 					/>
 				{:else if mode === 'type'}
-					<TypeMode {video} {segments} startAt={position} onTime={rememberTime} />
+					<TypeMode {video} {segments} {gate} startAt={position} onTime={rememberTime} />
 				{:else if mode === 'vocab'}
-					<VocabMode {video} {segments} {sentences} {vocabulary} />
+					<VocabMode {video} {segments} {sentences} {vocabulary} {gate} />
 				{:else if mode === 'handout'}
 					<HandoutMode
 						{video}
 						{sentences}
 						{vocabulary}
 						{appreciating}
+						{gate}
 						onAppreciate={handleAppreciate}
 					/>
 				{:else}
 					<VideoMode
 						{video}
+						{segments}
+						{gate}
 						{vocabulary}
 						{hasTranslation}
 						{translating}
@@ -136,6 +183,10 @@
 			</div>
 		{/key}
 	</div>
+
+	{#if wall}
+		<ModeWall modal tier={gate.tier} kind={wall.kind} count={wall.count} onClose={() => (wall = null)} />
+	{/if}
 {/if}
 
 <style>

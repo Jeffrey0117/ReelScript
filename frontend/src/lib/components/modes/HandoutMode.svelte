@@ -6,6 +6,8 @@
 	import type { Sentence } from '$lib/lesson';
 	import { pickBlanks, autoBlankCount, wordSpans } from '$lib/typing-core';
 	import { mt, type ModeTextKey } from '$lib/modes/text';
+	import type { Gate } from '$lib/modes/access';
+	import ModeWall from './ModeWall.svelte';
 
 	interface ClozePart {
 		text: string;
@@ -17,12 +19,14 @@
 		sentences,
 		vocabulary,
 		appreciating,
+		gate,
 		onAppreciate,
 	}: {
 		video: VideoDetail;
 		sentences: Sentence[];
 		vocabulary: VocabularyItem[];
 		appreciating: boolean;
+		gate: Gate;
 		onAppreciate: () => Promise<void>;
 	} = $props();
 
@@ -79,7 +83,7 @@
 				{appreciating ? mt('handoutMaking') : mt('handoutMakeSummary')}
 			</button>
 		{/if}
-		<button class="tool solid" onclick={() => window.print()}>
+		<button class="tool solid" onclick={() => (gate.print ? window.print() : gate.open('print'))}>
 			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M6 17H4v-7h16v7h-2M7 14h10v7H7z"/></svg>
 			{mt('handoutPrint')}
 		</button>
@@ -199,6 +203,10 @@
 					</p>
 				</div>
 			</section>
+		{/if}
+
+		{#if gate.hiddenLines > 0}
+			<ModeWall tier={gate.tier} kind="lines" count={gate.hiddenLines} />
 		{/if}
 
 		<footer class="foot">

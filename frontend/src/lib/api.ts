@@ -514,6 +514,8 @@ export interface Appreciation {
 
 export interface VideoDetail extends Video {
 	filename: string | null;
+	/** Who is looking: decides where the learning modes stop (see lib/modes/access.ts). */
+	access?: { tier: 'guest' | 'free' | 'pro'; owner: boolean };
 	transcript: {
 		language: string;
 		segments: TranscriptSegment[];

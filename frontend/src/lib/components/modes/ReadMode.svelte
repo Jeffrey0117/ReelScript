@@ -5,6 +5,8 @@
 	import { toParagraphs, readingMinutes, type Sentence } from '$lib/lesson';
 	import { mt, type ModeTextKey } from '$lib/modes/text';
 	import InteractiveText from '$lib/components/InteractiveText.svelte';
+	import type { Gate } from '$lib/modes/access';
+	import ModeWall from './ModeWall.svelte';
 
 	type Lang = 'en' | 'zh' | 'mixed' | 'pair';
 
@@ -13,12 +15,14 @@
 		sentences,
 		hasTranslation,
 		translating,
+		gate,
 		onTranslate,
 	}: {
 		video: VideoDetail;
 		sentences: Sentence[];
 		hasTranslation: boolean;
 		translating: boolean;
+		gate: Gate;
 		onTranslate: () => Promise<boolean>;
 	} = $props();
 
@@ -126,6 +130,8 @@
 
 	{#if sentences.length === 0}
 		<p class="notice">{mt('noTranscript')}</p>
+	{:else if lang !== 'en' && !gate.chinese}
+		<ModeWall tier={gate.tier} kind="chinese" />
 	{:else if needsZh}
 		<div class="notice">
 			<p>{mt('needTranslation')}</p>
@@ -134,7 +140,7 @@
 			</button>
 		</div>
 	{:else if lang === 'pair'}
-		<div class="pair">
+		<div class="pair" class:cut={gate.hiddenLines > 0}>
 			<div class="pair-head">
 				<span></span>
 				<span>{mt('readEnglish')}</span>
@@ -149,7 +155,7 @@
 			{/each}
 		</div>
 	{:else}
-		<div class="body" class:zh-only={lang === 'zh'}>
+		<div class="body" class:zh-only={lang === 'zh'} class:cut={gate.hiddenLines > 0}>
 			{#if video.thumbnail}
 				<figure class="figure">
 					<img src={thumbnailUrl(video.thumbnail)} alt="" loading="lazy" />
@@ -175,6 +181,10 @@
 				{/if}
 			{/each}
 		</div>
+	{/if}
+
+	{#if gate.hiddenLines > 0 && sentences.length > 0 && (lang === 'en' || gate.chinese)}
+		<ModeWall tier={gate.tier} kind="lines" count={gate.hiddenLines} />
 	{/if}
 
 	<!-- Key points are stored in Chinese only, so the English-only view leaves them out. -->
@@ -347,6 +357,12 @@
 		content: '';
 		display: block;
 		clear: both;
+	}
+
+	/* Held-back text: the last lines fade out into the wall. */
+	.cut {
+		mask-image: linear-gradient(to bottom, #000 calc(100% - 120px), transparent 100%);
+		-webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 120px), transparent 100%);
 	}
 
 	.body p {

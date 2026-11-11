@@ -14,9 +14,13 @@
 	import { t } from '$lib/i18n';
 	import { formatTime } from '$lib/lesson';
 	import InteractiveText from '$lib/components/InteractiveText.svelte';
+	import type { Gate } from '$lib/modes/access';
+	import ModeWall from './ModeWall.svelte';
 
 	let {
 		video,
+		segments,
+		gate,
 		vocabulary,
 		hasTranslation,
 		translating,
@@ -25,6 +29,8 @@
 		onTime = () => {},
 	}: {
 		video: VideoDetail;
+		segments: TranscriptSegment[];
+		gate: Gate;
 		vocabulary: VocabularyItem[];
 		hasTranslation: boolean;
 		translating: boolean;
@@ -58,16 +64,14 @@
 		currentTime = videoEl.currentTime;
 		onTime(currentTime);
 
-		if (!video?.transcript?.segments) return;
-
-		const idx = video.transcript.segments.findIndex(
+		const idx = segments.findIndex(
 			(s) => currentTime >= s.start && currentTime < s.end
 		);
 		activeSegmentIndex = idx;
 
 		// Single sentence repeat: loop within the locked segment
 		if (playbackMode === 'repeat-one' && repeatSegmentIndex >= 0) {
-			const seg = video.transcript.segments[repeatSegmentIndex];
+			const seg = segments[repeatSegmentIndex];
 			if (seg && currentTime >= seg.end) {
 				videoEl.currentTime = seg.start;
 			}
@@ -89,7 +93,7 @@
 	function lockSegment(index: number) {
 		playbackMode = 'repeat-one';
 		repeatSegmentIndex = index;
-		const seg = video?.transcript?.segments?.[index];
+		const seg = segments[index];
 		if (seg && videoEl) {
 			videoEl.currentTime = seg.start;
 			videoEl.play();
@@ -109,9 +113,14 @@
 		videoEl.play();
 	}
 
+	// Only what this viewer may see — the stored full text covers the whole video.
+	let fullText = $derived(
+		gate.hiddenLines > 0 ? segments.map((s) => s.text.trim()).join(' ') : (video.transcript?.full_text ?? '')
+	);
+
 	async function copyFullText() {
-		if (!video?.transcript?.full_text) return;
-		await navigator.clipboard.writeText(video.transcript.full_text);
+		if (!fullText) return;
+		await navigator.clipboard.writeText(fullText);
 		copySuccess = true;
 		setTimeout(() => (copySuccess = false), 2000);
 	}
@@ -146,6 +155,7 @@
 	}
 
 	async function handleTranslate() {
+		if (!gate.chinese) return gate.open('chinese');
 		if (await onTranslate()) displayMode = 'both';
 	}
 
@@ -236,7 +246,7 @@
 			<div class="transcript-header">
 				<h2>{t('transcript')}</h2>
 				{#if video.transcript}
-					<span class="segment-count">{video.transcript.segments.length} {t('segments')}</span>
+					<span class="segment-count">{segments.length + gate.hiddenLines} {t('segments')}</span>
 				{/if}
 				<div class="transcript-actions">
 					{#if hasTranslation}
@@ -257,7 +267,7 @@
 
 			{#if video.transcript?.segments}
 				<div class="segments">
-					{#each video.transcript.segments as segment, i (segment.index)}
+					{#each segments as segment, i (i)}
 						<div class="segment-row" class:active={i === activeSegmentIndex} class:repeating={playbackMode === 'repeat-one' && i === repeatSegmentIndex}>
 						<div
 							class="segment"
@@ -294,10 +304,16 @@
 					{/each}
 				</div>
 
+				{#if gate.hiddenLines > 0}
+					<div class="wall-slot">
+						<ModeWall tier={gate.tier} kind="lines" count={gate.hiddenLines} />
+					</div>
+				{/if}
+
 				<div class="full-text-section">
 					<h3>{t('fullText')}</h3>
 					<div class="full-text">
-						<InteractiveText text={video.transcript.full_text} vocabulary={vocabulary} videoId={video.id} />
+						<InteractiveText text={fullText} vocabulary={vocabulary} videoId={video.id} />
 					</div>
 				</div>
 			{:else}
@@ -599,6 +615,10 @@
 
 	.segment-row.active .segment-translation {
 		color: var(--accent);
+	}
+
+	.wall-slot {
+		margin: -8px 0 32px;
 	}
 
 	.full-text-section {

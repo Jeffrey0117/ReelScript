@@ -119,6 +119,29 @@ const zh = {
 	handoutMakeSummary: '產生主旨與金句',
 	handoutMaking: '產生中…',
 	handoutNoSummary: '這支影片還沒有主旨與金句',
+
+	// wall (visitors and free members)
+	wallMoreLines: '後面還有',
+	wallLinesUnit: '句',
+	wallMoreWords: '還有',
+	wallWordsUnit: '個單字',
+	wallChinese: '中文翻譯登入就看得到',
+	wallPrint: '列印整份講義',
+	wallGuestGets: '免費登入，每支影片先用',
+	wallGuestGetsTail: '，中文翻譯也打開',
+	wallMemberGets: '升級之後整支影片用到底，六種模式都不再中斷',
+	wallPerkModes: '每支影片整支用完，六種模式都是',
+	wallPerkLibrary: '官方教材全部開放',
+	wallPerkCredits: '每月 200 點，處理自己的影片',
+	wallPerkPrint: '講義整份列印、存 PDF',
+	wallLogin: '免費登入',
+	wallPlans: '看方案',
+	wallUpgrade: '升級 Pro',
+	wallPerMonth: ' / 月',
+	wallWorking: '前往付款…',
+	wallFailed: '沒辦法開啟付款頁，',
+	wallClose: '關閉',
+	wallLockedLine: '這句鎖住了',
 };
 
 const en: Record<keyof typeof zh, string> = {
@@ -222,6 +245,28 @@ const en: Record<keyof typeof zh, string> = {
 	handoutMakeSummary: 'Generate main idea and quotes',
 	handoutMaking: 'Generating…',
 	handoutNoSummary: 'This video has no main idea or quotes yet',
+
+	wallMoreLines: '',
+	wallLinesUnit: 'more lines',
+	wallMoreWords: '',
+	wallWordsUnit: 'more words',
+	wallChinese: 'Sign in to see the Chinese translation',
+	wallPrint: 'Print the whole handout',
+	wallGuestGets: 'Sign in free and use the first',
+	wallGuestGetsTail: ' of every video, with Chinese translation',
+	wallMemberGets: 'Upgrade to use every video to the end, in all six modes',
+	wallPerkModes: 'Every video to the end, in all six modes',
+	wallPerkLibrary: 'The whole official library',
+	wallPerkCredits: '200 credits a month for your own videos',
+	wallPerkPrint: 'Print the full handout or save it as PDF',
+	wallLogin: 'Sign in free',
+	wallPlans: 'See plans',
+	wallUpgrade: 'Upgrade to Pro',
+	wallPerMonth: ' / month',
+	wallWorking: 'Opening checkout…',
+	wallFailed: 'Could not open checkout. ',
+	wallClose: 'Close',
+	wallLockedLine: 'This line is locked',
 };
 
 export type ModeTextKey = keyof typeof zh;
