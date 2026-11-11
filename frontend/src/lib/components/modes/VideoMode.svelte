@@ -1,0 +1,742 @@
+<script lang="ts">
+	// The original watch layout: player on the left, clickable transcript on the right.
+	import {
+		deleteVideo,
+		videoFileUrl,
+		listCollections,
+		addToCollection,
+		type VideoDetail,
+		type TranscriptSegment,
+		type VocabularyItem,
+		type Collection,
+	} from '$lib/api';
+	import { goto } from '$app/navigation';
+	import { t } from '$lib/i18n';
+	import { formatTime } from '$lib/lesson';
+	import InteractiveText from '$lib/components/InteractiveText.svelte';
+
+	let {
+		video,
+		vocabulary,
+		hasTranslation,
+		translating,
+		onTranslate,
+		startAt = 0,
+		onTime = () => {},
+	}: {
+		video: VideoDetail;
+		vocabulary: VocabularyItem[];
+		hasTranslation: boolean;
+		translating: boolean;
+		onTranslate: () => Promise<boolean>;
+		startAt?: number;
+		onTime?: (seconds: number) => void;
+	} = $props();
+
+	let videoEl = $state<HTMLVideoElement | null>(null);
+	let currentTime = $state(0);
+	let activeSegmentIndex = $state(-1);
+	let showCollectionPicker = $state(false);
+	let collections = $state<Collection[]>([]);
+	let copySuccess = $state(false);
+	let urlCopied = $state(false);
+
+	// Playback modes: 'off' | 'loop' | 'repeat-one'
+	let playbackMode = $state<'off' | 'loop' | 'repeat-one'>('off');
+	let repeatSegmentIndex = $state(-1);
+
+	// Display mode: 'en' | 'zh' | 'both'
+	let displayMode = $state<'en' | 'zh' | 'both'>('en');
+
+	// Pick up where the previous mode left off.
+	function handleLoaded() {
+		if (videoEl && startAt > 0 && startAt < (videoEl.duration || Infinity)) videoEl.currentTime = startAt;
+	}
+
+	function handleTimeUpdate() {
+		if (!videoEl) return;
+		currentTime = videoEl.currentTime;
+		onTime(currentTime);
+
+		if (!video?.transcript?.segments) return;
+
+		const idx = video.transcript.segments.findIndex(
+			(s) => currentTime >= s.start && currentTime < s.end
+		);
+		activeSegmentIndex = idx;
+
+		// Single sentence repeat: loop within the locked segment
+		if (playbackMode === 'repeat-one' && repeatSegmentIndex >= 0) {
+			const seg = video.transcript.segments[repeatSegmentIndex];
+			if (seg && currentTime >= seg.end) {
+				videoEl.currentTime = seg.start;
+			}
+		}
+	}
+
+	function cyclePlaybackMode() {
+		if (playbackMode === 'off') {
+			playbackMode = 'loop';
+		} else if (playbackMode === 'loop') {
+			playbackMode = 'repeat-one';
+			repeatSegmentIndex = activeSegmentIndex >= 0 ? activeSegmentIndex : 0;
+		} else {
+			playbackMode = 'off';
+			repeatSegmentIndex = -1;
+		}
+	}
+
+	function lockSegment(index: number) {
+		playbackMode = 'repeat-one';
+		repeatSegmentIndex = index;
+		const seg = video?.transcript?.segments?.[index];
+		if (seg && videoEl) {
+			videoEl.currentTime = seg.start;
+			videoEl.play();
+		}
+	}
+
+	function handleVideoEnded() {
+		if (playbackMode === 'loop' && videoEl) {
+			videoEl.currentTime = 0;
+			videoEl.play();
+		}
+	}
+
+	function seekTo(segment: TranscriptSegment) {
+		if (!videoEl) return;
+		videoEl.currentTime = segment.start;
+		videoEl.play();
+	}
+
+	async function copyFullText() {
+		if (!video?.transcript?.full_text) return;
+		await navigator.clipboard.writeText(video.transcript.full_text);
+		copySuccess = true;
+		setTimeout(() => (copySuccess = false), 2000);
+	}
+
+	async function copySourceUrl() {
+		if (!video?.url) return;
+		await navigator.clipboard.writeText(video.url);
+		urlCopied = true;
+		setTimeout(() => (urlCopied = false), 2000);
+	}
+
+	async function handleDelete() {
+		if (!video) return;
+		if (!confirm(t('confirmDelete'))) return;
+		await deleteVideo(video.id);
+		goto('/videos');
+	}
+
+	async function openCollectionPicker() {
+		collections = await listCollections();
+		showCollectionPicker = true;
+	}
+
+	async function handleAddToCollection(collectionId: string) {
+		if (!video) return;
+		try {
+			await addToCollection(collectionId, video.id);
+			showCollectionPicker = false;
+		} catch (e) {
+			alert(e instanceof Error ? e.message : 'Failed to add');
+		}
+	}
+
+	async function handleTranslate() {
+		if (await onTranslate()) displayMode = 'both';
+	}
+
+	function cycleDisplayMode() {
+		if (displayMode === 'en') {
+			displayMode = 'both';
+		} else if (displayMode === 'both') {
+			displayMode = 'zh';
+		} else {
+			displayMode = 'en';
+		}
+	}
+</script>
+
+	<div class="watch-layout">
+		<!-- Left: Video Player -->
+		<div class="player-panel">
+			{#if video.filename}
+				<!-- svelte-ignore a11y_media_has_caption -->
+				<video
+					bind:this={videoEl}
+					onloadedmetadata={handleLoaded}
+					ontimeupdate={handleTimeUpdate}
+					onended={handleVideoEnded}
+					onerror={() => {}}
+					controls
+					playsinline
+					preload="auto"
+					class="video-player"
+				>
+					<source src={videoFileUrl(video.filename)} type="video/mp4" />
+				</video>
+			{:else}
+				<div class="video-placeholder">{t('videoNotAvailable')}</div>
+			{/if}
+
+			<div class="video-info">
+				<h1>{video.title || t('untitled')}</h1>
+				<div class="video-info-row">
+					{#if video.channel}
+						<span class="channel">{video.channel}</span>
+					{/if}
+					<span class="badge {video.source === 'ig' ? 'badge-ig' : 'badge-youtube'}">
+						{video.source === 'ig' ? 'Instagram' : 'YouTube'}
+					</span>
+					{#if video.url}
+						<button class="copy-url-btn" onclick={copySourceUrl} title={video.url}>
+							{#if urlCopied}
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+								<span>{t('copied')}</span>
+							{:else}
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+								<span>{t('source')}</span>
+							{/if}
+						</button>
+					{/if}
+				</div>
+			</div>
+
+			<div class="actions">
+				<button
+					class="btn {playbackMode !== 'off' ? 'btn-active' : 'btn-ghost'}"
+					onclick={cyclePlaybackMode}
+					title={playbackMode === 'off' ? 'Loop: Off' : playbackMode === 'loop' ? 'Loop: All' : 'Loop: Sentence'}
+				>
+					{#if playbackMode === 'off'}
+						{t('loopOff')}
+					{:else if playbackMode === 'loop'}
+						{t('loopAll')}
+					{:else}
+						{t('loopOne')}
+					{/if}
+				</button>
+				<button class="btn btn-ghost" onclick={openCollectionPicker}>
+					{t('addToCollection')}
+				</button>
+				<button class="btn btn-ghost" onclick={copyFullText}>
+					{copySuccess ? t('copied') : t('copyText')}
+				</button>
+				<button class="btn btn-danger" onclick={handleDelete}>
+					{t('delete')}
+				</button>
+			</div>
+		</div>
+
+		<!-- Right: Transcript -->
+		<div class="transcript-panel">
+			<div class="transcript-header">
+				<h2>{t('transcript')}</h2>
+				{#if video.transcript}
+					<span class="segment-count">{video.transcript.segments.length} {t('segments')}</span>
+				{/if}
+				<div class="transcript-actions">
+					{#if hasTranslation}
+						<button class="lang-toggle" onclick={cycleDisplayMode}>
+							{displayMode === 'en' ? 'EN' : displayMode === 'zh' ? '中' : 'EN/中'}
+						</button>
+					{:else}
+						<button
+							class="btn btn-translate"
+							onclick={handleTranslate}
+							disabled={translating || !video.transcript}
+						>
+							{translating ? t('translating') : t('translateChinese')}
+						</button>
+					{/if}
+				</div>
+			</div>
+
+			{#if video.transcript?.segments}
+				<div class="segments">
+					{#each video.transcript.segments as segment, i (segment.index)}
+						<div class="segment-row" class:active={i === activeSegmentIndex} class:repeating={playbackMode === 'repeat-one' && i === repeatSegmentIndex}>
+						<div
+							class="segment"
+							role="button"
+							tabindex="0"
+							onclick={() => seekTo(segment)}
+							onkeydown={(e) => e.key === 'Enter' && seekTo(segment)}
+						>
+							<span class="segment-time">{formatTime(segment.start)}</span>
+							<span class="segment-text-wrapper">
+								{#if displayMode === 'en' || displayMode === 'both'}
+									<span class="segment-text">
+										<InteractiveText text={segment.text} vocabulary={segment.vocabulary ?? []} videoId={video.id} />
+									</span>
+								{/if}
+								{#if (displayMode === 'zh' || displayMode === 'both') && segment.translation}
+									<span class="segment-translation">{segment.translation}</span>
+								{/if}
+							</span>
+						</div>
+						<button
+							class="segment-lock"
+							class:locked={playbackMode === 'repeat-one' && i === repeatSegmentIndex}
+							onclick={() => lockSegment(i)}
+							title="Repeat this sentence"
+						>
+							{#if playbackMode === 'repeat-one' && i === repeatSegmentIndex}
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+							{:else}
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+							{/if}
+						</button>
+					</div>
+					{/each}
+				</div>
+
+				<div class="full-text-section">
+					<h3>{t('fullText')}</h3>
+					<div class="full-text">
+						<InteractiveText text={video.transcript.full_text} vocabulary={vocabulary} videoId={video.id} />
+					</div>
+				</div>
+			{:else}
+				<p class="no-transcript">{t('noTranscript')}</p>
+			{/if}
+		</div>
+	</div>
+
+	<!-- Collection Picker Modal -->
+	{#if showCollectionPicker}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div class="modal-overlay" onclick={() => (showCollectionPicker = false)} role="presentation">
+			<!-- svelte-ignore a11y_click_events_have_key_events a11y_interactive_supports_focus -->
+			<div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+				<h3>{t('addToCollectionTitle')}</h3>
+				{#if collections.length === 0}
+					<p class="empty">{t('noCollectionsYet')}</p>
+				{:else}
+					<div class="collection-list">
+						{#each collections as col (col.id)}
+							<button class="collection-option" onclick={() => handleAddToCollection(col.id)}>
+								<span>{col.name}</span>
+								<span class="count">{col.video_count} videos</span>
+							</button>
+						{/each}
+					</div>
+				{/if}
+				<button class="btn btn-ghost" onclick={() => (showCollectionPicker = false)}>{t('cancel')}</button>
+			</div>
+		</div>
+	{/if}
+
+<style>
+	.watch-layout {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 32px;
+		align-items: start;
+	}
+
+	@media (max-width: 900px) {
+		.watch-layout {
+			grid-template-columns: 1fr;
+		}
+
+		/* Stacked layout: size the player to the video itself (no letterbox bars),
+		   keep it compact so the transcript stays reachable. */
+		.player-panel {
+			position: static;
+		}
+
+		.video-player,
+		.video-placeholder {
+			display: block;
+			max-height: 60vh;
+			max-width: calc(60vh * 9 / 16);
+			margin: 0 auto;
+		}
+	}
+
+	/* Player Panel */
+	.player-panel {
+		position: sticky;
+		top: 72px;
+	}
+
+	.video-player {
+		width: 100%;
+		border-radius: var(--radius);
+		background: #000;
+		aspect-ratio: 9 / 16;
+		max-height: 70vh;
+		object-fit: contain;
+	}
+
+	.video-placeholder {
+		width: 100%;
+		aspect-ratio: 9 / 16;
+		background: var(--bg-card);
+		border-radius: var(--radius);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--text-dim);
+	}
+
+	.video-info {
+		margin-top: 16px;
+	}
+
+	.video-info h1 {
+		font-size: 20px;
+		font-weight: 700;
+		margin-bottom: 8px;
+	}
+
+	.video-info-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.channel {
+		color: var(--text-dim);
+		font-size: 14px;
+	}
+
+	.copy-url-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 8px;
+		font-size: 12px;
+		color: var(--text-dim);
+		background: var(--bg-hover);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition: color 0.15s, border-color 0.15s;
+	}
+
+	.copy-url-btn:hover {
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+
+	.actions {
+		display: flex;
+		gap: 8px;
+		margin-top: 16px;
+		flex-wrap: wrap;
+	}
+
+	/* Transcript Panel */
+	.transcript-panel {
+		min-height: 60vh;
+	}
+
+	.transcript-header {
+		display: flex;
+		align-items: baseline;
+		gap: 12px;
+		margin-bottom: 16px;
+	}
+
+	.transcript-header h2 {
+		font-size: 18px;
+		font-weight: 600;
+	}
+
+	.segment-count {
+		color: var(--text-dim);
+		font-size: 13px;
+	}
+
+	.transcript-actions {
+		margin-left: auto;
+	}
+
+	.lang-toggle {
+		padding: 4px 12px;
+		border-radius: var(--radius-sm);
+		font-size: 13px;
+		font-weight: 600;
+		background: var(--accent);
+		color: white;
+		transition: background 0.15s;
+	}
+
+	.lang-toggle:hover {
+		background: var(--accent-hover);
+	}
+
+	.btn-translate {
+		padding: 4px 12px;
+		font-size: 13px;
+		background: var(--bg-hover);
+		color: var(--text-dim);
+		border-radius: var(--radius-sm);
+	}
+
+	.btn-translate:hover:not(:disabled) {
+		background: var(--accent);
+		color: white;
+	}
+
+	.btn-translate:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.segments {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		margin-bottom: 32px;
+	}
+
+	.segment-row {
+		display: flex;
+		align-items: center;
+		border-radius: var(--radius-sm);
+		transition: background 0.15s;
+	}
+
+	.segment-row:hover {
+		background: var(--bg-hover);
+	}
+
+	.segment-row.active {
+		background: rgba(99, 102, 241, 0.12);
+	}
+
+	.segment-row.active .segment-text {
+		color: var(--accent-hover);
+	}
+
+	.segment-row.repeating {
+		background: rgba(99, 102, 241, 0.18);
+		outline: 1px solid var(--accent);
+	}
+
+	.segment {
+		display: flex;
+		gap: 12px;
+		padding: 10px 12px;
+		text-align: left;
+		width: 100%;
+		flex: 1;
+		min-width: 0;
+		cursor: pointer;
+	}
+
+	.segment-lock {
+		flex-shrink: 0;
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-sm);
+		font-size: 14px;
+		color: var(--text-dim);
+		opacity: 0;
+		transition: opacity 0.15s, color 0.15s, background 0.15s;
+		margin-right: 8px;
+	}
+
+	.segment-row:hover .segment-lock {
+		opacity: 1;
+	}
+
+	.segment-lock:hover {
+		background: var(--bg-hover);
+		color: var(--accent);
+	}
+
+	.segment-lock.locked {
+		opacity: 1;
+		color: var(--accent);
+		background: rgba(99, 102, 241, 0.2);
+	}
+
+	.btn-active {
+		background: var(--accent);
+		color: white;
+	}
+
+	.btn-active:hover {
+		background: var(--accent-hover);
+	}
+
+	.segment-time {
+		color: var(--text-dim);
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+		min-width: 40px;
+		padding-top: 2px;
+		flex-shrink: 0;
+	}
+
+	.segment-text-wrapper {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	.segment-text {
+		font-size: 15px;
+		line-height: 1.6;
+	}
+
+	.segment-translation {
+		font-size: 14px;
+		line-height: 1.5;
+		color: var(--text-dim);
+	}
+
+	.segment-row.active .segment-translation {
+		color: var(--accent);
+	}
+
+	.full-text-section {
+		border-top: 1px solid var(--border);
+		padding-top: 24px;
+	}
+
+	.full-text-section h3 {
+		font-size: 16px;
+		font-weight: 600;
+		margin-bottom: 12px;
+	}
+
+	.full-text {
+		font-size: 15px;
+		line-height: 1.8;
+		color: var(--text);
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+
+	.no-transcript {
+		color: var(--text-dim);
+		text-align: center;
+		padding: 40px 0;
+	}
+
+	/* Modal */
+	.modal-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.6);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 200;
+	}
+
+	.modal {
+		background: var(--bg-card);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 24px;
+		width: 360px;
+		max-width: 90vw;
+	}
+
+	.modal h3 {
+		margin-bottom: 16px;
+	}
+
+	.empty {
+		color: var(--text-dim);
+		font-size: 14px;
+		margin-bottom: 16px;
+	}
+
+	.collection-list {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		margin-bottom: 16px;
+	}
+
+	.collection-option {
+		display: flex;
+		justify-content: space-between;
+		padding: 10px 12px;
+		border-radius: var(--radius-sm);
+		width: 100%;
+		text-align: left;
+	}
+
+	.collection-option:hover {
+		background: var(--bg-hover);
+	}
+
+	.count {
+		color: var(--text-dim);
+		font-size: 13px;
+	}
+
+	@media (max-width: 640px) {
+		.watch-layout {
+			grid-template-columns: 1fr;
+			gap: 20px;
+		}
+
+		.player-panel {
+			position: static;
+		}
+
+		.video-player {
+			max-height: 50vh;
+		}
+
+		.video-info h1 {
+			font-size: 17px;
+		}
+
+		.actions {
+			gap: 6px;
+		}
+
+		.transcript-header {
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+
+		.transcript-header h2 {
+			font-size: 16px;
+		}
+
+		.segment {
+			padding: 8px 8px;
+			gap: 8px;
+		}
+
+		.segment-text {
+			font-size: 14px;
+		}
+
+		.segment-translation {
+			font-size: 13px;
+		}
+
+		.segment-lock {
+			opacity: 1;
+			width: 28px;
+			height: 28px;
+		}
+
+		.full-text {
+			font-size: 14px;
+		}
+
+		.modal {
+			width: calc(100vw - 32px);
+		}
+	}
+</style>

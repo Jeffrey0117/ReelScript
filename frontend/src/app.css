@@ -16,6 +16,11 @@
 	--radius-sm: 8px;
 	--shadow-card: 0 1px 2px rgba(72, 60, 38, 0.05), 0 6px 20px rgba(72, 60, 38, 0.06);
 
+	/* Voices for the watch-page modes (read / type / wordbook) */
+	--font-serif: 'Source Serif 4', 'Noto Serif TC', Georgia, 'Times New Roman', serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+	--font-hand: 'Caveat', 'Noto Sans TC', cursive;
+
 	font-family: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 	color: var(--text);
 	background: var(--bg);

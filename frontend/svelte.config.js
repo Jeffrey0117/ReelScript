@@ -4,7 +4,8 @@ import adapter from '@sveltejs/adapter-node';
 const config = {
 	kit: {
 		adapter: adapter({
-			out: 'build',
+			// BUILD_OUT lets `npm run preview` build beside the live build instead of over it.
+			out: process.env.BUILD_OUT || 'build',
 		}),
 	},
 };

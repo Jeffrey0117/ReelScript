@@ -7,7 +7,9 @@
 	"scripts": {
 		"start": "node server.js",
 		"build": "cd frontend && npm install && npm run build",
-		"dev": "cd frontend && npm run dev"
+		"dev": "cd frontend && npm run dev",
+		"preview": "node scripts/preview.mjs",
+		"test": "cd frontend && npm test"
 	},
 	"dependencies": {
 		"http-proxy": "^1.18.1"

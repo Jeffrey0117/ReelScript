@@ -19,6 +19,8 @@ Video learning platform — download, transcribe, translate, and analyze video c
 npm run dev:frontend   # SvelteKit dev server
 npm start              # Production (Node spawns Python backend)
 npm run build          # Build SvelteKit frontend
+npm run preview        # Preview a frontend change on :4905 (live data, live build untouched)
+npm test               # Unit tests for the watch-page mode logic
 ```
 
 Python backend is auto-started by server.js in production.
@@ -50,6 +52,29 @@ backend/
 frontend/src/                      — SvelteKit app
 data/                              — SQLite DB + media files
 ```
+
+## Watch Page Modes
+
+`/watch/:id` is one video in six modes, picked with `?mode=` (default `video`):
+
+| Mode | Component | What it is |
+|------|-----------|------------|
+| `video` | `VideoMode` | Player left, clickable transcript right (the original page) |
+| `read` | `ReadMode` | Article layout; 純英文 / 純中文 / 中英 / 中英對照（逐句） |
+| `podcast` | `PodcastMode` | Audio only, lyric-style captions |
+| `type` | `TypeMode` | Typing practice; engine ported from takeENGLISH `/type` |
+| `vocab` | `VocabMode` | Two-page notebook, Chinese blurred until tapped |
+| `handout` | `HandoutMode` | Printable worksheet (main idea, words, sentences, cloze) |
+
+- Shell: `frontend/src/routes/watch/[id]/+page.svelte` loads the video once and hands it down.
+  Components live in `frontend/src/lib/components/modes/`; each mode owns its whole look.
+- `ModeSwitcher` restyles itself per mode (`data-skin`). Adding a mode = id in
+  `lib/modes/text.ts` (`MODE_IDS` + copy), an icon and a skin in `ModeSwitcher`, a branch in the shell.
+- Pure logic is in `lib/lesson.ts` and `lib/typing-core.ts`, tested with `npm test` (in `frontend/`).
+- Modes never call AI on their own. The wordbook fills gaps from the offline dictionary
+  (`/api/public/dict/:word`); translate / summary are buttons the user presses.
+- `npm run preview` (repo root) builds into `frontend/build-preview` and serves it on :4905
+  against the running server's data — look at a frontend change without touching the live build.
 
 ## API (Key Endpoints)
 
