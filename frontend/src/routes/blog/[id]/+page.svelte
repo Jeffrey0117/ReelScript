@@ -3,10 +3,17 @@
 	import { page } from '$app/state';
 	import { publicArticle, publicAudio, audioFileUrl, type ArticleData, type AudioData } from '$lib/api';
 	import { t } from '$lib/i18n';
+	import { thumbnailUrl } from '$lib/api';
+	import { summarize, absoluteUrl } from '$lib/seo';
+	import SeoHead from '$lib/components/SeoHead.svelte';
 
-	let article = $state<ArticleData | null>(null);
+	// The server sends the article with the page; the browser only fetches if that failed.
+	let { data } = $props();
+	// svelte-ignore state_referenced_locally
+	let article = $state<ArticleData | null>(data.article);
 	let audio = $state<AudioData | null>(null);
-	let loading = $state(true);
+	// svelte-ignore state_referenced_locally
+	let loading = $state(data.article === null);
 	let error = $state('');
 	let audioEl = $state<HTMLAudioElement | null>(null);
 	let isPlaying = $state(false);
@@ -14,7 +21,16 @@
 
 	const videoId = page.params.id;
 
+	// What the page says about itself to search engines and share previews.
+	let summary = $derived(
+		article
+			? summarize([article.theme, ...article.keyPoints, article.segments[0]?.en].filter(Boolean).join(' '))
+			: ''
+	);
+	let cover = $derived(thumbnailUrl(`${videoId}.jpg`));
+
 	onMount(async () => {
+		if (data.article !== null) return;
 		try {
 			article = await publicArticle(videoId);
 		} catch (e) {
@@ -54,9 +70,24 @@
 	}
 </script>
 
-<svelte:head>
-	<title>{article?.title || t('loading')} · {t('blog')}</title>
-</svelte:head>
+<SeoHead
+	title={`${article?.title || t('loading')} · ReelScript`}
+	description={summary}
+	image={cover}
+	type="article"
+	schema={article
+		? {
+				'@context': 'https://schema.org',
+				'@type': 'Article',
+				headline: article.title ?? '',
+				description: summary,
+				inLanguage: ['zh-Hant', 'en'],
+				image: absoluteUrl(page.url, cover),
+				mainEntityOfPage: absoluteUrl(page.url),
+				publisher: { '@type': 'Organization', name: 'ReelScript' },
+			}
+		: undefined}
+/>
 
 <article class="post">
 	<a href="/blog" class="back-link">

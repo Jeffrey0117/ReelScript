@@ -2,11 +2,18 @@
 	import { onMount } from 'svelte';
 	import { publicVideos, thumbnailUrl, type PublicVideo } from '$lib/api';
 	import { t } from '$lib/i18n';
+	import SeoHead from '$lib/components/SeoHead.svelte';
 
-	let videos = $state<PublicVideo[]>([]);
-	let loading = $state(true);
+	// The server sends the full list with the page; the browser only fetches
+	// if that failed.
+	let { data } = $props();
+	// svelte-ignore state_referenced_locally
+	let videos = $state<PublicVideo[]>(data.videos ?? []);
+	// svelte-ignore state_referenced_locally
+	let loading = $state(data.videos === null);
 
 	onMount(async () => {
+		if (data.videos !== null) return;
 		try {
 			const data = await publicVideos();
 			videos = data.videos.filter((v) => v.hasTranscript);
@@ -31,9 +38,10 @@
 	}
 </script>
 
-<svelte:head>
-	<title>{t('blog')} - ReelScript</title>
-</svelte:head>
+<SeoHead
+	title={`${t('blogTitle')} - ReelScript`}
+	description={`${videos.length} ${t('blogTitle')}：${videos.slice(0, 6).map((v) => v.title).filter(Boolean).join('、')}`}
+/>
 
 <section class="blog-page">
 	<h1 class="blog-heading">{t('blogTitle')}</h1>

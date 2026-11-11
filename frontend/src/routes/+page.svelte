@@ -1,9 +1,14 @@
 <script lang="ts">
+	import SeoHead from '$lib/components/SeoHead.svelte';
+	import LandingStory from '$lib/components/LandingStory.svelte';
+	import { landingText } from '$lib/landing-text';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
 	import { onAuthChange, login, getUser } from '$lib/auth';
 	import WordCard from '$lib/components/WordCard.svelte';
+
+	const story = landingText();
 
 	let isLoggedIn = $state(false);
 	let visible = $state(false);
@@ -143,9 +148,31 @@
 	]);
 </script>
 
-<svelte:head>
-	<title>ReelScript · {t('heroTagline')}</title>
-</svelte:head>
+<SeoHead
+	title={`ReelScript · ${t('heroTagline')}`}
+	description={story.description}
+	schema={{
+		'@context': 'https://schema.org',
+		'@graph': [
+			{
+				'@type': 'WebApplication',
+				name: 'ReelScript',
+				applicationCategory: 'EducationalApplication',
+				operatingSystem: 'Web',
+				description: story.description,
+				offers: { '@type': 'Offer', price: '0', priceCurrency: 'TWD' },
+			},
+			{
+				'@type': 'FAQPage',
+				mainEntity: story.faqs.map((item) => ({
+					'@type': 'Question',
+					name: item.q,
+					acceptedAnswer: { '@type': 'Answer', text: item.a },
+				})),
+			},
+		],
+	}}
+/>
 
 <div class="landing" class:visible>
 	<!-- Hero -->
@@ -245,6 +272,8 @@
 			{/each}
 		</div>
 	</section>
+
+	<LandingStory />
 
 	<!-- Demo videos: 暗幕劇院輪播 -->
 	<section class="demos" bind:this={demoSection}>

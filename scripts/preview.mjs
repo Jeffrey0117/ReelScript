@@ -24,6 +24,9 @@ if (!process.argv.includes('--no-build')) {
 	});
 }
 
+// Pages rendered on the server fetch their data from the same running site.
+process.env.BACKEND_URL ||= TARGET;
+
 const { handler } = await import('../frontend/build-preview/handler.js');
 const proxy = httpProxy.createProxyServer({ target: TARGET, ws: true });
 
