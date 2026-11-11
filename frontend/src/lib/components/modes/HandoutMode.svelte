@@ -78,7 +78,7 @@
 
 <div class="sheet-wrap">
 	<div class="sheet-tools">
-		{#if !appreciation?.theme && sentences.length > 0}
+		{#if !appreciation?.theme && sentences.length > 0 && gate.hiddenLines === 0}
 			<button class="tool" onclick={onAppreciate} disabled={appreciating}>
 				{appreciating ? mt('handoutMaking') : mt('handoutMakeSummary')}
 			</button>

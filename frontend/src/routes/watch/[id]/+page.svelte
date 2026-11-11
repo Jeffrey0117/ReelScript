@@ -11,7 +11,7 @@
 	import { mergeSentences, uniqueVocabulary } from '$lib/lesson';
 	import { parseMode } from '$lib/modes/text';
 	import { switchMode } from '$lib/modes/navigate';
-	import { limitsFor, applyLimit, lockedAt, type Gate, type WallKind } from '$lib/modes/access';
+	import { limitsFor, applyLimit, lockedAt, gateSummary, type Gate, type WallKind } from '$lib/modes/access';
 	import ModeWall from '$lib/components/modes/ModeWall.svelte';
 	import ModeSwitcher from '$lib/components/modes/ModeSwitcher.svelte';
 	import VideoMode from '$lib/components/modes/VideoMode.svelte';
@@ -27,6 +27,8 @@
 	let appreciating = $state(false);
 
 	let mode = $derived(parseMode(page.url.searchParams.get('mode')));
+	// A plain string: it only changes when the video does, not on every ?mode= switch.
+	let videoId = $derived(page.params.id ?? '');
 
 	// The wall. Visitors and free members get the first lines of a video in every
 	// mode; the rest is held back here, so no mode can show it by accident.
@@ -47,6 +49,21 @@
 		open: (kind, count = visible.hidden) => (wall = { kind, count }),
 	});
 
+	// What the modes get: the same video with its summary cut to match.
+	let shownVideo = $derived.by<VideoDetail | null>(() => {
+		if (!video?.transcript || limits.full) return video;
+		const visibleText = segments.map((s) => s.text).join(' ');
+		return {
+			...video,
+			transcript: {
+				...video.transcript,
+				segments,
+				full_text: visibleText,
+				appreciation: gateSummary(video.transcript.appreciation, visibleText, limits),
+			},
+		};
+	});
+
 	let sentences = $derived(mergeSentences(segments));
 	let vocabulary = $derived(uniqueVocabulary(segments));
 	let hasTranslation = $derived(segments.some((s) => s.translation));
@@ -63,17 +80,24 @@
 		try {
 			const fresh = await getVideo(id);
 			// A slower answer for a video we already left must not replace the current one.
-			if (id === page.params.id) video = fresh;
+			if (id !== videoId) return;
+			video = fresh;
+			loadError = '';
 		} catch (e) {
-			if (!video) loadError = e instanceof Error ? e.message : 'Failed to load';
+			if (id !== videoId) return;
+			// Not allowed any more (signed out of a private video) or gone: never keep
+			// showing what was loaded under the previous sign-in.
+			video = null;
+			loadError = e instanceof Error ? e.message : 'Failed to load';
 		}
 	}
 
 	// Runs on arrival and again whenever the address points at another video.
 	$effect(() => {
-		const id = page.params.id ?? '';
+		const id = videoId;
 		untrack(() => {
 			if (video && video.id !== id) video = null;
+			loadError = '';
 			wall = null;
 			void load(id);
 		});
@@ -82,13 +106,14 @@
 	onMount(() => {
 		if (getUser()) void loadSavedWords();
 		let first = true;
-		onAuthChange((u) => {
+		// Returned so the subscription ends when the page is left.
+		return onAuthChange((u) => {
 			if (u) void loadSavedWords();
 			else resetWordbook();
 			// Signing in or out changes what this person may see — ask again.
 			if (!first) {
 				wall = null;
-				void load(page.params.id ?? '');
+				void load(videoId);
 			}
 			first = false;
 		});
@@ -132,7 +157,7 @@
 
 {#if loadError}
 	<div class="loading">{loadError}</div>
-{:else if !video}
+{:else if !video || !shownVideo}
 	<div class="loading">{t('loading')}</div>
 {:else}
 	<div class="mode-shell" data-mode={mode}>
@@ -144,10 +169,10 @@
 		{#key mode}
 			<div class="mode-stage">
 				{#if mode === 'read'}
-					<ReadMode {video} {sentences} {hasTranslation} {translating} {gate} onTranslate={handleTranslate} />
+					<ReadMode video={shownVideo} {sentences} {hasTranslation} {translating} {gate} onTranslate={handleTranslate} />
 				{:else if mode === 'podcast'}
 					<PodcastMode
-						{video}
+						video={shownVideo}
 						{segments}
 						{hasTranslation}
 						{gate}
@@ -155,12 +180,12 @@
 						onTime={rememberTime}
 					/>
 				{:else if mode === 'type'}
-					<TypeMode {video} {segments} {gate} startAt={position} onTime={rememberTime} />
+					<TypeMode video={shownVideo} {segments} {gate} startAt={position} onTime={rememberTime} />
 				{:else if mode === 'vocab'}
-					<VocabMode {video} {segments} {sentences} {vocabulary} {gate} />
+					<VocabMode video={shownVideo} {segments} {sentences} {vocabulary} {gate} />
 				{:else if mode === 'handout'}
 					<HandoutMode
-						{video}
+						video={shownVideo}
 						{sentences}
 						{vocabulary}
 						{appreciating}
@@ -169,7 +194,7 @@
 					/>
 				{:else}
 					<VideoMode
-						{video}
+						video={shownVideo}
 						{segments}
 						{gate}
 						{vocabulary}

@@ -16,9 +16,12 @@
 	let loading = $state(true);
 	let signedIn = $state(false);
 
-	onMount(async () => {
+	onMount(() => {
 		signedIn = Boolean(getUser());
-		onAuthChange((u) => (signedIn = Boolean(u)));
+		return onAuthChange((u) => (signedIn = Boolean(u)));
+	});
+
+	onMount(async () => {
 		const [p, d] = await Promise.all([
 			publicPacks().catch(() => null),
 			publicDecks().catch(() => null),

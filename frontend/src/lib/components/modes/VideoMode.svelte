@@ -56,12 +56,20 @@
 
 	// Pick up where the previous mode left off.
 	function handleLoaded() {
-		if (videoEl && startAt > 0 && startAt < (videoEl.duration || Infinity)) videoEl.currentTime = startAt;
+		const limit = Math.min(videoEl?.duration || Infinity, gate.stopAt ?? Infinity);
+		if (videoEl && startAt > 0 && startAt < limit) videoEl.currentTime = startAt;
 	}
 
 	function handleTimeUpdate() {
 		if (!videoEl) return;
 		currentTime = videoEl.currentTime;
+		// Reached the held-back part: stop just before it and bring up the wall.
+		if (gate.stopAt !== null && currentTime >= gate.stopAt) {
+			videoEl.pause();
+			videoEl.currentTime = Math.max(gate.stopAt - 0.3, 0);
+			gate.open('lines');
+			return;
+		}
 		onTime(currentTime);
 
 		const idx = segments.findIndex(

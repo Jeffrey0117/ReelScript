@@ -71,6 +71,36 @@ export function applyLimit<T>(items: readonly T[], limit: number): Limited<T> {
 	return { shown: items.slice(0, keep), hidden: items.length - keep };
 }
 
+export interface Summary {
+	theme: string;
+	keyPoints: string[];
+	goldenQuotes: { en: string; zh: string }[];
+}
+
+const plain = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+// The summary is written about the whole video, so a limited viewer only gets
+// the parts that do not give held-back lines away: quotes that appear in the
+// lines they can see, and Chinese only if their tier includes Chinese.
+export function gateSummary<T extends Summary>(
+	summary: T | null | undefined,
+	visibleText: string,
+	limits: Limits
+): T | null {
+	if (!summary) return null;
+	if (limits.full) return summary;
+	const seen = plain(visibleText);
+	const quotes = (summary.goldenQuotes ?? [])
+		.filter((q) => plain(q.en).length > 0 && seen.includes(plain(q.en)))
+		.map((q) => ({ ...q, zh: limits.chinese ? q.zh : '' }));
+	return {
+		...summary,
+		theme: limits.chinese ? summary.theme : '',
+		keyPoints: limits.chinese ? summary.keyPoints : [],
+		goldenQuotes: quotes,
+	};
+}
+
 // The moment playback reaches held-back material (start of the first hidden line).
 export function lockedAt(items: readonly { start: number }[], limit: number): number | null {
 	if (!Number.isFinite(limit) || items.length <= limit) return null;

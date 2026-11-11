@@ -16,6 +16,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models import get_db, Video, Transcript, UserVideo, UserQuota, Subscription
@@ -239,18 +240,20 @@ def _access(db: Session, user: dict | None, video: Video) -> dict:
     learning modes stop for visitors and free members.
 
     tier:  "guest" (not signed in) | "free" | "pro" (any active paid plan, or admin)
-    owner: the viewer added this video themselves — their own material is never cut short
+    owner: the viewer added this video themselves — their own material is never cut short.
+           Public (official) videos have no owner here: anyone can link one to their
+           library for free by pasting its URL, so that link must not unlock it.
     """
     if not user:
         return {"tier": "guest", "owner": False}
-    owner = db.query(UserVideo).filter(
+    owner = (not video.is_public) and db.query(UserVideo).filter(
         UserVideo.user_id == _get_user_id(user), UserVideo.video_id == video.id
     ).first() is not None
     if _is_admin(user):
         return {"tier": "pro", "owner": owner}
-    email = user.get("email", "")
+    email = (user.get("email") or "").strip().lower()
     paid = bool(email) and db.query(Subscription).filter(
-        Subscription.email == email,
+        func.lower(Subscription.email) == email,
         Subscription.status == "active",
         Subscription.plan.in_(("pro", "unlimited")),
     ).first() is not None

@@ -14,6 +14,22 @@ function backendBase(): string {
 	return `http://127.0.0.1:${(Number.isFinite(port) ? port : FALLBACK_PORT) + 1000}`;
 }
 
+export interface BackendResult<T> {
+	/** HTTP status, or 0 when the backend could not be reached. */
+	status: number;
+	data: T | null;
+}
+
+// For pages that must tell "does not exist" apart from "could not ask".
+export async function backendResult<T>(path: string, timeoutMs = 4000): Promise<BackendResult<T>> {
+	try {
+		const res = await fetch(`${backendBase()}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
+		return { status: res.status, data: res.ok ? ((await res.json()) as T) : null };
+	} catch {
+		return { status: 0, data: null };
+	}
+}
+
 // Returns null on any failure: the page then falls back to loading in the
 // browser, exactly as it did before server rendering.
 export async function backendJson<T>(path: string, timeoutMs = 4000): Promise<T | null> {
