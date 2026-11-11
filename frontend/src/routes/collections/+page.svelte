@@ -86,6 +86,9 @@
 	<title>{t('collections')} - ReelScript</title>
 </svelte:head>
 
+<!-- Collections sit under Materials now (no header entry of their own). -->
+<a class="btn btn-ghost" href="/packs" style="margin: -8px 0 12px -12px;">← {t('materials')}</a>
+
 <div class="collections-layout">
 	<div class="sidebar">
 		<h2>{t('myCollections')}</h2>

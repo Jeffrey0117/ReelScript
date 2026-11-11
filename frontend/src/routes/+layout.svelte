@@ -135,10 +135,6 @@
 					<a href="/packs">{t('materials')}</a>
 					<a href="/wordbook">{t('wordbook')}</a>
 					<a href="/speaking">{t('speakingCoach')}</a>
-					<a href="/collections">{t('collections')}</a>
-					{#if user.role === 'admin'}
-						<a href="/admin">{t('admin')}</a>
-					{/if}
 				{:else}
 					<a href="/">{t('home')}</a>
 					<a href="/packs">{t('materials')}</a>
@@ -177,10 +173,6 @@
 							<a href="/packs" onclick={() => (showMobileMenu = false)}>{t('materials')}</a>
 							<a href="/wordbook" onclick={() => (showMobileMenu = false)}>{t('wordbook')}</a>
 							<a href="/speaking" onclick={() => (showMobileMenu = false)}>{t('speakingCoach')}</a>
-							<a href="/collections" onclick={() => (showMobileMenu = false)}>{t('collections')}</a>
-							{#if user.role === 'admin'}
-								<a href="/admin" onclick={() => (showMobileMenu = false)}>{t('admin')}</a>
-							{/if}
 						{:else}
 							<a href="/" onclick={() => (showMobileMenu = false)}>{t('home')}</a>
 							<a href="/packs" onclick={() => (showMobileMenu = false)}>{t('materials')}</a>
@@ -237,6 +229,9 @@
 									<span class="user-name">{user.displayName || user.email}</span>
 									<span class="user-email">{user.email}</span>
 								</div>
+								{#if user.role === 'admin'}
+									<a class="dropdown-item" href="/admin">{t('admin')}</a>
+								{/if}
 								<button class="dropdown-item" onclick={handleProfile}>{t('accountSettings')}</button>
 								<button class="dropdown-item" onclick={handleLogout}>{t('logout')}</button>
 							</div>
@@ -500,6 +495,8 @@
 	}
 
 	.dropdown-item {
+		display: block;
+		text-decoration: none;
 		width: 100%;
 		padding: 10px 16px;
 		font-size: 13px;

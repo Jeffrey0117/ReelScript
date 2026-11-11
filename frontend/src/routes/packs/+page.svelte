@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { t } from '$lib/i18n';
+	import { getUser, onAuthChange } from '$lib/auth';
 	import {
 		publicPacks,
 		publicDecks,
@@ -13,8 +14,11 @@
 	let packs = $state<PackSummary[]>([]);
 	let decks = $state<DeckSummary[]>([]);
 	let loading = $state(true);
+	let signedIn = $state(false);
 
 	onMount(async () => {
+		signedIn = Boolean(getUser());
+		onAuthChange((u) => (signedIn = Boolean(u)));
 		const [p, d] = await Promise.all([
 			publicPacks().catch(() => null),
 			publicDecks().catch(() => null),
@@ -54,6 +58,9 @@
 			{t('decksTab')}
 			{#if decks.length}<span class="tab-count">{decks.length}</span>{/if}
 		</button>
+		{#if signedIn}
+			<a class="tab" href="/collections">{t('collections')}</a>
+		{/if}
 	</div>
 </section>
 
