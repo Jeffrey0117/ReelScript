@@ -68,7 +68,9 @@ data/                              — SQLite DB + media files
 
 - Shell: `frontend/src/routes/watch/[id]/+page.svelte` loads the video once and hands it down.
   Components live in `frontend/src/lib/components/modes/`; each mode owns its whole look.
-- `ModeSwitcher` restyles itself per mode (`data-skin`). Adding a mode = id in
+- On wide screens the modes sit in the site header (`+layout.svelte`, skin `nav`) and the site
+  links fold into the menu button; under 900px the in-page switcher shows instead.
+- `ModeSwitcher` restyles itself per mode (`data-skin`) when shown in the page. Adding a mode = id in
   `lib/modes/text.ts` (`MODE_IDS` + copy), an icon and a skin in `ModeSwitcher`, a branch in the shell.
 - Pure logic is in `lib/lesson.ts` and `lib/typing-core.ts`, tested with `npm test` (in `frontend/`).
 - Modes never call AI on their own. The wordbook fills gaps from the offline dictionary

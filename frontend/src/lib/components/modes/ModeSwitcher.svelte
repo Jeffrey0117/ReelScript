@@ -3,7 +3,13 @@
 	// mode it is in (data-skin), so switching feels like walking into another site.
 	import { mt, MODE_IDS, type ModeId, type ModeTextKey } from '$lib/modes/text';
 
-	let { mode, onSwitch }: { mode: ModeId; onSwitch: (next: ModeId) => void } = $props();
+	// `skin` pins one look regardless of mode — the navbar uses 'nav' so the site
+	// header does not change face on every switch.
+	let {
+		mode,
+		onSwitch,
+		skin = undefined,
+	}: { mode: ModeId; onSwitch: (next: ModeId) => void; skin?: 'nav' } = $props();
 
 	const LABELS: Record<ModeId, ModeTextKey> = {
 		video: 'modeVideo',
@@ -25,7 +31,7 @@
 	};
 </script>
 
-<nav class="switcher" data-skin={mode} aria-label={mt('switcherLabel')}>
+<nav class="switcher" data-skin={skin ?? mode} aria-label={mt('switcherLabel')}>
 	{#each MODE_IDS as id (id)}
 		<button
 			class="tab"
@@ -71,6 +77,35 @@
 	.tab:focus-visible {
 		outline: 2px solid var(--accent);
 		outline-offset: 2px;
+	}
+
+	/* ── nav: inside the site header, quiet text tabs ── */
+	[data-skin='nav'] {
+		gap: 2px;
+		height: 100%;
+		align-items: stretch;
+	}
+	[data-skin='nav'] .tab {
+		padding: 0 12px;
+		font-weight: 500;
+		border-bottom: 2px solid transparent;
+		border-top: 2px solid transparent;
+	}
+	[data-skin='nav'] .tab:hover {
+		color: var(--text);
+	}
+	[data-skin='nav'] .tab.on {
+		color: var(--accent);
+		font-weight: 600;
+		border-bottom-color: var(--accent);
+	}
+	@media (max-width: 1100px) {
+		[data-skin='nav'] .tab {
+			padding: 0 9px;
+		}
+		[data-skin='nav'] .tab svg {
+			display: none;
+		}
 	}
 
 	/* ── video: the app's own pills ── */

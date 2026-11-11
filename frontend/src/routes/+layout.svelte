@@ -4,6 +4,10 @@
 	import { t, getLocale, setLocale, initLocale, onLocaleChange } from '$lib/i18n';
 	import { initAuth, onAuthChange, login, logout, isAdmin, type AuthUser } from '$lib/auth';
 	import { redeemInvite, getQuota, type Quota } from '$lib/api';
+	import { page } from '$app/state';
+	import { parseMode } from '$lib/modes/text';
+	import { switchMode, WATCH_ROUTE } from '$lib/modes/navigate';
+	import ModeSwitcher from '$lib/components/modes/ModeSwitcher.svelte';
 
 	let { children } = $props();
 
@@ -14,6 +18,11 @@
 	let showUserMenu = $state(false);
 	let showMobileMenu = $state(false);
 	let quota = $state<Quota | null>(null);
+
+	// Inside a video the header's job changes: its middle holds the six modes,
+	// and the site links fold into the menu button.
+	let watching = $derived(page.route.id === WATCH_ROUTE);
+	let mode = $derived(parseMode(page.url.searchParams.get('mode')));
 
 	onMount(() => {
 		const savedTheme = localStorage.getItem('reelscript-theme');
@@ -107,11 +116,17 @@
 
 {#key tick}
 <div class="app">
-	<nav class="navbar">
+	<nav class="navbar" class:watching>
 		<a href={user ? '/videos' : '/'} class="logo">
 			<img src="/logo.png" alt="ReelScript" class="logo-img" />
 			<span class="logo-text">ReelScript</span>
 		</a>
+
+		{#if watching}
+			<div class="nav-modes">
+				<ModeSwitcher {mode} skin="nav" onSwitch={(next) => switchMode(page.url, next)} />
+			</div>
+		{/if}
 
 		<div class="nav-right">
 			<div class="nav-links">
@@ -377,6 +392,31 @@
 		border: 1px solid var(--accent);
 		border-radius: var(--radius-sm);
 		white-space: nowrap;
+	}
+
+	/* Watch pages: modes in the middle, site links behind the menu button */
+	.nav-modes {
+		flex: 1;
+		min-width: 0;
+		height: 100%;
+		display: flex;
+		justify-content: center;
+		padding: 0 16px;
+	}
+
+	.navbar.watching .nav-links {
+		display: none;
+	}
+
+	.navbar.watching .mobile-menu-wrapper {
+		display: block;
+		order: 2;
+	}
+
+	@media (max-width: 900px) {
+		.nav-modes {
+			display: none;
+		}
 	}
 
 	/* Mobile menu — hidden on desktop, replaces nav-links below 768px */

@@ -4,13 +4,13 @@
 	// and brings its own look.
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
 	import { getVideo, translateVideo, appreciateVideo, type VideoDetail } from '$lib/api';
 	import { t } from '$lib/i18n';
 	import { getUser, onAuthChange } from '$lib/auth';
 	import { loadSavedWords, resetWordbook } from '$lib/wordbook.svelte';
 	import { mergeSentences, uniqueVocabulary } from '$lib/lesson';
-	import { parseMode, type ModeId } from '$lib/modes/text';
+	import { parseMode } from '$lib/modes/text';
+	import { switchMode } from '$lib/modes/navigate';
 	import ModeSwitcher from '$lib/components/modes/ModeSwitcher.svelte';
 	import VideoMode from '$lib/components/modes/VideoMode.svelte';
 	import ReadMode from '$lib/components/modes/ReadMode.svelte';
@@ -50,13 +50,6 @@
 			loadError = e instanceof Error ? e.message : 'Failed to load';
 		}
 	});
-
-	function switchMode(next: ModeId) {
-		const url = new URL(page.url);
-		if (next === 'video') url.searchParams.delete('mode');
-		else url.searchParams.set('mode', next);
-		void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
-	}
 
 	async function handleTranslate(): Promise<boolean> {
 		if (!video?.transcript || translating) return false;
@@ -100,7 +93,10 @@
 	<div class="loading">{t('loading')}</div>
 {:else}
 	<div class="mode-shell" data-mode={mode}>
-		<ModeSwitcher {mode} onSwitch={switchMode} />
+		<!-- On wide screens the modes live in the site header (see +layout.svelte). -->
+		<div class="inline-switch">
+			<ModeSwitcher {mode} onSwitch={(next) => switchMode(page.url, next)} />
+		</div>
 
 		{#key mode}
 			<div class="mode-stage">
@@ -153,6 +149,16 @@
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
+	}
+
+	.inline-switch {
+		display: none;
+	}
+
+	@media (max-width: 900px) {
+		.inline-switch {
+			display: contents;
+		}
 	}
 
 	.mode-stage {
