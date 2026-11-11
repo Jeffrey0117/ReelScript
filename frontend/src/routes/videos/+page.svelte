@@ -25,6 +25,9 @@
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/i18n';
 	import { getUser, login, onAuthChange } from '$lib/auth';
+	import { getLocale } from '$lib/i18n';
+	import ShelfToolbar from '$lib/components/ShelfToolbar.svelte';
+	import { filterVideos, countBySource, groupByAge, type SourceFilter, type AgeKey } from '$lib/video-shelf';
 
 	let url = $state('');
 	let loading = $state(false);
@@ -60,6 +63,19 @@
 	let readyVideos = $derived(videos.filter((v) => v.status === 'ready'));
 	let failedVideos = $derived(videos.filter((v) => v.status === 'failed'));
 	let activeVideos = $derived(videos.filter((v) => v.status !== 'failed'));
+
+	// The shelf: search, source filter, and grouping by how recently a video was added.
+	const SHELF_TOOLS_FROM = 9; // a handful of videos needs no search box
+	const AGE_LABELS: Record<AgeKey, string> =
+		getLocale() === 'en'
+			? { today: 'Today', week: 'This week', month: 'This month', older: 'Earlier' }
+			: { today: '今天', week: '這週', month: '這個月', older: '更早' };
+	let shelfQuery = $state('');
+	let shelfSource = $state<SourceFilter>('all');
+	let sourceCounts = $derived(countBySource(activeVideos));
+	let shownVideos = $derived(filterVideos(activeVideos, { query: shelfQuery, source: shelfSource }));
+	let shelfGroups = $derived(groupByAge(shownVideos, Date.now()));
+
 	let hasProcessing = $derived(videos.some((v) => PROCESSING_STATUSES.has(v.status)));
 	let retryingIds = $state<Set<string>>(new Set());
 	let retryingAll = $state(false);
@@ -679,8 +695,20 @@
 			</div>
 		</div>
 
+		{#if activeVideos.length >= SHELF_TOOLS_FROM}
+			<ShelfToolbar bind:query={shelfQuery} bind:source={shelfSource} counts={sourceCounts} shown={shownVideos.length} />
+		{/if}
+
+		{#if shownVideos.length === 0}
+			<p class="shelf-empty">{getLocale() === 'en' ? 'Nothing matches.' : '沒有符合的影片'}</p>
+		{/if}
+
+		{#each shelfGroups as group (group.key)}
+		{#if shelfGroups.length > 1}
+			<h3 class="shelf-group">{AGE_LABELS[group.key]}<span>{group.videos.length}</span></h3>
+		{/if}
 		<div class="video-list-items">
-			{#each activeVideos as video (video.id)}
+			{#each group.videos as video (video.id)}
 				{@const isReady = video.status === 'ready'}
 				{@const isSelected = selectedIds.has(video.id)}
 				{@const isEditing = editingVideoId === video.id}
@@ -722,6 +750,9 @@
 					{#if video.thumbnail}
 						<div class="video-thumb">
 							<img src={thumbnailUrl(video.thumbnail)} alt="" loading="lazy" />
+							<span class="thumb-source" class:ig={video.source === 'ig'}>
+								{video.source === 'ig' ? 'IG' : video.source === 'youtube' ? 'YT' : '?'}
+							</span>
 							{#if video.duration}
 								<span class="thumb-duration">{formatDuration(video.duration)}</span>
 							{/if}
@@ -779,12 +810,17 @@
 							{/if}
 						</div>
 
-						<div class="video-row-bottom">
+						<!-- A finished video with a poster needs no badges: the poster already says it all. -->
+						<div class="video-row-bottom" class:quiet={isReady && Boolean(video.thumbnail)}>
 							<div class="video-card-header">
-								<span class="badge {video.source === 'ig' ? 'badge-ig' : 'badge-youtube'}">
-									{video.source === 'ig' ? 'IG' : video.source === 'youtube' ? 'YT' : '?'}
-								</span>
-								<span class="badge {statusBadgeClass(video.status)}">{statusLabel(video.status)}</span>
+								{#if !video.thumbnail}
+									<span class="badge {video.source === 'ig' ? 'badge-ig' : 'badge-youtube'}">
+										{video.source === 'ig' ? 'IG' : video.source === 'youtube' ? 'YT' : '?'}
+									</span>
+								{/if}
+								{#if !isReady}
+									<span class="badge {statusBadgeClass(video.status)}">{statusLabel(video.status)}</span>
+								{/if}
 								{#if video.duration && !video.thumbnail}
 									<span class="meta-duration">{formatDuration(video.duration)}</span>
 								{/if}
@@ -804,6 +840,7 @@
 				</div>
 			{/each}
 		</div>
+		{/each}
 	</section>
 {/if}
 
@@ -1305,11 +1342,63 @@
 		font-size: 13px;
 	}
 
+	/* A shelf of vertical posters — these are mostly Reels and Shorts, and a wide
+	   crop cuts the speaker's face in half. */
+	.video-list {
+		padding-bottom: 80px;
+	}
+
 	.video-list-items {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-		gap: 12px;
-		padding-bottom: 80px;
+		grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+		gap: 18px 14px;
+	}
+
+	.shelf-group {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		margin: 26px 0 12px;
+		font-size: 13px;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		color: var(--text-dim);
+	}
+
+	.shelf-group:first-of-type {
+		margin-top: 4px;
+	}
+
+	.shelf-group span {
+		font-weight: 500;
+		opacity: 0.7;
+	}
+
+	.shelf-empty {
+		padding: 40px 0;
+		text-align: center;
+		color: var(--text-dim);
+	}
+
+	.video-row-bottom.quiet {
+		display: none;
+	}
+
+	.thumb-source {
+		position: absolute;
+		top: 6px;
+		left: 6px;
+		padding: 2px 6px;
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		color: #fff;
+		border-radius: 4px;
+		background: rgba(220, 38, 38, 0.88);
+	}
+
+	.thumb-source.ig {
+		background: rgba(225, 48, 108, 0.9);
 	}
 
 	.video-row {
@@ -1330,7 +1419,7 @@
 		width: 100%;
 		border-radius: 0;
 		overflow: hidden;
-		aspect-ratio: 16 / 9;
+		aspect-ratio: 3 / 4;
 		background: var(--border);
 	}
 
@@ -1338,7 +1427,13 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
+		object-position: center 20%;
 		display: block;
+		transition: transform 0.25s ease;
+	}
+
+	.video-row:hover:not(.disabled) .video-thumb img {
+		transform: scale(1.04);
 	}
 
 	.thumb-duration {
@@ -1360,7 +1455,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-		padding: 10px 14px 12px;
+		padding: 9px 11px 11px;
 	}
 
 	.video-row:hover:not(.disabled) {
@@ -1418,11 +1513,14 @@
 	}
 
 	.video-title {
-		font-size: 15px;
+		font-size: 14px;
 		font-weight: 600;
+		line-height: 1.4;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
 		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 		flex: 1;
 		min-width: 0;
 	}
@@ -1459,6 +1557,18 @@
 
 	.video-row:hover .edit-btn {
 		opacity: 1;
+	}
+
+	/* With a mouse the rename button floats over the end of the title on hover, so
+	   it does not steal width from a two-line title on a narrow poster. */
+	@media (pointer: fine) {
+		.edit-btn {
+			position: absolute;
+			top: -3px;
+			right: -5px;
+			background: var(--bg-card);
+			box-shadow: -6px 0 6px var(--bg-card);
+		}
 	}
 
 	@media (pointer: coarse) {
@@ -1752,7 +1862,8 @@
 		}
 
 		.video-list-items {
-			grid-template-columns: 1fr;
+			grid-template-columns: repeat(2, 1fr);
+			gap: 14px 10px;
 		}
 
 		.floating-bar {
