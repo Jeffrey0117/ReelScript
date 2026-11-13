@@ -1,0 +1,412 @@
+{
+  "repo": 1,
+  "name": "reelscript",
+  "what": "Video learning platform — download, transcribe, translate, and analyze video content.",
+  "kind": "service",
+  "work": {
+    "guide": "CLAUDE.md",
+    "run": "npm run dev",
+    "test": "npm test",
+    "build": "npm run build",
+    "deploy": "git push"
+  },
+  "offers": [
+    {
+      "id": "process_video",
+      "what": "Download and process a video from URL (YouTube, Instagram, Bilibili, TikTok). Triggers async pipeline: download → transcribe → translate → analyze",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/videos/process",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "Video URL from supported platforms (YouTube, Instagram, Bilibili, TikTok)"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "id": "get_video",
+      "what": "Get video details with full transcript, translations, and vocabulary",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/videos/{video_id}",
+        "params": {
+          "type": "object",
+          "properties": {
+            "video_id": {
+              "type": "string",
+              "description": "Video ID"
+            }
+          },
+          "required": [
+            "video_id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "translate_video",
+      "what": "Translate video transcript segments to Traditional Chinese",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/videos/{video_id}/translate",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "video_id": {
+              "type": "string",
+              "description": "Video ID"
+            }
+          },
+          "required": [
+            "video_id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "analyze_vocabulary",
+      "what": "Extract useful English vocabulary (phrasal verbs, idioms, collocations) with Chinese translations",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/videos/{video_id}/analyze-vocabulary",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "video_id": {
+              "type": "string",
+              "description": "Video ID"
+            }
+          },
+          "required": [
+            "video_id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "appreciate_video",
+      "what": "Generate content appreciation: theme, key points, and golden quotes (en + zh)",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/videos/{video_id}/appreciate",
+        "auth": "header",
+        "params": {
+          "type": "object",
+          "properties": {
+            "video_id": {
+              "type": "string",
+              "description": "Video ID"
+            }
+          },
+          "required": [
+            "video_id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "get_article",
+      "what": "Get blog-ready article: theme, key points, golden quotes, bilingual segments, vocabulary",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/videos/{video_id}/article",
+        "params": {
+          "type": "object",
+          "properties": {
+            "video_id": {
+              "type": "string",
+              "description": "Video ID"
+            }
+          },
+          "required": [
+            "video_id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "get_learning_cards",
+      "what": "Get all segments as ordered bilingual learning cards with vocabulary",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/videos/{video_id}/cards",
+        "params": {
+          "type": "object",
+          "properties": {
+            "video_id": {
+              "type": "string",
+              "description": "Video ID"
+            }
+          },
+          "required": [
+            "video_id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "get_audio",
+      "what": "Extract MP3 audio with bilingual timeline from a video",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/videos/{video_id}/audio",
+        "params": {
+          "type": "object",
+          "properties": {
+            "video_id": {
+              "type": "string",
+              "description": "Video ID"
+            }
+          },
+          "required": [
+            "video_id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "search",
+      "what": "Search across all video content (keyword or AI semantic search)",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/search",
+        "params": {
+          "type": "object",
+          "properties": {
+            "q": {
+              "type": "string",
+              "description": "Search query (1-200 chars)"
+            },
+            "mode": {
+              "type": "string",
+              "description": "Search mode: keyword (fast) or semantic (AI-powered, slower)"
+            },
+            "limit": {
+              "type": "number",
+              "description": "Max results (1-50, default 20)"
+            }
+          },
+          "required": [
+            "q"
+          ]
+        }
+      }
+    },
+    {
+      "id": "list_videos",
+      "what": "List public videos with pagination and optional featured filter",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/videos",
+        "params": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "number",
+              "description": "Results per page (1-100, default 20)"
+            },
+            "offset": {
+              "type": "number",
+              "description": "Pagination offset (default 0)"
+            },
+            "featured": {
+              "type": "boolean",
+              "description": "Filter to featured videos only"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "random_snippet",
+      "what": "Get a random bilingual learning snippet (one complete sentence with translation and vocabulary)",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/snippet/random"
+      }
+    },
+    {
+      "id": "daily_snippet",
+      "what": "Get today's featured learning snippet (deterministic per day)",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/snippet/daily"
+      }
+    },
+    {
+      "id": "list_vocabulary",
+      "what": "Get aggregated vocabulary across all videos with pagination",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/vocabulary",
+        "params": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "number",
+              "description": "Words per page (1-200, default 50)"
+            },
+            "offset": {
+              "type": "number",
+              "description": "Pagination offset (default 0)"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "list_quotes",
+      "what": "Get golden quotes (en + zh) from all video appreciations",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/quotes",
+        "params": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "number",
+              "description": "Max quotes (1-100, default 20)"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "get_quota",
+      "what": "Get current monthly usage quota (plan, used, remaining, bonus)",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/quota",
+        "auth": "header"
+      }
+    },
+    {
+      "id": "get_lesson",
+      "what": "Get a public video as a timed bilingual lesson: per-sentence start/end seconds, English, Chinese, key vocabulary, plus theme, key points and golden quotes. Read-only (no LLM cost). Use when you need subtitles with timestamps, e.g. for a player or clip cutting",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/videos/{video_id}/lesson",
+        "params": {
+          "type": "object",
+          "properties": {
+            "video_id": {
+              "type": "string",
+              "description": "Video ID (must be public and ready)"
+            }
+          },
+          "required": [
+            "video_id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "dict_lookup",
+      "what": "Look up an English word in the offline EN → Traditional Chinese dictionary (accepts inflected forms). Returns found flag, word, phonetic and translation",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/dict/{word}",
+        "params": {
+          "type": "object",
+          "properties": {
+            "word": {
+              "type": "string",
+              "description": "English word to look up (max 50 chars)"
+            }
+          },
+          "required": [
+            "word"
+          ]
+        }
+      }
+    },
+    {
+      "id": "list_packs",
+      "what": "List public material packs (curated video collections), official first. Returns id, name, description, video count and cover",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/packs"
+      }
+    },
+    {
+      "id": "get_pack",
+      "what": "Get a public material pack with the list of its public videos (id, title, source, channel, duration, thumbnail)",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/packs/{pack_id}",
+        "params": {
+          "type": "object",
+          "properties": {
+            "pack_id": {
+              "type": "string",
+              "description": "Pack ID (from list_packs)"
+            }
+          },
+          "required": [
+            "pack_id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "list_decks",
+      "what": "List member-published shared word decks, most saved first. Returns id, title, author, word count and a 3-word preview",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/decks"
+      }
+    },
+    {
+      "id": "get_deck",
+      "what": "Get a shared word deck with all its words (word, meaning, example)",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/public/decks/{deck_id}",
+        "params": {
+          "type": "object",
+          "properties": {
+            "deck_id": {
+              "type": "string",
+              "description": "Deck ID (from list_decks)"
+            }
+          },
+          "required": [
+            "deck_id"
+          ]
+        }
+      }
+    }
+  ]
+}
