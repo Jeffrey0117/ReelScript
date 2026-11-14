@@ -43,7 +43,8 @@ backend/
     websocket.py                  — Real-time progress
   services/
     downloader.py                 — yt-dlp + thumbnail generation
-    transcriber.py                — Whisper integration
+    transcriber.py                — Whisper integration (adapter over whisper_kit.py)
+    whisper_kit.py                — copy of github.com/Jeffrey0117/whisper-kit; update there, then re-copy
     translator.py                 — LLM translation (OpenAI/Groq)
     vocabulary.py                 — Vocabulary extraction
     appreciation.py               — Theme, key points, golden quotes
